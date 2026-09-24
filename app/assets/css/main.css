@@ -1,0 +1,304 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* Kords brand kit — colors, fonts, radius, shadows
+   Source: Kords Design System v1.0 (kords-design-system.html) */
+
+@font-face {
+  font-family: "Thmanyah Sans";
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/thmanyah-sans-300.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/thmanyah-sans-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/thmanyah-sans-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/thmanyah-sans-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/thmanyah-sans-900.woff2") format("woff2");
+}
+
+@theme static {
+  --font-sans: "Thmanyah Sans", "Segoe UI", sans-serif;
+  --font-display: "Thmanyah Sans", "Segoe UI", sans-serif;
+  --font-serif-text: "Thmanyah Sans", "Segoe UI", sans-serif;
+
+  --color-kords-primary-50: #f5f4fa;
+  --color-kords-primary-100: #ebeaf5;
+  --color-kords-primary-200: #d1ccef;
+  --color-kords-primary-300: #b1a9e4;
+  --color-kords-primary-400: #877ad6;
+  --color-kords-primary-500: #5d4bc8;
+  --color-kords-primary-600: #4736af;
+  --color-kords-primary-700: #3a2c90;
+  --color-kords-primary-800: #2e2370;
+  --color-kords-primary-900: #211951;
+  --color-kords-primary-950: #140f33;
+
+  --color-kords-secondary-50: #e6e6f8;
+  --color-kords-secondary-100: #d8d9f5;
+  --color-kords-secondary-200: #b3b5f3;
+  --color-kords-secondary-300: #898ded;
+  --color-kords-secondary-400: #5258e4;
+  --color-kords-secondary-500: #2229d9;
+  --color-kords-secondary-600: #1c22b4;
+  --color-kords-secondary-700: #171c92;
+  --color-kords-secondary-800: #121671;
+  --color-kords-secondary-900: #0b0e52;
+  --color-kords-secondary-950: #060830;
+
+  /* Success — the design system defines this as the same Bright Mint as
+     accent (#15F5BA), with the darker shades used as "ink" text on
+     light success badges/alerts. */
+  --color-kords-success-50: #e7fef8;
+  --color-kords-success-100: #d9fdf4;
+  --color-kords-success-200: #b6fcea;
+  --color-kords-success-300: #8afadd;
+  --color-kords-success-400: #50f8cb;
+  --color-kords-success-500: #15f5ba;
+  --color-kords-success-600: #09d39e;
+  --color-kords-success-700: #07ac81;
+  --color-kords-success-800: #068563;
+  --color-kords-success-900: #045e46;
+  --color-kords-success-950: #023729;
+
+  --color-kords-warning-50: #fdf8ea;
+  --color-kords-warning-100: #fcf4db;
+  --color-kords-warning-200: #ffecb3;
+  --color-kords-warning-300: #ffe084;
+  --color-kords-warning-400: #ffdc94;
+  --color-kords-warning-500: #ffc857;
+  --color-kords-warning-600: #ffb929;
+  --color-kords-warning-700: #ffac00;
+  --color-kords-warning-800: #d79000;
+  --color-kords-warning-900: #ae7500;
+  --color-kords-warning-950: #855900;
+
+  --color-kords-error-50: #fffafb;
+  --color-kords-error-100: #ffebef;
+  --color-kords-error-200: #ffc7d1;
+  --color-kords-error-300: #ff99ac;
+  --color-kords-error-400: #ff5c7a;
+  --color-kords-error-500: #ff1f48;
+  --color-kords-error-600: #f0002c;
+  --color-kords-error-700: #c70025;
+  --color-kords-error-800: #9e001d;
+  --color-kords-error-900: #760016;
+  --color-kords-error-950: #4d000e;
+
+  --color-kords-info-50: #f2f7fe;
+  --color-kords-info-100: #e4eefd;
+  --color-kords-info-200: #bed9ff;
+  --color-kords-info-300: #90bfff;
+  --color-kords-info-400: #539bff;
+  --color-kords-info-500: #1677ff;
+  --color-kords-info-600: #0061e7;
+  --color-kords-info-700: #004fbe;
+  --color-kords-info-800: #003e95;
+  --color-kords-info-900: #002d6c;
+  --color-kords-info-950: #001c43;
+
+  --color-kords-neutral-50: #f1f2f3;
+  --color-kords-neutral-100: #e8e9eb;
+  --color-kords-neutral-200: #d4d6da;
+  --color-kords-neutral-300: #babec4;
+  --color-kords-neutral-400: #999ea6;
+  --color-kords-neutral-500: #777e89;
+  --color-kords-neutral-600: #626871;
+  --color-kords-neutral-700: #50555d;
+  --color-kords-neutral-800: #3e4248;
+  --color-kords-neutral-900: #2c2f33;
+  --color-kords-neutral-950: #1a1b1e;
+
+  /* Accent — bright mint, used for primary CTAs, "new" badges and success signals */
+  --color-kords-accent-50: #edfdf8;
+  --color-kords-accent-100: #dffbf3;
+  --color-kords-accent-200: #b9fcea;
+  --color-kords-accent-300: #8cfadd;
+  --color-kords-accent-400: #51f8cc;
+  --color-kords-accent-500: #15f5ba;
+  --color-kords-accent-600: #09d49e;
+  --color-kords-accent-700: #07ae82;
+  --color-kords-accent-800: #068765;
+  --color-kords-accent-900: #02634a;
+  --color-kords-accent-950: #013c2d;
+
+  /* Elevation, lifted straight from the brand kit */
+  --shadow-card: 0px 0px 2px 0px rgba(145, 158, 171, 0.3), 0px 12px 24px -4px rgba(145, 158, 171, 0.12);
+  --shadow-soft: -1px 13px 22px -4px rgba(145, 158, 171, 0.12);
+  --shadow-lifted: 10px 12px 30px -2px rgba(58, 75, 122, 0.15);
+  --shadow-glow: 0 0 0 1px rgba(82, 88, 228, 0.14), 0 8px 30px rgba(21, 245, 186, 0.14);
+}
+
+:root {
+  --ui-radius: 7px;
+  --ui-container: 1100px;
+  --ui-header-height: 4.8rem;
+
+  /* Anchor each semantic color on its exact brand hex in light mode */
+  --ui-primary: var(--color-kords-primary-900);
+  --ui-secondary: var(--color-kords-secondary-400);
+  --ui-success: var(--color-kords-success-700);
+  --ui-error: var(--color-kords-error-400);
+  --ui-info: var(--color-kords-info-400);
+
+  --kords-gradient-start: #5dc2ae;
+  --kords-gradient-end: #1b1852;
+
+  /* Navy 900 — dedicated dark hub/hero background, distinct from the
+     Navy 800 (--color-kords-primary-900) brand/authority color used
+     for nav, table headers and other "control" surfaces. */
+  --kords-navy-900: #1f1f32;
+  --kords-navy-700: #2a2d56;
+
+  /* Design-system spacing scale (4px base) */
+  --kords-s-1: 4px; --kords-s-2: 8px; --kords-s-3: 12px; --kords-s-4: 16px; --kords-s-5: 20px;
+  --kords-s-6: 24px; --kords-s-8: 32px; --kords-s-10: 40px; --kords-s-12: 48px; --kords-s-16: 64px;
+  --kords-s-20: 80px; --kords-s-24: 96px; --kords-s-32: 128px;
+
+  /* Design-system radius scale */
+  --kords-r-sm: 6px; --kords-r-md: 10px; --kords-r-lg: 16px; --kords-r-xl: 24px; --kords-r-full: 999px;
+}
+
+.dark {
+  --ui-primary: var(--color-kords-primary-400);
+}
+
+/* Design system: Serif Display for headings, Sans for UI/body copy */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+}
+
+/* Deep Navy heading color. `text-highlighted` is the generic "no special
+   styling" default most headings carry, so it's outweighed here too —
+   but a deliberate contrast override like `text-white` on a dark-background
+   section (e.g. the footer) is untouched, since it doesn't match these rules.
+   Dark mode restores the original adaptive color so text stays legible
+   against dark backgrounds. Uses @layer utilities (not base) because
+   Tailwind's `.text-highlighted`/`.text-white` utilities live in that layer
+   too — cascade layers are checked before specificity, so a @layer base
+   rule can never outrank a utilities-layer class no matter how specific. */
+@layer utilities {
+  h2, h3,
+  h2.text-highlighted, h3.text-highlighted {
+    color: var(--kords-navy-900);
+  }
+  .dark h2, .dark h3,
+  .dark h2.text-highlighted, .dark h3.text-highlighted {
+    color: var(--ui-text-highlighted);
+  }
+}
+
+/* Shared rich-text styling for post content — used by both the admin
+   Tiptap editor and the public post detail page so authored content
+   renders identically in both places. */
+.rich-content {
+  line-height: 1.75;
+}
+.rich-content h2 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.5rem;
+}
+.rich-content h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+}
+.rich-content p {
+  font-family: var(--font-serif-text);
+  margin: 0.5rem 0;
+}
+.rich-content ul,
+.rich-content ol {
+  margin: 0.5rem 0;
+  padding-inline-start: 1.5rem;
+}
+.rich-content ul {
+  list-style: disc;
+}
+.rich-content ol {
+  list-style: decimal;
+}
+.rich-content blockquote {
+  border-inline-start: 3px solid var(--ui-border-accented);
+  padding-inline-start: 1rem;
+  color: var(--ui-text-muted);
+  margin: 0.75rem 0;
+}
+.rich-content img {
+  margin: 1rem 0;
+  border-radius: 0.75rem;
+  max-width: 100%;
+  height: auto;
+}
+.rich-content a {
+  color: var(--ui-primary);
+  text-decoration: underline;
+}
+.rich-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--ui-text-muted);
+  float: inline-start;
+  height: 0;
+  pointer-events: none;
+}
+.rich-content table {
+  width: 100%;
+  margin: 1rem 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.rich-content th,
+.rich-content td {
+  border: 1px solid var(--ui-border);
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+  vertical-align: top;
+  position: relative;
+}
+.rich-content th {
+  background: var(--ui-bg-muted);
+  font-weight: 700;
+}
+.rich-content .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ui-primary);
+  opacity: 0.15;
+  pointer-events: none;
+}
+.rich-content .column-resize-handle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: -2px;
+  width: 4px;
+  background: var(--ui-primary);
+  pointer-events: none;
+}
+.rich-content .tableWrapper {
+  overflow-x: auto;
+}
