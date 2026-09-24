@@ -166,8 +166,11 @@ export type Database = {
           id: string;
           name: string;
           phone: string | null;
+          phone2: string | null;
           email: string | null;
-          source: string | null;
+          source: Database["public"]["Enums"]["lead_source"] | null;
+          lead_type: Database["public"]["Enums"]["lead_type"];
+          company_name: string | null;
           status: Database["public"]["Enums"]["lead_status"];
           notes: string | null;
           assigned_to: string | null;
@@ -180,8 +183,11 @@ export type Database = {
           id?: string;
           name: string;
           phone?: string | null;
+          phone2?: string | null;
           email?: string | null;
-          source?: string | null;
+          source?: Database["public"]["Enums"]["lead_source"] | null;
+          lead_type?: Database["public"]["Enums"]["lead_type"];
+          company_name?: string | null;
           status?: Database["public"]["Enums"]["lead_status"];
           notes?: string | null;
           assigned_to?: string | null;
@@ -194,8 +200,11 @@ export type Database = {
           id?: string;
           name?: string;
           phone?: string | null;
+          phone2?: string | null;
           email?: string | null;
-          source?: string | null;
+          source?: Database["public"]["Enums"]["lead_source"] | null;
+          lead_type?: Database["public"]["Enums"]["lead_type"];
+          company_name?: string | null;
           status?: Database["public"]["Enums"]["lead_status"];
           notes?: string | null;
           assigned_to?: string | null;
@@ -392,6 +401,8 @@ export type Database = {
     };
     Enums: {
       lead_status: "new" | "contacted" | "qualified" | "converted" | "lost";
+      lead_type: "individual" | "company";
+      lead_source: "facebook" | "instagram" | "meta" | "google" | "website" | "event" | "referral";
       deal_stage: "open" | "proposal" | "negotiation" | "won" | "lost";
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "expired";
     };

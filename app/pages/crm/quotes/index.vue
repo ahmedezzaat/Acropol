@@ -7,6 +7,7 @@ definePageMeta({
 });
 
 const supabase = useSupabaseClient();
+const { t } = useI18n();
 
 interface Quote {
   id: string;
@@ -48,12 +49,12 @@ const statusColors: Record<string, "neutral" | "info" | "warning" | "success" | 
   expired: "warning",
 };
 
-const columns: TableColumn<Quote>[] = [
-  { accessorKey: "quote_number", header: "Quote #" },
-  { id: "customer", header: "Customer" },
-  { accessorKey: "status", header: "Status" },
-  { accessorKey: "total", header: "Total" },
-];
+const columns = computed<TableColumn<Quote>[]>(() => [
+  { accessorKey: "quote_number", header: t("crm.quotes.quoteNumber") },
+  { id: "customer", header: t("crm.quotes.customer") },
+  { accessorKey: "status", header: t("common.status") },
+  { accessorKey: "total", header: t("crm.quotes.total") },
+]);
 
 function openQuote(quote: Quote) {
   navigateTo(`/crm/quotes/${quote.id}`);
@@ -63,7 +64,7 @@ function openQuote(quote: Quote) {
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar title="Quotes">
+      <UDashboardNavbar :title="t('crm.quotes.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -81,7 +82,7 @@ function openQuote(quote: Quote) {
           {{ customerName(row.original.customer_id) }}
         </template>
         <template #status-cell="{ row }">
-          <UBadge :label="row.original.status" :color="statusColors[row.original.status]" variant="subtle" />
+          <UBadge :label="t(`crm.quotes.statusValues.${row.original.status}`)" :color="statusColors[row.original.status]" variant="subtle" />
         </template>
       </UTable>
     </template>

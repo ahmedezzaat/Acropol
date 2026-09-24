@@ -2,6 +2,7 @@
 definePageMeta({ layout: "dashboard" });
 
 const { hasAnyModulePermission, loaded } = usePermissions();
+const { t } = useI18n();
 
 const visibleModules = computed(() =>
   MODULES.filter((m) => m.resources.some((r) => hasAnyModulePermission(r.key))),
@@ -11,7 +12,7 @@ const visibleModules = computed(() =>
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar title="Home">
+      <UDashboardNavbar :title="t('home.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -24,8 +25,7 @@ const visibleModules = computed(() =>
       </div>
 
       <div v-else-if="visibleModules.length === 0" class="py-16 text-center text-muted">
-        You don't have access to any modules yet. Ask an administrator to
-        grant you a role.
+        {{ t("home.noAccess") }}
       </div>
 
       <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
@@ -36,7 +36,7 @@ const visibleModules = computed(() =>
           class="flex flex-col items-center gap-3 rounded-lg border border-default p-6 text-center transition hover:border-primary hover:bg-elevated"
         >
           <UIcon :name="module.icon" class="size-8 text-primary" />
-          <span class="font-medium text-highlighted">{{ module.label }}</span>
+          <span class="font-medium text-highlighted">{{ t(module.labelKey) }}</span>
         </ULink>
       </div>
     </template>

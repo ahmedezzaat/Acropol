@@ -1,0 +1,271 @@
+{
+  "pages": {
+    "index": { "title": "@:home.title" },
+    "login": { "title": "@:auth.login.title" },
+    "403": { "title": "@:forbidden.title" },
+    "crm": { "title": "@:modules.crm.label" },
+    "crm-leads": { "title": "@:crm.leads.title" },
+    "crm-leads-id": { "title": "@:crm.leads.title" },
+    "crm-deals": { "title": "@:crm.deals.title" },
+    "crm-deals-id": { "title": "@:crm.deals.title" },
+    "crm-quotes": { "title": "@:crm.quotes.title" },
+    "crm-quotes-id": { "title": "@:crm.quotes.title" },
+    "crm-customers": { "title": "@:crm.customers.title" },
+    "crm-customers-id": { "title": "@:crm.customers.title" },
+    "admin-users": { "title": "@:admin.users.title" },
+    "admin-roles": { "title": "@:admin.roles.title" },
+    "admin-roles-id": { "title": "@:admin.roles.title" }
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Invalid email",
+    "minLength": "Must be at least {min} characters"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "search": "Search",
+    "loading": "Loading...",
+    "noData": "No data",
+    "unassigned": "Unassigned",
+    "all": "all",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "status": "Status",
+    "details": "Details",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "nav": {
+    "appName": "Acropol",
+    "home": "Home",
+    "signOut": "Sign out"
+  },
+  "modules": {
+    "crm": {
+      "label": "CRM"
+    }
+  },
+  "resources": {
+    "crm_leads": {
+      "label": "Leads",
+      "actions": {
+        "create": "Create",
+        "edit": "Edit",
+        "delete": "Delete",
+        "assign": "Assign leads",
+        "view_all": "View all leads"
+      }
+    },
+    "crm_deals": {
+      "label": "Deals",
+      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete" }
+    },
+    "crm_quotes": {
+      "label": "Quotes",
+      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete" }
+    },
+    "crm_customers": {
+      "label": "Customers",
+      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete" }
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome back",
+      "description": "Sign in with the account your administrator created for you.",
+      "email": "Email",
+      "password": "Password",
+      "passwordPlaceholder": "Enter your password",
+      "submit": "Sign in",
+      "signedIn": "Signed in",
+      "error": "Incorrect email or password."
+    }
+  },
+  "forbidden": {
+    "title": "Not authorized",
+    "description": "You don't have permission to access this page. Ask an administrator to grant you access.",
+    "backHome": "Back to home"
+  },
+  "home": {
+    "title": "Home",
+    "noAccess": "You don't have access to any modules yet. Ask an administrator to grant you a role."
+  },
+  "admin": {
+    "users": {
+      "title": "Users",
+      "newUser": "New user",
+      "fullName": "Full name",
+      "role": "Role",
+      "noRole": "No role",
+      "admin": "Admin",
+      "createUserTitle": "New user",
+      "password": "Password",
+      "administratorFullAccess": "Administrator (full access)",
+      "createUser": "Create user",
+      "userCreated": "User created",
+      "createUserFailed": "Failed to create user",
+      "editUserTitle": "Edit {email}",
+      "activeCanSignIn": "Active (can sign in)",
+      "userUpdated": "User updated",
+      "updateUserFailed": "Failed to update user",
+      "resetPasswordTitle": "Reset password for {email}",
+      "newPassword": "New password",
+      "resetPassword": "Reset password",
+      "passwordReset": "Password reset",
+      "resetPasswordFailed": "Failed to reset password"
+    },
+    "roles": {
+      "title": "Roles",
+      "newRole": "New role",
+      "name": "Name",
+      "description": "Description",
+      "createRoleTitle": "New role",
+      "roleCreated": "Role created",
+      "createRoleFailed": "Failed to create role",
+      "editRole": "Edit role",
+      "deleteRole": "Delete role",
+      "roleDeleted": "Role deleted",
+      "deleteRoleFailed": "Failed to delete role",
+      "detailsTitle": "Details",
+      "saveDetails": "Save details",
+      "roleSaved": "Role saved",
+      "saveFailed": "Failed to save",
+      "permissionsTitle": "Permissions",
+      "permissionsDescription": "What this role can do in each module.",
+      "savePermissions": "Save permissions",
+      "permissionsSaved": "Permissions saved",
+      "savePermissionsFailed": "Failed to save permissions"
+    }
+  },
+  "crm": {
+    "noAccess": "You don't have access to any CRM section yet.",
+    "leads": {
+      "title": "Leads",
+      "newLead": "New lead",
+      "searchPlaceholder": "Search leads...",
+      "contact": "Contact",
+      "assignedTo": "Assigned to",
+      "phone2": "Additional phone",
+      "leadType": "Lead type",
+      "contactPerson": "Contact person",
+      "companyName": "Company name",
+      "type": {
+        "individual": "Individual",
+        "company": "Company"
+      },
+      "source": "Lead source",
+      "sourceValues": {
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "meta": "Meta",
+        "google": "Google",
+        "website": "Website",
+        "event": "Event",
+        "referral": "Referral"
+      },
+      "notes": "Notes",
+      "assignHint": "New leads are unassigned by default. You don't have permission to assign leads.",
+      "createLead": "Create lead",
+      "leadCreated": "Lead created",
+      "createLeadFailed": "Failed to create lead",
+      "convertToCustomer": "Convert to customer",
+      "converted": "Converted",
+      "convertedDescription": "This lead has been converted to a customer.",
+      "convertedSuccess": "Converted to customer",
+      "convertFailed": "Failed to convert lead",
+      "assignPermissionHint": "You don't have permission to (re)assign leads.",
+      "leadSaved": "Lead saved",
+      "saveFailed": "Failed to save",
+      "leadDeleted": "Lead deleted",
+      "deleteFailed": "Failed to delete lead",
+      "status": {
+        "new": "new",
+        "contacted": "contacted",
+        "qualified": "qualified",
+        "converted": "converted",
+        "lost": "lost"
+      }
+    },
+    "deals": {
+      "title": "Deals",
+      "dealTitle": "Title",
+      "newDeal": "New deal",
+      "customer": "Customer",
+      "stage": "Stage",
+      "value": "Value",
+      "expectedCloseDate": "Expected close date",
+      "createDeal": "Create deal",
+      "dealCreated": "Deal created",
+      "createDealFailed": "Failed to create deal",
+      "dealSaved": "Deal saved",
+      "saveFailed": "Failed to save",
+      "dealDeleted": "Deal deleted",
+      "deleteFailed": "Failed to delete deal",
+      "quotesTitle": "Quotes",
+      "noQuotesYet": "No quotes yet.",
+      "newQuote": "New quote",
+      "createQuoteFailed": "Failed to create quote",
+      "stageValues": {
+        "open": "open",
+        "proposal": "proposal",
+        "negotiation": "negotiation",
+        "won": "won",
+        "lost": "lost"
+      }
+    },
+    "quotes": {
+      "title": "Quotes",
+      "quoteNumber": "Quote #",
+      "customer": "Customer",
+      "validUntil": "Valid until",
+      "tax": "Tax",
+      "detailsTitle": "Details",
+      "lineItemsTitle": "Line items",
+      "description": "Description",
+      "qty": "Qty",
+      "unitPrice": "Unit price",
+      "lineTotal": "Line total",
+      "addItem": "Add item",
+      "newItemDefault": "New item",
+      "subtotal": "Subtotal",
+      "total": "Total",
+      "quoteSaved": "Quote saved",
+      "saveFailed": "Failed to save",
+      "itemSaveFailed": "Failed to save item",
+      "addItemFailed": "Failed to add item",
+      "removeItemFailed": "Failed to remove item",
+      "quoteDeleted": "Quote deleted",
+      "deleteFailed": "Failed to delete quote",
+      "statusValues": {
+        "draft": "draft",
+        "sent": "sent",
+        "accepted": "accepted",
+        "rejected": "rejected",
+        "expired": "expired"
+      }
+    },
+    "customers": {
+      "title": "Customers",
+      "newCustomer": "New customer",
+      "searchPlaceholder": "Search customers...",
+      "company": "Company",
+      "address": "Address",
+      "createCustomer": "Create customer",
+      "customerCreated": "Customer created",
+      "createCustomerFailed": "Failed to create customer",
+      "customerSaved": "Customer saved",
+      "saveFailed": "Failed to save",
+      "customerDeleted": "Customer deleted",
+      "deleteFailed": "Failed to delete customer",
+      "dealsTitle": "Deals",
+      "noDealsYet": "No deals yet.",
+      "quotesTitle": "Quotes",
+      "noQuotesYet": "No quotes yet."
+    }
+  }
+}

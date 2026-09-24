@@ -4,51 +4,56 @@
 // home page icon grid, the admin role editor, the CRM sidebar nav, and
 // route-guard middleware. Adding a future module is just appending an entry
 // here — no schema or framework change needed.
+//
+// Labels are i18n keys (resolved with $t() at render time), not literal
+// text, so this stays a single source of truth across locales too.
 
 export interface ModuleActionDef {
   key: string;
-  label: string;
+  labelKey: string;
 }
 
 export interface ModuleResourceDef {
   key: string;
-  label: string;
+  labelKey: string;
   actions: ModuleActionDef[];
 }
 
 export interface ModuleDef {
   key: string;
-  label: string;
+  labelKey: string;
   icon: string;
   route: string;
   resources: ModuleResourceDef[];
 }
 
-const CRUD: ModuleActionDef[] = [
-  { key: "create", label: "Create" },
-  { key: "edit", label: "Edit" },
-  { key: "delete", label: "Delete" },
-];
+function crud(resourceKey: string): ModuleActionDef[] {
+  return [
+    { key: "create", labelKey: `resources.${resourceKey}.actions.create` },
+    { key: "edit", labelKey: `resources.${resourceKey}.actions.edit` },
+    { key: "delete", labelKey: `resources.${resourceKey}.actions.delete` },
+  ];
+}
 
 export const MODULES: ModuleDef[] = [
   {
     key: "crm",
-    label: "CRM",
+    labelKey: "modules.crm.label",
     icon: "i-lucide-briefcase",
     route: "/crm",
     resources: [
       {
         key: "crm_leads",
-        label: "Leads",
+        labelKey: "resources.crm_leads.label",
         actions: [
-          ...CRUD,
-          { key: "assign", label: "Assign leads" },
-          { key: "view_all", label: "View all leads" },
+          ...crud("crm_leads"),
+          { key: "assign", labelKey: "resources.crm_leads.actions.assign" },
+          { key: "view_all", labelKey: "resources.crm_leads.actions.view_all" },
         ],
       },
-      { key: "crm_deals", label: "Deals", actions: CRUD },
-      { key: "crm_quotes", label: "Quotes", actions: CRUD },
-      { key: "crm_customers", label: "Customers", actions: CRUD },
+      { key: "crm_deals", labelKey: "resources.crm_deals.label", actions: crud("crm_deals") },
+      { key: "crm_quotes", labelKey: "resources.crm_quotes.label", actions: crud("crm_quotes") },
+      { key: "crm_customers", labelKey: "resources.crm_customers.label", actions: crud("crm_customers") },
     ],
   },
 ];

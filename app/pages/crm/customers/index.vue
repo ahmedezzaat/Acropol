@@ -10,6 +10,7 @@ definePageMeta({
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission } = usePermissions();
+const { t } = useI18n();
 
 interface Customer {
   id: string;
@@ -39,22 +40,24 @@ const filteredCustomers = computed(() =>
   ),
 );
 
-const columns: TableColumn<Customer>[] = [
-  { accessorKey: "name", header: "Name" },
-  { accessorKey: "company", header: "Company" },
-  { id: "contact", header: "Contact" },
-];
+const columns = computed<TableColumn<Customer>[]>(() => [
+  { accessorKey: "name", header: t("common.name") },
+  { accessorKey: "company", header: t("crm.customers.company") },
+  { id: "contact", header: t("crm.leads.contact") },
+]);
 
 const createOpen = ref(false);
 const creating = ref(false);
-const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  company: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().optional(),
-  address: z.string().optional(),
-});
-type Schema = z.output<typeof schema>;
+const schema = computed(() =>
+  z.object({
+    name: z.string().min(1, t("validation.required")),
+    company: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().optional(),
+    address: z.string().optional(),
+  }),
+);
+type Schema = { name: string; company?: string; phone?: string; email?: string; address?: string };
 const state = reactive<Partial<Schema>>({ name: "", company: "", phone: "", email: "", address: "" });
 
 async function onCreate(event: FormSubmitEvent<Schema>) {
@@ -69,11 +72,11 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   creating.value = false;
 
   if (error) {
-    toast.add({ title: "Failed to create customer", description: error.message, color: "error" });
+    toast.add({ title: t("crm.customers.createCustomerFailed"), description: error.message, color: "error" });
     return;
   }
 
-  toast.add({ title: "Customer created", color: "success" });
+  toast.add({ title: t("crm.customers.customerCreated"), color: "success" });
   createOpen.value = false;
   Object.assign(state, { name: "", company: "", phone: "", email: "", address: "" });
   refresh();
@@ -87,7 +90,7 @@ function openCustomer(customer: Customer) {
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar title="Customers">
+      <UDashboardNavbar :title="t('crm.customers.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -95,7 +98,7 @@ function openCustomer(customer: Customer) {
           <UButton
             v-if="hasPermission('crm_customers', 'create')"
             icon="i-lucide-plus"
-            label="New customer"
+            :label="t('crm.customers.newCustomer')"
             @click="createOpen = true"
           />
         </template>
@@ -103,7 +106,7 @@ function openCustomer(customer: Customer) {
 
       <UDashboardToolbar>
         <template #left>
-          <UInput v-model="search" icon="i-lucide-search" placeholder="Search customers..." />
+          <UInput v-model="search" icon="i-lucide-search" :placeholder="t('crm.customers.searchPlaceholder')" />
         </template>
       </UDashboardToolbar>
     </template>
@@ -125,25 +128,25 @@ function openCustomer(customer: Customer) {
     </template>
   </UDashboardPanel>
 
-  <UModal v-model:open="createOpen" title="New customer">
+  <UModal v-model:open="createOpen" :title="t('crm.customers.newCustomer')">
     <template #body>
       <UForm :schema="schema" :state="state" class="space-y-4" @submit="onCreate">
-        <UFormField name="name" label="Name">
+        <UFormField name="name" :label="t('common.name')">
           <UInput v-model="state.name" class="w-full" />
         </UFormField>
-        <UFormField name="company" label="Company">
+        <UFormField name="company" :label="t('crm.customers.company')">
           <UInput v-model="state.company" class="w-full" />
         </UFormField>
-        <UFormField name="phone" label="Phone">
+        <UFormField name="phone" :label="t('common.phone')">
           <UInput v-model="state.phone" class="w-full" />
         </UFormField>
-        <UFormField name="email" label="Email">
+        <UFormField name="email" :label="t('common.email')">
           <UInput v-model="state.email" type="email" class="w-full" />
         </UFormField>
-        <UFormField name="address" label="Address">
+        <UFormField name="address" :label="t('crm.customers.address')">
           <UTextarea v-model="state.address" class="w-full" />
         </UFormField>
-        <UButton type="submit" label="Create customer" :loading="creating" block />
+        <UButton type="submit" :label="t('crm.customers.createCustomer')" :loading="creating" block />
       </UForm>
     </template>
   </UModal>

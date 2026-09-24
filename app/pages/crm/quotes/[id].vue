@@ -11,6 +11,7 @@ const quoteId = route.params.id as string;
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission } = usePermissions();
+const { t } = useI18n();
 
 interface Quote {
   id: string;
@@ -43,7 +44,10 @@ const saving = ref(false);
 const canEdit = computed(() => hasPermission("crm_quotes", "edit"));
 const canDelete = computed(() => hasPermission("crm_quotes", "delete"));
 
-const statusOptions = ["draft", "sent", "accepted", "rejected", "expired"];
+const statusKeys = ["draft", "sent", "accepted", "rejected", "expired"] as const;
+const statusOptions = computed(() =>
+  statusKeys.map((s) => ({ label: t(`crm.quotes.statusValues.${s}`), value: s })),
+);
 
 async function loadQuote() {
   const { data, error } = await supabase.from("quotes").select("*").eq("id", quoteId).single();
@@ -78,13 +82,13 @@ const { data: customer } = await useAsyncData<Customer | null>(`crm-quote-${quot
   return data;
 });
 
-const columns: TableColumn<QuoteItem>[] = [
-  { accessorKey: "description", header: "Description" },
-  { accessorKey: "qty", header: "Qty" },
-  { accessorKey: "unit_price", header: "Unit price" },
-  { accessorKey: "line_total", header: "Line total" },
+const columns = computed<TableColumn<QuoteItem>[]>(() => [
+  { accessorKey: "description", header: t("crm.quotes.description") },
+  { accessorKey: "qty", header: t("crm.quotes.qty") },
+  { accessorKey: "unit_price", header: t("crm.quotes.unitPrice") },
+  { accessorKey: "line_total", header: t("crm.quotes.lineTotal") },
   { id: "actions" },
-];
+]);
 
 async function saveDetails() {
   if (!quote.value) return;
@@ -96,23 +100,23 @@ async function saveDetails() {
   saving.value = false;
 
   if (error) {
-    toast.add({ title: "Failed to save", description: error.message, color: "error" });
+    toast.add({ title: t("crm.quotes.saveFailed"), description: error.message, color: "error" });
     return;
   }
   await loadQuote();
-  toast.add({ title: "Quote saved", color: "success" });
+  toast.add({ title: t("crm.quotes.quoteSaved"), color: "success" });
 }
 
 async function addItem() {
   const { error } = await supabase.from("quote_items").insert({
     quote_id: quoteId,
-    description: "New item",
+    description: t("crm.quotes.newItemDefault"),
     qty: 1,
     unit_price: 0,
     sort_order: items.value.length,
   });
   if (error) {
-    toast.add({ title: "Failed to add item", description: error.message, color: "error" });
+    toast.add({ title: t("crm.quotes.addItemFailed"), description: error.message, color: "error" });
     return;
   }
   await loadItems();
@@ -125,7 +129,7 @@ async function saveItem(item: QuoteItem) {
     .update({ description: item.description, qty: item.qty, unit_price: item.unit_price })
     .eq("id", item.id);
   if (error) {
-    toast.add({ title: "Failed to save item", description: error.message, color: "error" });
+    toast.add({ title: t("crm.quotes.itemSaveFailed"), description: error.message, color: "error" });
     return;
   }
   // line_total is a generated column recomputed server-side — reload items
@@ -136,7 +140,7 @@ async function saveItem(item: QuoteItem) {
 async function removeItem(item: QuoteItem) {
   const { error } = await supabase.from("quote_items").delete().eq("id", item.id);
   if (error) {
-    toast.add({ title: "Failed to remove item", description: error.message, color: "error" });
+    toast.add({ title: t("crm.quotes.removeItemFailed"), description: error.message, color: "error" });
     return;
   }
   await loadItems();
@@ -146,10 +150,10 @@ async function removeItem(item: QuoteItem) {
 async function removeQuote() {
   const { error } = await supabase.from("quotes").delete().eq("id", quoteId);
   if (error) {
-    toast.add({ title: "Failed to delete quote", description: error.message, color: "error" });
+    toast.add({ title: t("crm.quotes.deleteFailed"), description: error.message, color: "error" });
     return;
   }
-  toast.add({ title: "Quote deleted", color: "success" });
+  toast.add({ title: t("crm.quotes.quoteDeleted"), color: "success" });
   navigateTo("/crm/quotes");
 }
 </script>
@@ -157,7 +161,7 @@ async function removeQuote() {
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar :title="quote?.quote_number ?? 'Quote'">
+      <UDashboardNavbar :title="quote?.quote_number ?? t('crm.quotes.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -173,27 +177,27 @@ async function removeQuote() {
       </div>
 
       <div v-else-if="quote" class="max-w-3xl space-y-8">
-        <UPageCard title="Details">
+        <UPageCard :title="t('crm.quotes.detailsTitle')">
           <div class="space-y-4">
-            <UFormField label="Customer">
+            <UFormField :label="t('crm.quotes.customer')">
               <ULink :to="`/crm/customers/${quote.customer_id}`" class="text-primary">
                 {{ customer?.name }}
               </ULink>
             </UFormField>
-            <UFormField label="Status">
-              <USelect v-model="quote.status" :items="statusOptions" :disabled="!canEdit" class="w-full" />
+            <UFormField :label="t('common.status')">
+              <USelect v-model="quote.status" :items="statusOptions" value-key="value" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Valid until">
+            <UFormField :label="t('crm.quotes.validUntil')">
               <UInput v-model="quote.valid_until" type="date" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Tax">
+            <UFormField :label="t('crm.quotes.tax')">
               <UInputNumber v-model="quote.tax" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UButton v-if="canEdit" label="Save" :loading="saving" @click="saveDetails" />
+            <UButton v-if="canEdit" :label="t('common.save')" :loading="saving" @click="saveDetails" />
           </div>
         </UPageCard>
 
-        <UPageCard title="Line items">
+        <UPageCard :title="t('crm.quotes.lineItemsTitle')">
           <UTable :data="items" :columns="columns">
             <template #description-cell="{ row }">
               <UInput
@@ -233,12 +237,12 @@ async function removeQuote() {
             </template>
           </UTable>
 
-          <UButton v-if="canEdit" icon="i-lucide-plus" label="Add item" variant="soft" class="mt-4" @click="addItem" />
+          <UButton v-if="canEdit" icon="i-lucide-plus" :label="t('crm.quotes.addItem')" variant="soft" class="mt-4" @click="addItem" />
 
-          <div class="mt-6 space-y-1 text-right text-sm">
-            <div>Subtotal: {{ quote.subtotal }}</div>
-            <div>Tax: {{ quote.tax }}</div>
-            <div class="font-semibold text-highlighted">Total: {{ quote.total }}</div>
+          <div class="mt-6 space-y-1 text-end text-sm">
+            <div>{{ t("crm.quotes.subtotal") }}: {{ quote.subtotal }}</div>
+            <div>{{ t("crm.quotes.tax") }}: {{ quote.tax }}</div>
+            <div class="font-semibold text-highlighted">{{ t("crm.quotes.total") }}: {{ quote.total }}</div>
           </div>
         </UPageCard>
       </div>

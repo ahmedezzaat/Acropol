@@ -23,9 +23,14 @@ export default defineNuxtConfig({
     "@nuxt/image",
     "@nuxt/scripts",
     "@nuxt/ui",
+    // Registered before @nuxtjs/seo: nuxt-seo-utils only wires up its
+    // i18n-aware page-title plugin (letting pages.<route>.title in the
+    // locale files drive <title>) if it sees @nuxtjs/i18n already
+    // registered via hasNuxtModule() at its own setup time — module order
+    // in this array is setup order.
+    "@nuxtjs/i18n",
     "@nuxtjs/seo",
     "@nuxtjs/supabase",
-    "@nuxtjs/i18n",
     // @nuxtjs/seo pulls in nuxt-og-image, which unconditionally registers
     // "playwright-core" as a Nitro virtual module that mocks every export
     // (so its own og-image renderer doesn't force playwright into every
@@ -66,9 +71,10 @@ export default defineNuxtConfig({
       // directly into how search engines infer country relevance), so
       // locking the language tag to one country actively worked against
       // being recognized as relevant to the other.
-      { code: "ar", language: "ar", dir: "rtl", name: "العربية" },
-      { code: "en", language: "en", dir: "ltr", name: "English" },
+      { code: "ar", language: "ar", dir: "rtl", name: "العربية", file: "ar.json" },
+      { code: "en", language: "en", dir: "ltr", name: "English", file: "en.json" },
     ],
+    langDir: "locales",
     defaultLocale: "ar",
     strategy: "prefix_except_default",
     detectBrowserLanguage: false,
@@ -85,6 +91,7 @@ export default defineNuxtConfig({
   },
 
   site: {
+    name: "أكروبول",
     defaultLocale: "ar",
   },
 

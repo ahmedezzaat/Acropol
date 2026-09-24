@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: "dashboard" });
 
+const { t } = useI18n();
 const { hasAnyModulePermission, loaded, load } = usePermissions();
 if (!loaded.value) await load();
 
@@ -22,7 +23,7 @@ if (firstAccessible) {
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar title="CRM">
+      <UDashboardNavbar :title="t('modules.crm.label')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -30,7 +31,7 @@ if (firstAccessible) {
     </template>
     <template #body>
       <div class="py-16 text-center text-muted">
-        You don't have access to any CRM section yet.
+        {{ t("crm.noAccess") }}
       </div>
     </template>
   </UDashboardPanel>

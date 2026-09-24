@@ -1,0 +1,271 @@
+{
+  "pages": {
+    "index": { "title": "@:home.title" },
+    "login": { "title": "@:auth.login.title" },
+    "403": { "title": "@:forbidden.title" },
+    "crm": { "title": "@:modules.crm.label" },
+    "crm-leads": { "title": "@:crm.leads.title" },
+    "crm-leads-id": { "title": "@:crm.leads.title" },
+    "crm-deals": { "title": "@:crm.deals.title" },
+    "crm-deals-id": { "title": "@:crm.deals.title" },
+    "crm-quotes": { "title": "@:crm.quotes.title" },
+    "crm-quotes-id": { "title": "@:crm.quotes.title" },
+    "crm-customers": { "title": "@:crm.customers.title" },
+    "crm-customers-id": { "title": "@:crm.customers.title" },
+    "admin-users": { "title": "@:admin.users.title" },
+    "admin-roles": { "title": "@:admin.roles.title" },
+    "admin-roles-id": { "title": "@:admin.roles.title" }
+  },
+  "validation": {
+    "required": "هذا الحقل مطلوب",
+    "invalidEmail": "بريد إلكتروني غير صالح",
+    "minLength": "يجب ألا يقل عن {min} أحرف"
+  },
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "create": "إنشاء",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "search": "بحث",
+    "loading": "جارٍ التحميل...",
+    "noData": "لا توجد بيانات",
+    "unassigned": "غير مُسند",
+    "all": "الكل",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "phone": "الهاتف",
+    "status": "الحالة",
+    "details": "التفاصيل",
+    "active": "نشط",
+    "inactive": "غير نشط"
+  },
+  "nav": {
+    "appName": "أكروبول",
+    "home": "الرئيسية",
+    "signOut": "تسجيل الخروج"
+  },
+  "modules": {
+    "crm": {
+      "label": "إدارة علاقات العملاء"
+    }
+  },
+  "resources": {
+    "crm_leads": {
+      "label": "العملاء المحتملون",
+      "actions": {
+        "create": "إنشاء",
+        "edit": "تعديل",
+        "delete": "حذف",
+        "assign": "إسناد العملاء المحتملين",
+        "view_all": "عرض جميع العملاء المحتملين"
+      }
+    },
+    "crm_deals": {
+      "label": "الصفقات",
+      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف" }
+    },
+    "crm_quotes": {
+      "label": "عروض الأسعار",
+      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف" }
+    },
+    "crm_customers": {
+      "label": "العملاء",
+      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف" }
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "مرحباً بعودتك",
+      "description": "سجّل الدخول بالحساب الذي أنشأه لك المسؤول.",
+      "email": "البريد الإلكتروني",
+      "password": "كلمة المرور",
+      "passwordPlaceholder": "أدخل كلمة المرور",
+      "submit": "تسجيل الدخول",
+      "signedIn": "تم تسجيل الدخول",
+      "error": "البريد الإلكتروني أو كلمة المرور غير صحيحة"
+    }
+  },
+  "forbidden": {
+    "title": "غير مصرح لك",
+    "description": "ليس لديك صلاحية للوصول إلى هذه الصفحة. اطلب من المسؤول منحك صلاحية.",
+    "backHome": "العودة إلى الرئيسية"
+  },
+  "home": {
+    "title": "الرئيسية",
+    "noAccess": "ليس لديك صلاحية للوصول إلى أي وحدة بعد. اطلب من المسؤول منحك دورًا."
+  },
+  "admin": {
+    "users": {
+      "title": "المستخدمون",
+      "newUser": "مستخدم جديد",
+      "fullName": "الاسم الكامل",
+      "role": "الدور",
+      "noRole": "بدون دور",
+      "admin": "مسؤول",
+      "createUserTitle": "مستخدم جديد",
+      "password": "كلمة المرور",
+      "administratorFullAccess": "مسؤول (صلاحية كاملة)",
+      "createUser": "إنشاء مستخدم",
+      "userCreated": "تم إنشاء المستخدم",
+      "createUserFailed": "فشل إنشاء المستخدم",
+      "editUserTitle": "تعديل {email}",
+      "activeCanSignIn": "نشط (يمكنه تسجيل الدخول)",
+      "userUpdated": "تم تحديث المستخدم",
+      "updateUserFailed": "فشل تحديث المستخدم",
+      "resetPasswordTitle": "إعادة تعيين كلمة المرور لـ {email}",
+      "newPassword": "كلمة مرور جديدة",
+      "resetPassword": "إعادة تعيين كلمة المرور",
+      "passwordReset": "تمت إعادة تعيين كلمة المرور",
+      "resetPasswordFailed": "فشلت إعادة تعيين كلمة المرور"
+    },
+    "roles": {
+      "title": "الأدوار",
+      "newRole": "دور جديد",
+      "name": "الاسم",
+      "description": "الوصف",
+      "createRoleTitle": "دور جديد",
+      "roleCreated": "تم إنشاء الدور",
+      "createRoleFailed": "فشل إنشاء الدور",
+      "editRole": "تعديل الدور",
+      "deleteRole": "حذف الدور",
+      "roleDeleted": "تم حذف الدور",
+      "deleteRoleFailed": "فشل حذف الدور",
+      "detailsTitle": "التفاصيل",
+      "saveDetails": "حفظ التفاصيل",
+      "roleSaved": "تم حفظ الدور",
+      "saveFailed": "فشل الحفظ",
+      "permissionsTitle": "الصلاحيات",
+      "permissionsDescription": "ما يمكن لهذا الدور فعله في كل وحدة.",
+      "savePermissions": "حفظ الصلاحيات",
+      "permissionsSaved": "تم حفظ الصلاحيات",
+      "savePermissionsFailed": "فشل حفظ الصلاحيات"
+    }
+  },
+  "crm": {
+    "noAccess": "ليس لديك صلاحية للوصول إلى أي قسم من إدارة علاقات العملاء.",
+    "leads": {
+      "title": "العملاء المحتملون",
+      "newLead": "عميل محتمل جديد",
+      "searchPlaceholder": "ابحث في العملاء المحتملين...",
+      "contact": "معلومات التواصل",
+      "assignedTo": "مُسند إلى",
+      "phone2": "رقم هاتف إضافي",
+      "leadType": "نوع العميل",
+      "contactPerson": "اسم الشخص المسؤول",
+      "companyName": "اسم الشركة",
+      "type": {
+        "individual": "فرد",
+        "company": "شركة"
+      },
+      "source": "مصدر العميل",
+      "sourceValues": {
+        "facebook": "فيسبوك",
+        "instagram": "إنستغرام",
+        "meta": "ميتا",
+        "google": "جوجل",
+        "website": "الموقع الإلكتروني",
+        "event": "فعالية",
+        "referral": "إحالة"
+      },
+      "notes": "ملاحظات",
+      "assignHint": "العملاء المحتملون الجدد غير مُسندين افتراضيًا. لا تملك صلاحية إسناد العملاء المحتملين.",
+      "createLead": "إنشاء عميل محتمل",
+      "leadCreated": "تم إنشاء العميل المحتمل",
+      "createLeadFailed": "فشل إنشاء العميل المحتمل",
+      "convertToCustomer": "تحويل إلى عميل",
+      "converted": "تم التحويل",
+      "convertedDescription": "تم تحويل هذا العميل المحتمل إلى عميل.",
+      "convertedSuccess": "تم التحويل إلى عميل",
+      "convertFailed": "فشل تحويل العميل المحتمل",
+      "assignPermissionHint": "لا تملك صلاحية إسناد العملاء المحتملين.",
+      "leadSaved": "تم حفظ العميل المحتمل",
+      "saveFailed": "فشل الحفظ",
+      "leadDeleted": "تم حذف العميل المحتمل",
+      "deleteFailed": "فشل حذف العميل المحتمل",
+      "status": {
+        "new": "جديد",
+        "contacted": "تم التواصل",
+        "qualified": "مؤهل",
+        "converted": "تم التحويل",
+        "lost": "خاسر"
+      }
+    },
+    "deals": {
+      "title": "الصفقات",
+      "dealTitle": "العنوان",
+      "newDeal": "صفقة جديدة",
+      "customer": "العميل",
+      "stage": "المرحلة",
+      "value": "القيمة",
+      "expectedCloseDate": "تاريخ الإغلاق المتوقع",
+      "createDeal": "إنشاء صفقة",
+      "dealCreated": "تم إنشاء الصفقة",
+      "createDealFailed": "فشل إنشاء الصفقة",
+      "dealSaved": "تم حفظ الصفقة",
+      "saveFailed": "فشل الحفظ",
+      "dealDeleted": "تم حذف الصفقة",
+      "deleteFailed": "فشل حذف الصفقة",
+      "quotesTitle": "عروض الأسعار",
+      "noQuotesYet": "لا توجد عروض أسعار بعد.",
+      "newQuote": "عرض سعر جديد",
+      "createQuoteFailed": "فشل إنشاء عرض السعر",
+      "stageValues": {
+        "open": "مفتوحة",
+        "proposal": "عرض مقدم",
+        "negotiation": "تفاوض",
+        "won": "رابحة",
+        "lost": "خاسرة"
+      }
+    },
+    "quotes": {
+      "title": "عروض الأسعار",
+      "quoteNumber": "رقم العرض",
+      "customer": "العميل",
+      "validUntil": "صالح حتى",
+      "tax": "الضريبة",
+      "detailsTitle": "التفاصيل",
+      "lineItemsTitle": "بنود العرض",
+      "description": "الوصف",
+      "qty": "الكمية",
+      "unitPrice": "سعر الوحدة",
+      "lineTotal": "الإجمالي",
+      "addItem": "إضافة بند",
+      "newItemDefault": "بند جديد",
+      "subtotal": "المجموع الفرعي",
+      "total": "الإجمالي الكلي",
+      "quoteSaved": "تم حفظ عرض السعر",
+      "saveFailed": "فشل الحفظ",
+      "itemSaveFailed": "فشل حفظ البند",
+      "addItemFailed": "فشل إضافة البند",
+      "removeItemFailed": "فشل حذف البند",
+      "quoteDeleted": "تم حذف عرض السعر",
+      "deleteFailed": "فشل حذف عرض السعر",
+      "statusValues": {
+        "draft": "مسودة",
+        "sent": "مُرسل",
+        "accepted": "مقبول",
+        "rejected": "مرفوض",
+        "expired": "منتهي الصلاحية"
+      }
+    },
+    "customers": {
+      "title": "العملاء",
+      "newCustomer": "عميل جديد",
+      "searchPlaceholder": "ابحث في العملاء...",
+      "company": "الشركة",
+      "address": "العنوان",
+      "createCustomer": "إنشاء عميل",
+      "customerCreated": "تم إنشاء العميل",
+      "createCustomerFailed": "فشل إنشاء العميل",
+      "customerSaved": "تم حفظ العميل",
+      "saveFailed": "فشل الحفظ",
+      "customerDeleted": "تم حذف العميل",
+      "deleteFailed": "فشل حذف العميل",
+      "dealsTitle": "الصفقات",
+      "noDealsYet": "لا توجد صفقات بعد.",
+      "quotesTitle": "عروض الأسعار",
+      "noQuotesYet": "لا توجد عروض أسعار بعد."
+    }
+  }
+}

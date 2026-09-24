@@ -6,6 +6,7 @@ definePageMeta({ layout: "dashboard" });
 
 const supabase = useSupabaseClient();
 const toast = useToast();
+const { t } = useI18n();
 
 interface Profile {
   id: string;
@@ -40,7 +41,7 @@ const { data: roles } = await useAsyncData<Role[]>("admin-users-roles", async ()
 });
 
 const roleOptions = computed(() => [
-  { label: "No role", value: null },
+  { label: t("admin.users.noRole"), value: null },
   ...(roles.value ?? []).map((r) => ({ label: r.name, value: r.id })),
 ]);
 
@@ -48,25 +49,33 @@ function roleName(roleId: string | null) {
   return roles.value?.find((r) => r.id === roleId)?.name ?? "—";
 }
 
-const columns: TableColumn<Profile>[] = [
-  { accessorKey: "email", header: "Email" },
-  { accessorKey: "full_name", header: "Name" },
-  { id: "role", header: "Role" },
-  { id: "status", header: "Status" },
+const columns = computed<TableColumn<Profile>[]>(() => [
+  { accessorKey: "email", header: t("common.email") },
+  { accessorKey: "full_name", header: t("common.name") },
+  { id: "role", header: t("admin.users.role") },
+  { id: "status", header: t("common.status") },
   { id: "actions" },
-];
+]);
 
 // --- Create user ---
 const createOpen = ref(false);
 const creating = ref(false);
-const createSchema = z.object({
-  email: z.email(),
-  password: z.string().min(8, "Must be at least 8 characters"),
-  full_name: z.string().min(1, "Name is required"),
-  role_id: z.uuid().nullable(),
-  is_admin: z.boolean(),
-});
-type CreateSchema = z.output<typeof createSchema>;
+const createSchema = computed(() =>
+  z.object({
+    email: z.email(t("validation.invalidEmail")),
+    password: z.string().min(8, t("validation.minLength", { min: 8 })),
+    full_name: z.string().min(1, t("validation.required")),
+    role_id: z.uuid().nullable(),
+    is_admin: z.boolean(),
+  }),
+);
+type CreateSchema = {
+  email: string;
+  password: string;
+  full_name: string;
+  role_id: string | null;
+  is_admin: boolean;
+};
 const createState = reactive<CreateSchema>({
   email: "",
   password: "",
@@ -79,7 +88,7 @@ async function onCreate(event: FormSubmitEvent<CreateSchema>) {
   creating.value = true;
   try {
     await $fetch("/api/admin/users", { method: "POST", body: event.data });
-    toast.add({ title: "User created", color: "success" });
+    toast.add({ title: t("admin.users.userCreated"), color: "success" });
     createOpen.value = false;
     createState.email = "";
     createState.password = "";
@@ -89,7 +98,7 @@ async function onCreate(event: FormSubmitEvent<CreateSchema>) {
     refreshUsers();
   } catch (err: any) {
     toast.add({
-      title: "Failed to create user",
+      title: t("admin.users.createUserFailed"),
       description: err?.data?.statusMessage ?? err.message,
       color: "error",
     });
@@ -126,12 +135,12 @@ async function saveEdit() {
       method: "POST",
       body: editState,
     });
-    toast.add({ title: "User updated", color: "success" });
+    toast.add({ title: t("admin.users.userUpdated"), color: "success" });
     editOpen.value = false;
     refreshUsers();
   } catch (err: any) {
     toast.add({
-      title: "Failed to update user",
+      title: t("admin.users.updateUserFailed"),
       description: err?.data?.statusMessage ?? err.message,
       color: "error",
     });
@@ -160,11 +169,11 @@ async function saveReset() {
       method: "POST",
       body: { password: resetPassword.value },
     });
-    toast.add({ title: "Password reset", color: "success" });
+    toast.add({ title: t("admin.users.passwordReset"), color: "success" });
     resetOpen.value = false;
   } catch (err: any) {
     toast.add({
-      title: "Failed to reset password",
+      title: t("admin.users.resetPasswordFailed"),
       description: err?.data?.statusMessage ?? err.message,
       color: "error",
     });
@@ -177,12 +186,12 @@ async function saveReset() {
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar title="Users">
+      <UDashboardNavbar :title="t('admin.users.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton icon="i-lucide-plus" label="New user" @click="createOpen = true" />
+          <UButton icon="i-lucide-plus" :label="t('admin.users.newUser')" @click="createOpen = true" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -194,9 +203,9 @@ async function saveReset() {
         </template>
         <template #status-cell="{ row }">
           <div class="flex gap-1">
-            <UBadge v-if="row.original.is_admin" label="Admin" color="primary" variant="subtle" />
+            <UBadge v-if="row.original.is_admin" :label="t('admin.users.admin')" color="primary" variant="subtle" />
             <UBadge
-              :label="row.original.is_active ? 'Active' : 'Inactive'"
+              :label="row.original.is_active ? t('common.active') : t('common.inactive')"
               :color="row.original.is_active ? 'success' : 'neutral'"
               variant="subtle"
             />
@@ -205,8 +214,8 @@ async function saveReset() {
         <template #actions-cell="{ row }">
           <UDropdownMenu
             :items="[
-              [{ label: 'Edit', icon: 'i-lucide-pencil', onSelect: () => openEdit(row.original) }],
-              [{ label: 'Reset password', icon: 'i-lucide-key', onSelect: () => openReset(row.original) }],
+              [{ label: t('common.edit'), icon: 'i-lucide-pencil', onSelect: () => openEdit(row.original) }],
+              [{ label: t('admin.users.resetPassword'), icon: 'i-lucide-key', onSelect: () => openReset(row.original) }],
             ]"
           >
             <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" />
@@ -216,51 +225,51 @@ async function saveReset() {
     </template>
   </UDashboardPanel>
 
-  <UModal v-model:open="createOpen" title="New user">
+  <UModal v-model:open="createOpen" :title="t('admin.users.createUserTitle')">
     <template #body>
       <UForm :schema="createSchema" :state="createState" class="space-y-4" @submit="onCreate">
-        <UFormField name="full_name" label="Full name">
+        <UFormField name="full_name" :label="t('admin.users.fullName')">
           <UInput v-model="createState.full_name" class="w-full" />
         </UFormField>
-        <UFormField name="email" label="Email">
+        <UFormField name="email" :label="t('common.email')">
           <UInput v-model="createState.email" type="email" class="w-full" />
         </UFormField>
-        <UFormField name="password" label="Password">
+        <UFormField name="password" :label="t('admin.users.password')">
           <UInput v-model="createState.password" type="password" class="w-full" />
         </UFormField>
-        <UFormField name="role_id" label="Role">
+        <UFormField name="role_id" :label="t('admin.users.role')">
           <USelect v-model="createState.role_id" :items="roleOptions" value-key="value" class="w-full" />
         </UFormField>
-        <UCheckbox v-model="createState.is_admin" label="Administrator (full access)" />
-        <UButton type="submit" label="Create user" :loading="creating" block />
+        <UCheckbox v-model="createState.is_admin" :label="t('admin.users.administratorFullAccess')" />
+        <UButton type="submit" :label="t('admin.users.createUser')" :loading="creating" block />
       </UForm>
     </template>
   </UModal>
 
-  <UModal v-model:open="editOpen" :title="`Edit ${editTarget?.email ?? ''}`">
+  <UModal v-model:open="editOpen" :title="t('admin.users.editUserTitle', { email: editTarget?.email ?? '' })">
     <template #body>
       <div class="space-y-4">
-        <UFormField label="Full name">
+        <UFormField :label="t('admin.users.fullName')">
           <UInput v-model="editState.full_name" class="w-full" />
         </UFormField>
-        <UFormField label="Role">
+        <UFormField :label="t('admin.users.role')">
           <USelect v-model="editState.role_id" :items="roleOptions" value-key="value" class="w-full" />
         </UFormField>
-        <UCheckbox v-model="editState.is_admin" label="Administrator (full access)" />
-        <UCheckbox v-model="editState.is_active" label="Active (can sign in)" />
-        <UButton label="Save" :loading="editing" block @click="saveEdit" />
+        <UCheckbox v-model="editState.is_admin" :label="t('admin.users.administratorFullAccess')" />
+        <UCheckbox v-model="editState.is_active" :label="t('admin.users.activeCanSignIn')" />
+        <UButton :label="t('common.save')" :loading="editing" block @click="saveEdit" />
       </div>
     </template>
   </UModal>
 
-  <UModal v-model:open="resetOpen" :title="`Reset password for ${resetTarget?.email ?? ''}`">
+  <UModal v-model:open="resetOpen" :title="t('admin.users.resetPasswordTitle', { email: resetTarget?.email ?? '' })">
     <template #body>
       <div class="space-y-4">
-        <UFormField label="New password">
+        <UFormField :label="t('admin.users.newPassword')">
           <UInput v-model="resetPassword" type="password" class="w-full" />
         </UFormField>
         <UButton
-          label="Reset password"
+          :label="t('admin.users.resetPassword')"
           :loading="resetting"
           :disabled="resetPassword.length < 8"
           block

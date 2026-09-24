@@ -9,6 +9,7 @@ const dealId = route.params.id as string;
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission } = usePermissions();
+const { t } = useI18n();
 
 interface Deal {
   id: string;
@@ -38,7 +39,10 @@ const canEdit = computed(() => hasPermission("crm_deals", "edit"));
 const canDelete = computed(() => hasPermission("crm_deals", "delete"));
 const canCreateQuote = computed(() => hasPermission("crm_quotes", "create"));
 
-const stageOptions = ["open", "proposal", "negotiation", "won", "lost"];
+const stageKeys = ["open", "proposal", "negotiation", "won", "lost"] as const;
+const stageOptions = computed(() =>
+  stageKeys.map((s) => ({ label: t(`crm.deals.stageValues.${s}`), value: s })),
+);
 
 const { status } = await useAsyncData(`crm-deal-${dealId}`, async () => {
   const { data, error } = await supabase.from("deals").select("*").eq("id", dealId).single();
@@ -86,10 +90,10 @@ async function save() {
   saving.value = false;
 
   if (error) {
-    toast.add({ title: "Failed to save", description: error.message, color: "error" });
+    toast.add({ title: t("crm.deals.saveFailed"), description: error.message, color: "error" });
     return;
   }
-  toast.add({ title: "Deal saved", color: "success" });
+  toast.add({ title: t("crm.deals.dealSaved"), color: "success" });
 }
 
 async function remove() {
@@ -98,10 +102,10 @@ async function remove() {
   deleting.value = false;
 
   if (error) {
-    toast.add({ title: "Failed to delete deal", description: error.message, color: "error" });
+    toast.add({ title: t("crm.deals.deleteFailed"), description: error.message, color: "error" });
     return;
   }
-  toast.add({ title: "Deal deleted", color: "success" });
+  toast.add({ title: t("crm.deals.dealDeleted"), color: "success" });
   navigateTo("/crm/deals");
 }
 
@@ -117,7 +121,7 @@ async function createQuote() {
   creatingQuote.value = false;
 
   if (error) {
-    toast.add({ title: "Failed to create quote", description: error.message, color: "error" });
+    toast.add({ title: t("crm.deals.createQuoteFailed"), description: error.message, color: "error" });
     return;
   }
   navigateTo(`/crm/quotes/${data.id}`);
@@ -127,7 +131,7 @@ async function createQuote() {
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar :title="deal?.title ?? 'Deal'">
+      <UDashboardNavbar :title="deal?.title ?? t('crm.deals.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -143,39 +147,39 @@ async function createQuote() {
       </div>
 
       <div v-else-if="deal" class="max-w-2xl space-y-8">
-        <UPageCard title="Details">
+        <UPageCard :title="t('common.details')">
           <div class="space-y-4">
-            <UFormField label="Customer">
+            <UFormField :label="t('crm.deals.customer')">
               <ULink :to="`/crm/customers/${deal.customer_id}`" class="text-primary">
                 {{ customer?.name }}
               </ULink>
             </UFormField>
-            <UFormField label="Title">
+            <UFormField :label="t('crm.deals.dealTitle')">
               <UInput v-model="deal.title" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Stage">
-              <USelect v-model="deal.stage" :items="stageOptions" :disabled="!canEdit" class="w-full" />
+            <UFormField :label="t('crm.deals.stage')">
+              <USelect v-model="deal.stage" :items="stageOptions" value-key="value" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Value">
+            <UFormField :label="t('crm.deals.value')">
               <UInputNumber v-model="deal.value" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Expected close date">
+            <UFormField :label="t('crm.deals.expectedCloseDate')">
               <UInput v-model="deal.expected_close_date" type="date" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UButton v-if="canEdit" label="Save" :loading="saving" @click="save" />
+            <UButton v-if="canEdit" :label="t('common.save')" :loading="saving" @click="save" />
           </div>
         </UPageCard>
 
-        <UPageCard title="Quotes">
+        <UPageCard :title="t('crm.deals.quotesTitle')">
           <template #footer v-if="canCreateQuote">
-            <UButton label="New quote" icon="i-lucide-plus" variant="soft" :loading="creatingQuote" @click="createQuote" />
+            <UButton :label="t('crm.deals.newQuote')" icon="i-lucide-plus" variant="soft" :loading="creatingQuote" @click="createQuote" />
           </template>
-          <div v-if="!quotes?.length" class="text-sm text-muted">No quotes yet.</div>
+          <div v-if="!quotes?.length" class="text-sm text-muted">{{ t("crm.deals.noQuotesYet") }}</div>
           <ul v-else class="divide-y divide-default">
             <li v-for="quote in quotes" :key="quote.id" class="py-2">
               <ULink :to="`/crm/quotes/${quote.id}`" class="flex items-center justify-between">
                 <span>{{ quote.quote_number }}</span>
-                <span class="text-sm text-muted">{{ quote.status }} · {{ quote.total }}</span>
+                <span class="text-sm text-muted">{{ t(`crm.quotes.statusValues.${quote.status}`) }} · {{ quote.total }}</span>
               </ULink>
             </li>
           </ul>

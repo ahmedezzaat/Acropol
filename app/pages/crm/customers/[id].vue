@@ -9,6 +9,7 @@ const customerId = route.params.id as string;
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission } = usePermissions();
+const { t } = useI18n();
 
 interface Customer {
   id: string;
@@ -81,19 +82,19 @@ async function save() {
   saving.value = false;
 
   if (error) {
-    toast.add({ title: "Failed to save", description: error.message, color: "error" });
+    toast.add({ title: t("crm.customers.saveFailed"), description: error.message, color: "error" });
     return;
   }
-  toast.add({ title: "Customer saved", color: "success" });
+  toast.add({ title: t("crm.customers.customerSaved"), color: "success" });
 }
 
 async function remove() {
   const { error } = await supabase.from("customers").delete().eq("id", customerId);
   if (error) {
-    toast.add({ title: "Failed to delete customer", description: error.message, color: "error" });
+    toast.add({ title: t("crm.customers.deleteFailed"), description: error.message, color: "error" });
     return;
   }
-  toast.add({ title: "Customer deleted", color: "success" });
+  toast.add({ title: t("crm.customers.customerDeleted"), color: "success" });
   navigateTo("/crm/customers");
 }
 </script>
@@ -101,7 +102,7 @@ async function remove() {
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar :title="customer?.name ?? 'Customer'">
+      <UDashboardNavbar :title="customer?.name ?? t('crm.customers.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
@@ -117,46 +118,46 @@ async function remove() {
       </div>
 
       <div v-else-if="customer" class="max-w-2xl space-y-8">
-        <UPageCard title="Details">
+        <UPageCard :title="t('common.details')">
           <div class="space-y-4">
-            <UFormField label="Name">
+            <UFormField :label="t('common.name')">
               <UInput v-model="customer.name" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Company">
+            <UFormField :label="t('crm.customers.company')">
               <UInput v-model="customer.company" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Phone">
+            <UFormField :label="t('common.phone')">
               <UInput v-model="customer.phone" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Email">
+            <UFormField :label="t('common.email')">
               <UInput v-model="customer.email" type="email" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UFormField label="Address">
+            <UFormField :label="t('crm.customers.address')">
               <UTextarea v-model="customer.address" :disabled="!canEdit" class="w-full" />
             </UFormField>
-            <UButton v-if="canEdit" label="Save" :loading="saving" @click="save" />
+            <UButton v-if="canEdit" :label="t('common.save')" :loading="saving" @click="save" />
           </div>
         </UPageCard>
 
-        <UPageCard title="Deals">
-          <div v-if="!deals?.length" class="text-sm text-muted">No deals yet.</div>
+        <UPageCard :title="t('crm.customers.dealsTitle')">
+          <div v-if="!deals?.length" class="text-sm text-muted">{{ t("crm.customers.noDealsYet") }}</div>
           <ul v-else class="divide-y divide-default">
             <li v-for="deal in deals" :key="deal.id" class="py-2">
               <ULink :to="`/crm/deals/${deal.id}`" class="flex items-center justify-between">
                 <span>{{ deal.title }}</span>
-                <span class="text-sm text-muted">{{ deal.stage }} · {{ deal.value ?? "—" }}</span>
+                <span class="text-sm text-muted">{{ t(`crm.deals.stageValues.${deal.stage}`) }} · {{ deal.value ?? "—" }}</span>
               </ULink>
             </li>
           </ul>
         </UPageCard>
 
-        <UPageCard title="Quotes">
-          <div v-if="!quotes?.length" class="text-sm text-muted">No quotes yet.</div>
+        <UPageCard :title="t('crm.customers.quotesTitle')">
+          <div v-if="!quotes?.length" class="text-sm text-muted">{{ t("crm.customers.noQuotesYet") }}</div>
           <ul v-else class="divide-y divide-default">
             <li v-for="quote in quotes" :key="quote.id" class="py-2">
               <ULink :to="`/crm/quotes/${quote.id}`" class="flex items-center justify-between">
                 <span>{{ quote.quote_number }}</span>
-                <span class="text-sm text-muted">{{ quote.status }} · {{ quote.total }}</span>
+                <span class="text-sm text-muted">{{ t(`crm.quotes.statusValues.${quote.status}`) }} · {{ quote.total }}</span>
               </ULink>
             </li>
           </ul>

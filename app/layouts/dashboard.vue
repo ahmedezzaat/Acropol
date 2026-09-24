@@ -4,6 +4,7 @@ import type { NavigationMenuItem } from "@nuxt/ui";
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const { isAdmin, hasAnyModulePermission } = usePermissions();
+const { t } = useI18n();
 
 const resourceRoutes: Record<string, string> = {
   crm_leads: "/crm/leads",
@@ -19,14 +20,14 @@ const items = computed<NavigationMenuItem[][]>(() => {
     const accessibleResources = m.resources.filter((r) => hasAnyModulePermission(r.key));
     const hasChildren = accessibleResources.length > 1;
     return {
-      label: m.label,
+      label: t(m.labelKey),
       icon: m.icon,
       to: hasChildren ? undefined : m.route,
       type: hasChildren ? "trigger" : "link",
       defaultOpen: true,
       children: hasChildren
         ? accessibleResources.map((r) => ({
-            label: r.label,
+            label: t(r.labelKey),
             to: resourceRoutes[r.key],
           }))
         : undefined,
@@ -34,13 +35,13 @@ const items = computed<NavigationMenuItem[][]>(() => {
   });
 
   const groups: NavigationMenuItem[][] = [
-    [{ label: "Home", icon: "i-lucide-house", to: "/" }, ...moduleItems],
+    [{ label: t("nav.home"), icon: "i-lucide-house", to: "/" }, ...moduleItems],
   ];
 
   if (isAdmin.value) {
     groups.push([
-      { label: "Users", icon: "i-lucide-users", to: "/admin/users" },
-      { label: "Roles", icon: "i-lucide-shield", to: "/admin/roles" },
+      { label: t("admin.users.title"), icon: "i-lucide-users", to: "/admin/users" },
+      { label: t("admin.roles.title"), icon: "i-lucide-shield", to: "/admin/roles" },
     ]);
   }
 
@@ -58,7 +59,7 @@ async function signOut() {
     <UDashboardSidebar collapsible resizable>
       <template #header="{ collapsed }">
         <span class="truncate font-semibold text-highlighted">
-          {{ collapsed ? "A" : "Acropol" }}
+          {{ collapsed ? t("nav.appName").charAt(0) : t("nav.appName") }}
         </span>
       </template>
 
@@ -77,7 +78,7 @@ async function signOut() {
         </div>
         <UButton
           :icon="collapsed ? 'i-lucide-log-out' : undefined"
-          :label="collapsed ? undefined : 'Sign out'"
+          :label="collapsed ? undefined : t('nav.signOut')"
           color="neutral"
           variant="ghost"
           block

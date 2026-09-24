@@ -6,32 +6,39 @@ definePageMeta({ layout: "default" });
 
 const supabase = useSupabaseClient();
 const toast = useToast();
+const { t } = useI18n();
 const submitting = ref(false);
 const errorMessage = ref("");
 
-const fields: AuthFormField[] = [
+const fields = computed<AuthFormField[]>(() => [
   {
     name: "email",
     type: "email",
-    label: "Email",
+    label: t("auth.login.email"),
+    // Hardcoded, not routed through $t(): vue-i18n's message compiler treats
+    // "@" as the start of a linked-message token, so "you@example.com" as a
+    // translation value fails to parse — and this string isn't actually
+    // language-specific content anyway.
     placeholder: "you@example.com",
     required: true,
   },
   {
     name: "password",
     type: "password",
-    label: "Password",
-    placeholder: "Enter your password",
+    label: t("auth.login.password"),
+    placeholder: t("auth.login.passwordPlaceholder"),
     required: true,
   },
-];
+]);
 
-const schema = z.object({
-  email: z.email("Invalid email"),
-  password: z.string().min(1, "Password is required"),
-});
+const schema = computed(() =>
+  z.object({
+    email: z.email(t("validation.invalidEmail")),
+    password: z.string().min(1, t("validation.required")),
+  }),
+);
 
-type Schema = z.output<typeof schema>;
+type Schema = { email: string; password: string };
 
 async function onSubmit(payload: FormSubmitEvent<Schema>) {
   submitting.value = true;
@@ -44,7 +51,7 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
 
   if (error) {
     submitting.value = false;
-    errorMessage.value = "Incorrect email or password.";
+    errorMessage.value = t("auth.login.error");
     return;
   }
 
@@ -70,7 +77,7 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
   }
 
   submitting.value = false;
-  toast.add({ title: "Signed in", color: "success" });
+  toast.add({ title: t("auth.login.signedIn"), color: "success" });
   await navigateTo("/");
 }
 </script>
@@ -81,9 +88,9 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
       <UAuthForm
         :schema="schema"
         :fields="fields"
-        :submit="{ label: 'Sign in', loading: submitting, block: true }"
-        title="Welcome back"
-        description="Sign in with the account your administrator created for you."
+        :submit="{ label: t('auth.login.submit'), loading: submitting, block: true }"
+        :title="t('auth.login.title')"
+        :description="t('auth.login.description')"
         icon="i-lucide-lock"
         @submit="onSubmit"
       >
