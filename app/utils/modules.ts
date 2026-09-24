@@ -51,7 +51,11 @@ export const MODULES: ModuleDef[] = [
           { key: "view_all", labelKey: "resources.crm_leads.actions.view_all" },
         ],
       },
-      { key: "crm_deals", labelKey: "resources.crm_deals.label", actions: crud("crm_deals") },
+      {
+        key: "crm_deals",
+        labelKey: "resources.crm_deals.label",
+        actions: [...crud("crm_deals"), { key: "assign", labelKey: "resources.crm_deals.actions.assign" }],
+      },
       { key: "crm_quotes", labelKey: "resources.crm_quotes.label", actions: crud("crm_quotes") },
       { key: "crm_customers", labelKey: "resources.crm_customers.label", actions: crud("crm_customers") },
     ],

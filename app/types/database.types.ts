@@ -408,6 +408,57 @@ export type Database = {
           },
         ];
       };
+      deal_activities: {
+        Row: {
+          id: string;
+          deal_id: string;
+          type: "note" | "call" | "meeting" | "site_visit" | "stage_changed" | "assigned" | "created";
+          content: string | null;
+          scheduled_at: string | null;
+          completed_at: string | null;
+          metadata: Json;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          deal_id: string;
+          type: "note" | "call" | "meeting" | "site_visit" | "stage_changed" | "assigned" | "created";
+          content?: string | null;
+          scheduled_at?: string | null;
+          completed_at?: string | null;
+          metadata?: Json;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          deal_id?: string;
+          type?: "note" | "call" | "meeting" | "site_visit" | "stage_changed" | "assigned" | "created";
+          content?: string | null;
+          scheduled_at?: string | null;
+          completed_at?: string | null;
+          metadata?: Json;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "deal_activities_deal_id_fkey";
+            columns: ["deal_id"];
+            isOneToOne: false;
+            referencedRelation: "deals";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "deal_activities_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       quotes: {
         Row: {
           id: string;

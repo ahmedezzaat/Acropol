@@ -41,11 +41,18 @@ interface Deal {
   customer_id: string;
   pipeline_id: string;
   stage_id: string;
+  assigned_to: string | null;
 }
 
 interface Customer {
   id: string;
   name: string;
+}
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  email: string;
 }
 
 const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deals-pipelines", async () => {
@@ -75,7 +82,7 @@ const { data: allReasons } = await useAsyncData<Reason[]>("crm-deals-reasons", a
 const { data: deals, refresh, status } = await useAsyncData<Deal[]>("crm-deals", async () => {
   const { data, error } = await supabase
     .from("deals")
-    .select("id, title, value, customer_id, pipeline_id, stage_id")
+    .select("id, title, value, customer_id, pipeline_id, stage_id, assigned_to")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -87,11 +94,26 @@ const { data: customers } = await useAsyncData<Customer[]>("crm-deals-customers"
   return data ?? [];
 });
 
+const { data: profiles } = await useAsyncData<Profile[]>("crm-deals-profiles", async () => {
+  const { data, error } = await supabase.from("profiles").select("id, full_name, email").eq("is_active", true);
+  if (error) throw error;
+  return data ?? [];
+});
+
 const customerOptions = computed(() =>
   (customers.value ?? []).map((c) => ({ label: c.name, value: c.id })),
 );
 function customerName(id: string) {
   return customers.value?.find((c) => c.id === id)?.name ?? "—";
+}
+const assigneeOptions = computed(() => [
+  { label: t("common.unassigned"), value: null },
+  ...(profiles.value ?? []).map((p) => ({ label: p.full_name || p.email, value: p.id })),
+]);
+function assigneeInitial(id: string | null) {
+  const p = profiles.value?.find((p) => p.id === id);
+  const label = p?.full_name || p?.email || "";
+  return label.charAt(0).toUpperCase();
 }
 
 const activePipelineId = ref<string | null>(null);
@@ -125,6 +147,7 @@ const schema = computed(() =>
       pipeline_id: z.uuid(t("validation.required")),
       stage_id: z.uuid(t("validation.required")),
       stage_reason_id: z.uuid().nullable().optional(),
+      assigned_to: z.uuid().nullable().optional(),
       value: z.number().optional(),
       expected_close_date: z.string().optional(),
     })
@@ -141,6 +164,7 @@ type Schema = {
   pipeline_id: string;
   stage_id: string;
   stage_reason_id?: string | null;
+  assigned_to?: string | null;
   value?: number;
   expected_close_date?: string;
 };
@@ -150,9 +174,11 @@ const state = reactive<Partial<Schema>>({
   pipeline_id: undefined,
   stage_id: undefined,
   stage_reason_id: null,
+  assigned_to: null,
   value: undefined,
   expected_close_date: "",
 });
+const canAssign = computed(() => hasPermission("crm_deals", "assign"));
 
 const createPipelineStages = computed(() =>
   (allStages.value ?? []).filter((s) => s.pipeline_id === state.pipeline_id),
@@ -189,7 +215,7 @@ watch(
 
 async function onCreate(event: FormSubmitEvent<Schema>) {
   creating.value = true;
-  const { error } = await supabase.from("deals").insert({
+  const payload: Record<string, unknown> = {
     title: event.data.title,
     customer_id: event.data.customer_id,
     pipeline_id: event.data.pipeline_id,
@@ -197,7 +223,10 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     stage_reason_id: event.data.stage_reason_id || null,
     value: event.data.value ?? null,
     expected_close_date: event.data.expected_close_date || null,
-  });
+  };
+  if (canAssign.value) payload.assigned_to = event.data.assigned_to || null;
+
+  const { error } = await supabase.from("deals").insert(payload);
   creating.value = false;
 
   if (error) {
@@ -207,7 +236,13 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
 
   toast.add({ title: t("crm.deals.dealCreated"), color: "success" });
   createOpen.value = false;
-  Object.assign(state, { title: "", customer_id: undefined, value: undefined, expected_close_date: "" });
+  Object.assign(state, {
+    title: "",
+    customer_id: undefined,
+    assigned_to: null,
+    value: undefined,
+    expected_close_date: "",
+  });
   refresh();
 }
 
@@ -263,7 +298,14 @@ function openDeal(deal: Deal) {
               class="cursor-pointer rounded-md border border-default bg-default p-2 text-sm hover:border-primary"
               @click="openDeal(deal)"
             >
-              <div class="font-medium text-highlighted">{{ deal.title }}</div>
+              <div class="flex items-start justify-between gap-2">
+                <div class="font-medium text-highlighted">{{ deal.title }}</div>
+                <UAvatar
+                  v-if="deal.assigned_to"
+                  :text="assigneeInitial(deal.assigned_to)"
+                  size="2xs"
+                />
+              </div>
               <div class="text-muted">{{ customerName(deal.customer_id) }}</div>
               <div v-if="deal.value" class="text-muted">{{ deal.value }}</div>
             </div>
@@ -298,6 +340,9 @@ function openDeal(deal: Deal) {
         </UFormField>
         <UFormField v-if="createStage?.reason_category" name="stage_reason_id" :label="t('crm.deals.reason')">
           <USelect v-model="state.stage_reason_id" :items="createReasonOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <UFormField v-if="canAssign" name="assigned_to" :label="t('crm.deals.assignedTo')">
+          <USelect v-model="state.assigned_to" :items="assigneeOptions" value-key="value" class="w-full" />
         </UFormField>
         <UFormField name="value" :label="t('crm.deals.value')">
           <UInputNumber v-model="state.value" class="w-full" />

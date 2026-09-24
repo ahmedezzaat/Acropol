@@ -65,7 +65,7 @@
     },
     "crm_deals": {
       "label": "Deals",
-      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete" }
+      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete", "assign": "Assign deals" }
     },
     "crm_quotes": {
       "label": "Quotes",
@@ -255,7 +255,43 @@
       "list": "List",
       "noDealsInStage": "No deals",
       "openLabel": "open",
-      "closedLabel": "closed"
+      "closedLabel": "closed",
+      "assignedTo": "Assigned to",
+      "assignPermissionHint": "You don't have permission to assign deals.",
+      "contactTitle": "Contact",
+      "viewCustomer": "View customer profile",
+      "fromLead": "Originated from a lead",
+      "createdOn": "Created on",
+      "timeline": {
+        "title": "Timeline",
+        "composerPlaceholder": "Add a note or describe the action...",
+        "logActivity": "Log",
+        "types": {
+          "note": "Note",
+          "call": "Call",
+          "meeting": "Meeting",
+          "site_visit": "Site visit"
+        },
+        "scheduleToggle": "Schedule for later",
+        "scheduledAt": "Scheduled for",
+        "upcomingTitle": "Upcoming",
+        "noUpcoming": "No scheduled actions.",
+        "markComplete": "Mark complete",
+        "completedLabel": "Completed",
+        "noActivity": "No activity yet.",
+        "activityLogged": "Logged",
+        "activityLogFailed": "Failed to log",
+        "activityDeleted": "Activity deleted",
+        "activityDeleteFailed": "Failed to delete activity",
+        "activityCompleted": "Marked complete",
+        "activityCompleteFailed": "Failed to update",
+        "events": {
+          "created": "Deal created",
+          "stageChanged": "Stage moved from {from} to {to}",
+          "assignedTo": "Assigned to {to}",
+          "unassigned": "Unassigned"
+        }
+      }
     },
     "quotes": {
       "title": "Quotes",

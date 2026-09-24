@@ -65,7 +65,7 @@
     },
     "crm_deals": {
       "label": "الصفقات",
-      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف" }
+      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف", "assign": "إسناد الصفقات" }
     },
     "crm_quotes": {
       "label": "عروض الأسعار",
@@ -255,7 +255,43 @@
       "list": "القائمة",
       "noDealsInStage": "لا توجد صفقات",
       "openLabel": "مفتوحة",
-      "closedLabel": "مغلقة"
+      "closedLabel": "مغلقة",
+      "assignedTo": "مُسند إلى",
+      "assignPermissionHint": "لا تملك صلاحية إسناد الصفقات.",
+      "contactTitle": "جهة الاتصال",
+      "viewCustomer": "عرض ملف العميل",
+      "fromLead": "نشأت من عميل محتمل",
+      "createdOn": "أُنشئت في",
+      "timeline": {
+        "title": "السجل الزمني",
+        "composerPlaceholder": "أضف ملاحظة أو صف الإجراء...",
+        "logActivity": "تسجيل",
+        "types": {
+          "note": "ملاحظة",
+          "call": "مكالمة",
+          "meeting": "اجتماع",
+          "site_visit": "زيارة ميدانية"
+        },
+        "scheduleToggle": "جدولة لوقت لاحق",
+        "scheduledAt": "موعد التنفيذ",
+        "upcomingTitle": "المجدولة",
+        "noUpcoming": "لا توجد إجراءات مجدولة.",
+        "markComplete": "تحديد كمكتمل",
+        "completedLabel": "مكتمل",
+        "noActivity": "لا يوجد نشاط بعد.",
+        "activityLogged": "تم التسجيل",
+        "activityLogFailed": "فشل التسجيل",
+        "activityDeleted": "تم حذف النشاط",
+        "activityDeleteFailed": "فشل حذف النشاط",
+        "activityCompleted": "تم التحديد كمكتمل",
+        "activityCompleteFailed": "فشل التحديث",
+        "events": {
+          "created": "تم إنشاء الصفقة",
+          "stageChanged": "تم نقل المرحلة من {from} إلى {to}",
+          "assignedTo": "تم الإسناد إلى {to}",
+          "unassigned": "تم إلغاء الإسناد"
+        }
+      }
     },
     "quotes": {
       "title": "عروض الأسعار",
