@@ -24,7 +24,7 @@ export default defineNuxtConfig({
     "@nuxt/scripts",
     "@nuxt/ui",
     "@nuxtjs/seo",
-    // "@nuxtjs/supabase",
+    "@nuxtjs/supabase",
     "@nuxtjs/i18n",
     // @nuxtjs/seo pulls in nuxt-og-image, which unconditionally registers
     // "playwright-core" as a Nitro virtual module that mocks every export
@@ -77,7 +77,12 @@ export default defineNuxtConfig({
     pages: {},
   },
 
-  supabase: {},
+  supabase: {
+    // Own redirect handling in app/middleware/auth.global.ts instead, since
+    // the module's built-in path-based redirect matching doesn't account
+    // for i18n's locale-prefixed routes (ar unprefixed, en at /en/...).
+    redirect: false,
+  },
 
   site: {
     defaultLocale: "ar",
