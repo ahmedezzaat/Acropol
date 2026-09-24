@@ -42,13 +42,34 @@ async function onSubmit(payload: FormSubmitEvent<Schema>) {
     password: payload.data.password,
   });
 
-  submitting.value = false;
-
   if (error) {
+    submitting.value = false;
     errorMessage.value = "Incorrect email or password.";
     return;
   }
 
+  // useSupabaseUser() updates asynchronously (the module's auth-state-change
+  // listener awaits a separate getClaims() call) — navigating immediately
+  // after signIn races it, and auth.global.ts's middleware sees a still-null
+  // user and bounces straight back to /login. Wait for the ref to actually
+  // reflect the new session first.
+  const user = useSupabaseUser();
+  if (!user.value) {
+    await new Promise<void>((resolve) => {
+      const stop = watch(
+        user,
+        (value) => {
+          if (value) {
+            stop();
+            resolve();
+          }
+        },
+        { immediate: true },
+      );
+    });
+  }
+
+  submitting.value = false;
   toast.add({ title: "Signed in", color: "success" });
   await navigateTo("/");
 }
