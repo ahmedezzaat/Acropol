@@ -14,7 +14,9 @@
     "crm-customers-id": { "title": "@:crm.customers.title" },
     "admin-users": { "title": "@:admin.users.title" },
     "admin-roles": { "title": "@:admin.roles.title" },
-    "admin-roles-id": { "title": "@:admin.roles.title" }
+    "admin-roles-id": { "title": "@:admin.roles.title" },
+    "admin-pipelines": { "title": "@:admin.pipelines.title" },
+    "admin-pipelines-id": { "title": "@:admin.pipelines.title" }
   },
   "validation": {
     "required": "This field is required",
@@ -140,6 +142,42 @@
       "savePermissions": "Save permissions",
       "permissionsSaved": "Permissions saved",
       "savePermissionsFailed": "Failed to save permissions"
+    },
+    "pipelines": {
+      "title": "Pipelines",
+      "newPipeline": "New pipeline",
+      "name": "Name",
+      "createPipelineTitle": "New pipeline",
+      "pipelineCreated": "Pipeline created",
+      "createPipelineFailed": "Failed to create pipeline",
+      "deletePipeline": "Delete pipeline",
+      "pipelineDeleted": "Pipeline deleted",
+      "deletePipelineFailed": "Failed to delete pipeline",
+      "detailsTitle": "Details",
+      "saveDetails": "Save details",
+      "pipelineSaved": "Pipeline saved",
+      "saveFailed": "Failed to save",
+      "stagesTitle": "Stages",
+      "stagesDescription": "This pipeline's stages, in order. A closed stage means the deal is done (won, lost, archived...).",
+      "stageName": "Stage name",
+      "closed": "Closed",
+      "reasonCategory": "Requires a reason",
+      "reasonCategoryNone": "None",
+      "reasonCategoryArchive": "Archive reason",
+      "reasonCategoryCompetitor": "Bought-from-competitor reason",
+      "addStage": "Add stage",
+      "newStageDefault": "New stage",
+      "stagesSaved": "Stages saved",
+      "saveStagesFailed": "Failed to save stages",
+      "removeStage": "Remove",
+      "reasonsTitle": "Closing reasons",
+      "reasonsDescription": "The reasons selectable when moving a deal into this pipeline's \"Archive\" or \"Bought from competitor\" stage.",
+      "archiveReasons": "Archive reasons",
+      "competitorReasons": "Bought-from-competitor reasons",
+      "addReason": "Add reason",
+      "newReasonDefault": "New reason",
+      "reasonsSaved": "Reasons saved",
+      "saveReasonsFailed": "Failed to save reasons"
     }
   },
   "crm": {
@@ -196,7 +234,10 @@
       "dealTitle": "Title",
       "newDeal": "New deal",
       "customer": "Customer",
+      "pipeline": "Pipeline",
       "stage": "Stage",
+      "reason": "Reason",
+      "reasonRequired": "This stage requires selecting a reason.",
       "value": "Value",
       "expectedCloseDate": "Expected close date",
       "createDeal": "Create deal",
@@ -210,13 +251,11 @@
       "noQuotesYet": "No quotes yet.",
       "newQuote": "New quote",
       "createQuoteFailed": "Failed to create quote",
-      "stageValues": {
-        "open": "open",
-        "proposal": "proposal",
-        "negotiation": "negotiation",
-        "won": "won",
-        "lost": "lost"
-      }
+      "board": "Board",
+      "list": "List",
+      "noDealsInStage": "No deals",
+      "openLabel": "open",
+      "closedLabel": "closed"
     },
     "quotes": {
       "title": "Quotes",

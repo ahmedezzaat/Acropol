@@ -230,13 +230,109 @@ export type Database = {
           },
         ];
       };
+      pipelines: {
+        Row: {
+          id: string;
+          name: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      pipeline_stages: {
+        Row: {
+          id: string;
+          pipeline_id: string;
+          name: string;
+          sort_order: number;
+          is_closed: boolean;
+          reason_category: "archive" | "competitor" | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          pipeline_id: string;
+          name: string;
+          sort_order?: number;
+          is_closed?: boolean;
+          reason_category?: "archive" | "competitor" | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          pipeline_id?: string;
+          name?: string;
+          sort_order?: number;
+          is_closed?: boolean;
+          reason_category?: "archive" | "competitor" | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stages_pipeline_id_fkey";
+            columns: ["pipeline_id"];
+            isOneToOne: false;
+            referencedRelation: "pipelines";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      pipeline_stage_reasons: {
+        Row: {
+          id: string;
+          pipeline_id: string;
+          category: "archive" | "competitor";
+          name: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          pipeline_id: string;
+          category: "archive" | "competitor";
+          name: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          pipeline_id?: string;
+          category?: "archive" | "competitor";
+          name?: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stage_reasons_pipeline_id_fkey";
+            columns: ["pipeline_id"];
+            isOneToOne: false;
+            referencedRelation: "pipelines";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       deals: {
         Row: {
           id: string;
           customer_id: string;
           lead_id: string | null;
           title: string;
-          stage: Database["public"]["Enums"]["deal_stage"];
+          pipeline_id: string;
+          stage_id: string;
+          stage_reason_id: string | null;
           value: number | null;
           expected_close_date: string | null;
           assigned_to: string | null;
@@ -249,7 +345,9 @@ export type Database = {
           customer_id: string;
           lead_id?: string | null;
           title: string;
-          stage?: Database["public"]["Enums"]["deal_stage"];
+          pipeline_id: string;
+          stage_id: string;
+          stage_reason_id?: string | null;
           value?: number | null;
           expected_close_date?: string | null;
           assigned_to?: string | null;
@@ -262,7 +360,9 @@ export type Database = {
           customer_id?: string;
           lead_id?: string | null;
           title?: string;
-          stage?: Database["public"]["Enums"]["deal_stage"];
+          pipeline_id?: string;
+          stage_id?: string;
+          stage_reason_id?: string | null;
           value?: number | null;
           expected_close_date?: string | null;
           assigned_to?: string | null;
@@ -283,6 +383,27 @@ export type Database = {
             columns: ["lead_id"];
             isOneToOne: false;
             referencedRelation: "leads";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "deals_pipeline_id_fkey";
+            columns: ["pipeline_id"];
+            isOneToOne: false;
+            referencedRelation: "pipelines";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "deals_stage_id_fkey";
+            columns: ["stage_id"];
+            isOneToOne: false;
+            referencedRelation: "pipeline_stages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "deals_stage_reason_id_fkey";
+            columns: ["stage_reason_id"];
+            isOneToOne: false;
+            referencedRelation: "pipeline_stage_reasons";
             referencedColumns: ["id"];
           },
         ];
@@ -403,7 +524,6 @@ export type Database = {
       lead_status: "new" | "contacted" | "qualified" | "converted" | "lost";
       lead_type: "individual" | "company";
       lead_source: "facebook" | "instagram" | "meta" | "google" | "website" | "event" | "referral";
-      deal_stage: "open" | "proposal" | "negotiation" | "won" | "lost";
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "expired";
     };
     CompositeTypes: Record<string, never>;

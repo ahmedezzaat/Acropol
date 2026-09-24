@@ -14,7 +14,9 @@
     "crm-customers-id": { "title": "@:crm.customers.title" },
     "admin-users": { "title": "@:admin.users.title" },
     "admin-roles": { "title": "@:admin.roles.title" },
-    "admin-roles-id": { "title": "@:admin.roles.title" }
+    "admin-roles-id": { "title": "@:admin.roles.title" },
+    "admin-pipelines": { "title": "@:admin.pipelines.title" },
+    "admin-pipelines-id": { "title": "@:admin.pipelines.title" }
   },
   "validation": {
     "required": "هذا الحقل مطلوب",
@@ -140,6 +142,42 @@
       "savePermissions": "حفظ الصلاحيات",
       "permissionsSaved": "تم حفظ الصلاحيات",
       "savePermissionsFailed": "فشل حفظ الصلاحيات"
+    },
+    "pipelines": {
+      "title": "مسارات المبيعات",
+      "newPipeline": "مسار جديد",
+      "name": "الاسم",
+      "createPipelineTitle": "مسار جديد",
+      "pipelineCreated": "تم إنشاء المسار",
+      "createPipelineFailed": "فشل إنشاء المسار",
+      "deletePipeline": "حذف المسار",
+      "pipelineDeleted": "تم حذف المسار",
+      "deletePipelineFailed": "فشل حذف المسار",
+      "detailsTitle": "التفاصيل",
+      "saveDetails": "حفظ التفاصيل",
+      "pipelineSaved": "تم حفظ المسار",
+      "saveFailed": "فشل الحفظ",
+      "stagesTitle": "المراحل",
+      "stagesDescription": "مراحل هذا المسار بالترتيب. المرحلة المغلقة تعني أن الصفقة انتهت (فوز، خسارة، أرشفة...).",
+      "stageName": "اسم المرحلة",
+      "closed": "مغلقة",
+      "reasonCategory": "يتطلب سببًا",
+      "reasonCategoryNone": "بدون",
+      "reasonCategoryArchive": "سبب الأرشفة",
+      "reasonCategoryCompetitor": "سبب الشراء من منافس",
+      "addStage": "إضافة مرحلة",
+      "newStageDefault": "مرحلة جديدة",
+      "stagesSaved": "تم حفظ المراحل",
+      "saveStagesFailed": "فشل حفظ المراحل",
+      "removeStage": "حذف",
+      "reasonsTitle": "أسباب الإغلاق",
+      "reasonsDescription": "الأسباب التي يمكن اختيارها عند نقل صفقة إلى مرحلة \"الأرشفة\" أو \"تم الشراء من منافس\" في هذا المسار.",
+      "archiveReasons": "أسباب الأرشفة",
+      "competitorReasons": "أسباب الشراء من منافس",
+      "addReason": "إضافة سبب",
+      "newReasonDefault": "سبب جديد",
+      "reasonsSaved": "تم حفظ الأسباب",
+      "saveReasonsFailed": "فشل حفظ الأسباب"
     }
   },
   "crm": {
@@ -196,7 +234,10 @@
       "dealTitle": "العنوان",
       "newDeal": "صفقة جديدة",
       "customer": "العميل",
+      "pipeline": "المسار",
       "stage": "المرحلة",
+      "reason": "السبب",
+      "reasonRequired": "هذه المرحلة تتطلب اختيار سبب.",
       "value": "القيمة",
       "expectedCloseDate": "تاريخ الإغلاق المتوقع",
       "createDeal": "إنشاء صفقة",
@@ -210,13 +251,11 @@
       "noQuotesYet": "لا توجد عروض أسعار بعد.",
       "newQuote": "عرض سعر جديد",
       "createQuoteFailed": "فشل إنشاء عرض السعر",
-      "stageValues": {
-        "open": "مفتوحة",
-        "proposal": "عرض مقدم",
-        "negotiation": "تفاوض",
-        "won": "رابحة",
-        "lost": "خاسرة"
-      }
+      "board": "اللوحة",
+      "list": "القائمة",
+      "noDealsInStage": "لا توجد صفقات",
+      "openLabel": "مفتوحة",
+      "closedLabel": "مغلقة"
     },
     "quotes": {
       "title": "عروض الأسعار",

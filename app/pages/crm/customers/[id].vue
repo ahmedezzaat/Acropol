@@ -23,8 +23,8 @@ interface Customer {
 interface Deal {
   id: string;
   title: string;
-  stage: string;
   value: number | null;
+  stage: { name: string } | null;
 }
 
 interface Quote {
@@ -49,7 +49,7 @@ const { status } = await useAsyncData(`crm-customer-${customerId}`, async () => 
 const { data: deals } = await useAsyncData<Deal[]>(`crm-customer-${customerId}-deals`, async () => {
   const { data, error } = await supabase
     .from("deals")
-    .select("id, title, stage, value")
+    .select("id, title, value, stage:pipeline_stages(name)")
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -145,7 +145,7 @@ async function remove() {
             <li v-for="deal in deals" :key="deal.id" class="py-2">
               <ULink :to="`/crm/deals/${deal.id}`" class="flex items-center justify-between">
                 <span>{{ deal.title }}</span>
-                <span class="text-sm text-muted">{{ t(`crm.deals.stageValues.${deal.stage}`) }} · {{ deal.value ?? "—" }}</span>
+                <span class="text-sm text-muted">{{ deal.stage?.name }} · {{ deal.value ?? "—" }}</span>
               </ULink>
             </li>
           </ul>

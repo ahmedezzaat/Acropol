@@ -14,7 +14,9 @@ const { t } = useI18n();
 interface Deal {
   id: string;
   title: string;
-  stage: string;
+  pipeline_id: string;
+  stage_id: string;
+  stage_reason_id: string | null;
   value: number | null;
   expected_close_date: string | null;
   customer_id: string;
@@ -32,6 +34,26 @@ interface Quote {
   total: number;
 }
 
+interface Pipeline {
+  id: string;
+  name: string;
+}
+
+interface Stage {
+  id: string;
+  pipeline_id: string;
+  name: string;
+  is_closed: boolean;
+  reason_category: "archive" | "competitor" | null;
+}
+
+interface Reason {
+  id: string;
+  pipeline_id: string;
+  category: "archive" | "competitor";
+  name: string;
+}
+
 const deal = ref<Deal | null>(null);
 const saving = ref(false);
 const deleting = ref(false);
@@ -39,9 +61,39 @@ const canEdit = computed(() => hasPermission("crm_deals", "edit"));
 const canDelete = computed(() => hasPermission("crm_deals", "delete"));
 const canCreateQuote = computed(() => hasPermission("crm_quotes", "create"));
 
-const stageKeys = ["open", "proposal", "negotiation", "won", "lost"] as const;
+const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deal-pipelines", async () => {
+  const { data, error } = await supabase.from("pipelines").select("id, name").order("sort_order");
+  if (error) throw error;
+  return data ?? [];
+});
+const { data: allStages } = await useAsyncData<Stage[]>("crm-deal-stages", async () => {
+  const { data, error } = await supabase
+    .from("pipeline_stages")
+    .select("id, pipeline_id, name, is_closed, reason_category")
+    .order("sort_order");
+  if (error) throw error;
+  return data ?? [];
+});
+const { data: allReasons } = await useAsyncData<Reason[]>("crm-deal-reasons", async () => {
+  const { data, error } = await supabase
+    .from("pipeline_stage_reasons")
+    .select("id, pipeline_id, category, name")
+    .order("sort_order");
+  if (error) throw error;
+  return data ?? [];
+});
+
+const pipelineOptions = computed(() => (pipelines.value ?? []).map((p) => ({ label: p.name, value: p.id })));
 const stageOptions = computed(() =>
-  stageKeys.map((s) => ({ label: t(`crm.deals.stageValues.${s}`), value: s })),
+  (allStages.value ?? [])
+    .filter((s) => s.pipeline_id === deal.value?.pipeline_id)
+    .map((s) => ({ label: s.name, value: s.id })),
+);
+const currentStage = computed(() => allStages.value?.find((s) => s.id === deal.value?.stage_id));
+const reasonOptions = computed(() =>
+  (allReasons.value ?? [])
+    .filter((r) => r.pipeline_id === deal.value?.pipeline_id && r.category === currentStage.value?.reason_category)
+    .map((r) => ({ label: r.name, value: r.id })),
 );
 
 const { status } = await useAsyncData(`crm-deal-${dealId}`, async () => {
@@ -62,7 +114,7 @@ const { data: customer } = await useAsyncData<Customer | null>(`crm-deal-${dealI
   return data;
 });
 
-const { data: quotes, refresh: refreshQuotes } = await useAsyncData<Quote[]>(
+const { data: quotes } = await useAsyncData<Quote[]>(
   `crm-deal-${dealId}-quotes`,
   async () => {
     const { data, error } = await supabase
@@ -75,6 +127,18 @@ const { data: quotes, refresh: refreshQuotes } = await useAsyncData<Quote[]>(
   },
 );
 
+function onPipelineChange() {
+  if (!deal.value) return;
+  const firstStage = allStages.value?.find((s) => s.pipeline_id === deal.value!.pipeline_id);
+  deal.value.stage_id = firstStage?.id ?? "";
+  deal.value.stage_reason_id = null;
+}
+
+function onStageChange() {
+  if (!deal.value) return;
+  deal.value.stage_reason_id = null;
+}
+
 async function save() {
   if (!deal.value) return;
   saving.value = true;
@@ -82,7 +146,9 @@ async function save() {
     .from("deals")
     .update({
       title: deal.value.title,
-      stage: deal.value.stage,
+      pipeline_id: deal.value.pipeline_id,
+      stage_id: deal.value.stage_id,
+      stage_reason_id: deal.value.stage_reason_id,
       value: deal.value.value,
       expected_close_date: deal.value.expected_close_date,
     })
@@ -157,8 +223,29 @@ async function createQuote() {
             <UFormField :label="t('crm.deals.dealTitle')">
               <UInput v-model="deal.title" :disabled="!canEdit" class="w-full" />
             </UFormField>
+            <UFormField :label="t('crm.deals.pipeline')">
+              <USelect
+                v-model="deal.pipeline_id"
+                :items="pipelineOptions"
+                value-key="value"
+                :disabled="!canEdit"
+                class="w-full"
+                @update:model-value="onPipelineChange"
+              />
+            </UFormField>
             <UFormField :label="t('crm.deals.stage')">
-              <USelect v-model="deal.stage" :items="stageOptions" value-key="value" :disabled="!canEdit" class="w-full" />
+              <USelect
+                v-model="deal.stage_id"
+                :items="stageOptions"
+                value-key="value"
+                :disabled="!canEdit"
+                class="w-full"
+                @update:model-value="onStageChange"
+              />
+            </UFormField>
+            <UFormField v-if="currentStage?.reason_category" :label="t('crm.deals.reason')">
+              <USelect v-model="deal.stage_reason_id" :items="reasonOptions" value-key="value" :disabled="!canEdit" class="w-full" />
+              <p v-if="!deal.stage_reason_id" class="mt-1 text-xs text-warning">{{ t("crm.deals.reasonRequired") }}</p>
             </UFormField>
             <UFormField :label="t('crm.deals.value')">
               <UInputNumber v-model="deal.value" :disabled="!canEdit" class="w-full" />
