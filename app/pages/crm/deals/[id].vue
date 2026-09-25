@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TimelineItem } from "@nuxt/ui";
+import { CalendarDate, Time, getLocalTimeZone, today } from "@internationalized/date";
 
 definePageMeta({
   layout: "dashboard",
@@ -343,32 +344,37 @@ const activityType = ref("");
 const activityContent = ref("");
 const logging = ref(false);
 
-// Follow-up date/time — a native date input (opens the browser's own date
-// picker, defaults to today) plus separate hour/minute/AM-PM controls so
-// the time is always shown in a fixed 12-hour format regardless of the
-// browser's locale (a bare <input type="time"> can't guarantee that).
-const scheduledDate = ref("");
-const scheduledHour = ref(9);
-const scheduledMinute = ref(0);
-const scheduledMeridiem = ref<"AM" | "PM">("AM");
-const hourOptions = Array.from({ length: 12 }, (_, i) => i + 1);
-const minuteOptions = Array.from({ length: 12 }, (_, i) => i * 5);
+// Follow-up date/time — a calendar popover (defaults to today, opened via
+// UPopover + UCalendar so the user can pick a day visually) plus a compact
+// 12-hour time field.
+const scheduledDate = ref<CalendarDate>(today(getLocalTimeZone()));
+const scheduledTime = ref<Time>(new Time(9, 0));
+const datePopoverOpen = ref(false);
+
+const formattedScheduledDate = computed(() => {
+  if (!scheduledDate.value) return "";
+  return scheduledDate.value
+    .toDate(getLocalTimeZone())
+    .toLocaleDateString(locale.value === "ar" ? "ar" : "en", { dateStyle: "medium" });
+});
 
 function resetScheduleFields() {
   const now = new Date();
-  scheduledDate.value = now.toISOString().slice(0, 10);
-  const h = now.getHours();
-  scheduledHour.value = h % 12 === 0 ? 12 : h % 12;
-  scheduledMeridiem.value = h >= 12 ? "PM" : "AM";
-  scheduledMinute.value = Math.round(now.getMinutes() / 5) * 5 % 60;
+  scheduledDate.value = today(getLocalTimeZone());
+  scheduledTime.value = new Time(now.getHours(), (Math.round(now.getMinutes() / 5) * 5) % 60);
 }
 
 function scheduledAtIso(): string | null {
-  if (!scheduledDate.value) return null;
-  const [y, m, d] = scheduledDate.value.split("-").map(Number);
-  let hour24 = scheduledHour.value % 12;
-  if (scheduledMeridiem.value === "PM") hour24 += 12;
-  return new Date(y, m - 1, d, hour24, scheduledMinute.value, 0, 0).toISOString();
+  if (!scheduledDate.value || !scheduledTime.value) return null;
+  return new Date(
+    scheduledDate.value.year,
+    scheduledDate.value.month - 1,
+    scheduledDate.value.day,
+    scheduledTime.value.hour,
+    scheduledTime.value.minute,
+    0,
+    0,
+  ).toISOString();
 }
 
 function openComposer() {
@@ -810,26 +816,29 @@ const timelineItems = computed<TimelineItem[]>(() =>
           class="w-full"
           :rows="3"
         />
-        <UFormField :label="t('crm.deals.timeline.scheduledDate')" required>
-          <UInput v-model="scheduledDate" type="date" class="w-full" />
-        </UFormField>
-        <UFormField :label="t('crm.deals.timeline.scheduledTime')" required>
-          <div class="flex items-center gap-2">
-            <USelect v-model="scheduledHour" :items="hourOptions" class="w-20" />
-            <span class="text-muted">:</span>
-            <USelect
-              v-model="scheduledMinute"
-              :items="minuteOptions.map((m) => ({ label: String(m).padStart(2, '0'), value: m }))"
-              value-key="value"
-              class="w-24"
-            />
-            <USelect v-model="scheduledMeridiem" :items="['AM', 'PM']" class="w-24" />
-          </div>
-        </UFormField>
+        <div class="flex gap-3">
+          <UFormField :label="t('crm.deals.timeline.scheduledDate')" required class="flex-1">
+            <UPopover v-model:open="datePopoverOpen">
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-calendar"
+                :label="formattedScheduledDate"
+                class="w-full justify-start"
+              />
+              <template #content>
+                <UCalendar v-model="scheduledDate" class="p-2" @update:model-value="datePopoverOpen = false" />
+              </template>
+            </UPopover>
+          </UFormField>
+          <UFormField :label="t('crm.deals.timeline.scheduledTime')" required class="flex-1">
+            <UInputTime v-model="scheduledTime" :hour-cycle="12" class="w-full" />
+          </UFormField>
+        </div>
         <UButton
           :label="t('crm.deals.timeline.scheduleFollowUp')"
           :loading="logging"
-          :disabled="!activityContent.trim() || !activityType || !scheduledDate"
+          :disabled="!activityContent.trim() || !activityType || !scheduledDate || !scheduledTime"
           block
           @click="scheduleFollowUp"
         />
