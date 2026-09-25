@@ -381,10 +381,15 @@ function openComposer() {
 async function logActivity() {
   if (!activityContent.value.trim() || !activityType.value) return;
   logging.value = true;
+  // This step logs something that already happened, so it's closed the
+  // instant it's recorded — completed_at lets a report count how many
+  // activities a user actually logged, distinct from ones still pending
+  // (scheduled follow-ups, which only get completed_at via markComplete).
   const { error } = await supabase.from("deal_activities").insert({
     deal_id: dealId,
     type: activityType.value,
     content: activityContent.value.trim(),
+    completed_at: new Date().toISOString(),
   });
   logging.value = false;
 
