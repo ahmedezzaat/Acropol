@@ -134,11 +134,15 @@ const pipelineStages = computed(() =>
 );
 const currentStage = computed(() => allStages.value?.find((s) => s.id === deal.value?.stage_id));
 
-const { status } = await useAsyncData(`crm-deal-${dealId}`, async () => {
+// See leads/[id].vue for why this syncs via watchEffect from useAsyncData's
+// own `data` rather than only mutating `deal` inside the handler.
+const { data: dealPayload, status } = await useAsyncData(`crm-deal-${dealId}`, async () => {
   const { data, error } = await supabase.from("deals").select("*").eq("id", dealId).single();
   if (error) throw error;
-  deal.value = data;
-  return true;
+  return data;
+});
+watchEffect(() => {
+  if (dealPayload.value) deal.value = dealPayload.value;
 });
 
 const { data: customer } = await useAsyncData<Customer | null>(`crm-deal-${dealId}-customer`, async () => {
@@ -289,28 +293,74 @@ async function confirmStageReason() {
 }
 
 // --- Activity composer ---
-const activityTypes = ["note", "call", "meeting", "site_visit"] as const;
-const activityType = ref<(typeof activityTypes)[number]>("note");
+interface ActivityTypeRow {
+  id: string;
+  key: string;
+  name: string;
+  icon: string;
+  sort_order: number;
+}
+
+const { data: activityTypeRows } = await useAsyncData<ActivityTypeRow[]>(
+  "crm-deal-activity-types",
+  async () => {
+    const { data, error } = await supabase.from("activity_types").select("*").order("sort_order");
+    if (error) throw error;
+    return data ?? [];
+  },
+);
+
+// 'note' is a fixed built-in (its own always-visible quick composer, not
+// part of the "log activity" modal) — the rest are admin-managed (see
+// /admin/activity-types), so any number can exist.
+const composerTypes = computed(() =>
+  (activityTypeRows.value ?? []).map((r) => ({ key: r.key, name: r.name, icon: r.icon })),
+);
+const allActivityTypes = computed(() => [
+  { key: "note", name: t("crm.deals.timeline.types.note"), icon: "i-lucide-sticky-note" },
+  ...composerTypes.value,
+]);
+const manualTypeKeys = computed(() => new Set(allActivityTypes.value.map((t) => t.key)));
+
+function activityIcon(typeKey: string) {
+  if (typeKey === "created") return "i-lucide-sparkles";
+  if (typeKey === "stage_changed") return "i-lucide-git-branch";
+  if (typeKey === "assigned") return "i-lucide-user-check";
+  return allActivityTypes.value.find((t) => t.key === typeKey)?.icon ?? "i-lucide-circle";
+}
+
+function activityTypeName(typeKey: string) {
+  return allActivityTypes.value.find((t) => t.key === typeKey)?.name ?? typeKey;
+}
+
+const logComposerOpen = ref(false);
+// 'log' = pick what already happened; 'schedule' = forced follow-up step,
+// only entered when the deal isn't on a closed stage — a deal shouldn't be
+// left without a next action while it's still open.
+const composerStep = ref<"log" | "schedule">("log");
+const activityType = ref("");
 const activityContent = ref("");
 const scheduleEnabled = ref(false);
 const scheduledAt = ref("");
 const logging = ref(false);
 
-const activityTypeIcons: Record<string, string> = {
-  note: "i-lucide-sticky-note",
-  call: "i-lucide-phone",
-  meeting: "i-lucide-users",
-  site_visit: "i-lucide-map-pin",
-};
+function openComposer() {
+  composerStep.value = "log";
+  activityType.value = composerTypes.value[0]?.key ?? "";
+  activityContent.value = "";
+  scheduleEnabled.value = false;
+  scheduledAt.value = "";
+  logComposerOpen.value = true;
+}
 
 async function logActivity() {
-  if (!activityContent.value.trim()) return;
+  if (!activityContent.value.trim() || !activityType.value) return;
   logging.value = true;
   const { error } = await supabase.from("deal_activities").insert({
     deal_id: dealId,
     type: activityType.value,
     content: activityContent.value.trim(),
-    scheduled_at: activityType.value !== "note" && scheduleEnabled.value && scheduledAt.value ? scheduledAt.value : null,
+    scheduled_at: scheduleEnabled.value && scheduledAt.value ? scheduledAt.value : null,
   });
   logging.value = false;
 
@@ -320,10 +370,65 @@ async function logActivity() {
   }
 
   toast.add({ title: t("crm.deals.timeline.activityLogged"), color: "success" });
+  refreshActivities();
+
+  if (currentStage.value?.is_closed) {
+    logComposerOpen.value = false;
+    return;
+  }
+
+  // Deal is still open — force scheduling the next action before the
+  // composer can close.
+  composerStep.value = "schedule";
+  activityType.value = composerTypes.value[0]?.key ?? "";
   activityContent.value = "";
-  scheduleEnabled.value = false;
   scheduledAt.value = "";
-  activityType.value = "note";
+}
+
+async function scheduleFollowUp() {
+  if (!activityContent.value.trim() || !activityType.value || !scheduledAt.value) return;
+  logging.value = true;
+  const { error } = await supabase.from("deal_activities").insert({
+    deal_id: dealId,
+    type: activityType.value,
+    content: activityContent.value.trim(),
+    scheduled_at: scheduledAt.value,
+  });
+  logging.value = false;
+
+  if (error) {
+    toast.add({ title: t("crm.deals.timeline.activityLogFailed"), description: error.message, color: "error" });
+    return;
+  }
+
+  toast.add({ title: t("crm.deals.timeline.followUpScheduled"), color: "success" });
+  logComposerOpen.value = false;
+  refreshActivities();
+}
+
+// Quick note — always-visible single-line composer just below the "Log
+// Activity" button, separate from the modal (which only offers the
+// schedulable admin-managed types, not 'note').
+const quickNoteContent = ref("");
+const loggingNote = ref(false);
+
+async function logNote() {
+  if (!quickNoteContent.value.trim()) return;
+  loggingNote.value = true;
+  const { error } = await supabase.from("deal_activities").insert({
+    deal_id: dealId,
+    type: "note",
+    content: quickNoteContent.value.trim(),
+  });
+  loggingNote.value = false;
+
+  if (error) {
+    toast.add({ title: t("crm.deals.timeline.activityLogFailed"), description: error.message, color: "error" });
+    return;
+  }
+
+  toast.add({ title: t("crm.deals.timeline.activityLogged"), color: "success" });
+  quickNoteContent.value = "";
   refreshActivities();
 }
 
@@ -352,7 +457,7 @@ async function removeActivity(activity: Activity) {
 
 const upcomingActivities = computed(() =>
   (activities.value ?? [])
-    .filter((a) => ["call", "meeting", "site_visit"].includes(a.type) && a.scheduled_at && !a.completed_at)
+    .filter((a) => a.type !== "note" && manualTypeKeys.value.has(a.type) && a.scheduled_at && !a.completed_at)
     .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime()),
 );
 
@@ -382,7 +487,7 @@ function activityTitle(activity: Activity) {
         ? t("crm.deals.timeline.events.assignedTo", { to: profileLabel(activity.metadata.to as string) })
         : t("crm.deals.timeline.events.unassigned");
     default:
-      return t(`crm.deals.timeline.types.${activity.type}`);
+      return activityTypeName(activity.type);
   }
 }
 
@@ -390,8 +495,8 @@ const timelineItems = computed<TimelineItem[]>(() =>
   (activities.value ?? []).map((a) => ({
     date: formatDate(a.created_at, true),
     title: activityTitle(a),
-    description: ["note", "call", "meeting", "site_visit"].includes(a.type) ? (a.content ?? undefined) : undefined,
-    icon: activityTypeIcons[a.type] ?? "i-lucide-circle",
+    description: manualTypeKeys.value.has(a.type) ? (a.content ?? undefined) : undefined,
+    icon: activityIcon(a.type),
     actor: profileLabel(a.created_by),
     slot: "activity",
     _raw: a,
@@ -436,40 +541,6 @@ const timelineItems = computed<TimelineItem[]>(() =>
             </div>
           </UPageCard>
 
-          <!-- Activity composer -->
-          <UPageCard v-if="canEdit" :title="t('crm.deals.timeline.title')">
-            <div class="space-y-3">
-              <div class="flex flex-wrap gap-2">
-                <UButton
-                  v-for="type in activityTypes"
-                  :key="type"
-                  :label="t(`crm.deals.timeline.types.${type}`)"
-                  :icon="activityTypeIcons[type]"
-                  :variant="activityType === type ? 'solid' : 'soft'"
-                  :color="activityType === type ? 'primary' : 'neutral'"
-                  size="sm"
-                  @click="activityType = type"
-                />
-              </div>
-              <UTextarea
-                v-model="activityContent"
-                :placeholder="t('crm.deals.timeline.composerPlaceholder')"
-                class="w-full"
-                :rows="2"
-              />
-              <div v-if="activityType !== 'note'" class="flex flex-wrap items-center gap-3">
-                <UCheckbox v-model="scheduleEnabled" :label="t('crm.deals.timeline.scheduleToggle')" />
-                <UInput v-if="scheduleEnabled" v-model="scheduledAt" type="datetime-local" />
-              </div>
-              <UButton
-                :label="t('crm.deals.timeline.logActivity')"
-                :loading="logging"
-                :disabled="!activityContent.trim()"
-                @click="logActivity"
-              />
-            </div>
-          </UPageCard>
-
           <!-- Upcoming -->
           <UPageCard v-if="upcomingActivities.length" :title="t('crm.deals.timeline.upcomingTitle')">
             <div class="space-y-2">
@@ -479,7 +550,7 @@ const timelineItems = computed<TimelineItem[]>(() =>
                 class="flex items-center justify-between gap-2 rounded-lg border border-default p-3"
               >
                 <div class="flex items-center gap-2">
-                  <UIcon :name="activityTypeIcons[activity.type]" class="size-4 text-muted" />
+                  <UIcon :name="activityIcon(activity.type)" class="size-4 text-muted" />
                   <div>
                     <div class="text-sm font-medium text-highlighted">{{ activity.content }}</div>
                     <div class="text-xs text-muted">
@@ -500,7 +571,34 @@ const timelineItems = computed<TimelineItem[]>(() =>
           </UPageCard>
 
           <!-- Timeline -->
-          <UPageCard :title="t('crm.deals.timeline.title')">
+          <UPageCard>
+            <template #header>
+              <div class="flex items-center justify-between gap-2">
+                <h2 class="font-semibold text-highlighted">{{ t("crm.deals.timeline.title") }}</h2>
+                <UButton
+                  v-if="canEdit"
+                  icon="i-lucide-plus"
+                  :label="t('crm.deals.timeline.logActivityButton')"
+                  @click="openComposer"
+                />
+              </div>
+            </template>
+            <div v-if="canEdit" class="mb-4 flex gap-2">
+              <UInput
+                v-model="quickNoteContent"
+                icon="i-lucide-sticky-note"
+                :placeholder="t('crm.deals.timeline.quickNotePlaceholder')"
+                class="flex-1"
+                @keyup.enter="logNote"
+              />
+              <UButton
+                icon="i-lucide-send-horizontal"
+                :label="t('crm.deals.timeline.addNote')"
+                :loading="loggingNote"
+                :disabled="!quickNoteContent.trim()"
+                @click="logNote"
+              />
+            </div>
             <div v-if="!timelineItems.length" class="py-8 text-center text-sm text-muted">
               {{ t("crm.deals.timeline.noActivity") }}
             </div>
@@ -615,6 +713,86 @@ const timelineItems = computed<TimelineItem[]>(() =>
           :disabled="!pendingReasonId"
           block
           @click="confirmStageReason"
+        />
+      </div>
+    </template>
+  </UModal>
+
+  <UModal
+    v-model:open="logComposerOpen"
+    :title="composerStep === 'log' ? t('crm.deals.timeline.logActivityButton') : t('crm.deals.timeline.forceScheduleTitle')"
+    :close="composerStep === 'log'"
+    :dismissible="composerStep === 'log'"
+  >
+    <template #body>
+      <div v-if="composerStep === 'log'" class="space-y-3">
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            v-for="type in composerTypes"
+            :key="type.key"
+            :label="type.name"
+            :icon="type.icon"
+            :variant="activityType === type.key ? 'solid' : 'soft'"
+            :color="activityType === type.key ? 'primary' : 'neutral'"
+            size="sm"
+            @click="activityType = type.key"
+          />
+        </div>
+        <UTextarea
+          v-model="activityContent"
+          :placeholder="t('crm.deals.timeline.composerPlaceholder')"
+          class="w-full"
+          :rows="3"
+          autofocus
+        />
+        <div class="flex flex-wrap items-center gap-3">
+          <UCheckbox v-model="scheduleEnabled" :label="t('crm.deals.timeline.scheduleToggle')" />
+          <UInput v-if="scheduleEnabled" v-model="scheduledAt" type="datetime-local" />
+        </div>
+        <UButton
+          :label="t('crm.deals.timeline.logActivity')"
+          :loading="logging"
+          :disabled="!activityContent.trim() || !activityType"
+          block
+          @click="logActivity"
+        />
+      </div>
+
+      <div v-else class="space-y-3">
+        <UAlert
+          icon="i-lucide-calendar-clock"
+          color="warning"
+          variant="subtle"
+          :title="t('crm.deals.timeline.forceScheduleTitle')"
+          :description="t('crm.deals.timeline.forceScheduleHint')"
+        />
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            v-for="type in composerTypes"
+            :key="type.key"
+            :label="type.name"
+            :icon="type.icon"
+            :variant="activityType === type.key ? 'solid' : 'soft'"
+            :color="activityType === type.key ? 'primary' : 'neutral'"
+            size="sm"
+            @click="activityType = type.key"
+          />
+        </div>
+        <UTextarea
+          v-model="activityContent"
+          :placeholder="t('crm.deals.timeline.composerPlaceholder')"
+          class="w-full"
+          :rows="3"
+        />
+        <UFormField :label="t('crm.deals.timeline.scheduledAt')" required>
+          <UInput v-model="scheduledAt" type="datetime-local" class="w-full" />
+        </UFormField>
+        <UButton
+          :label="t('crm.deals.timeline.scheduleFollowUp')"
+          :loading="logging"
+          :disabled="!activityContent.trim() || !activityType || !scheduledAt"
+          block
+          @click="scheduleFollowUp"
         />
       </div>
     </template>

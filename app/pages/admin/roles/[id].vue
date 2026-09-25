@@ -17,7 +17,10 @@ function permKey(resourceKey: string, actionKey: string) {
   return `${resourceKey}:${actionKey}`;
 }
 
-const { status } = await useAsyncData(`admin-role-${roleId}`, async () => {
+// See crm/leads/[id].vue for why this goes through useAsyncData's own
+// `data` (via watchEffect) instead of only mutating name/description/permSet
+// inside the handler.
+const { data: rolePayload, status } = await useAsyncData(`admin-role-${roleId}`, async () => {
   const [{ data: role, error: roleError }, { data: perms, error: permsError }] =
     await Promise.all([
       supabase.from("roles").select("*").eq("id", roleId).single(),
@@ -27,13 +30,15 @@ const { status } = await useAsyncData(`admin-role-${roleId}`, async () => {
   if (roleError) throw roleError;
   if (permsError) throw permsError;
 
-  name.value = role.name;
-  description.value = role.description ?? "";
-  for (const p of perms ?? []) {
+  return { role, perms: perms ?? [] };
+});
+watchEffect(() => {
+  if (!rolePayload.value) return;
+  name.value = rolePayload.value.role.name;
+  description.value = rolePayload.value.role.description ?? "";
+  for (const p of rolePayload.value.perms) {
     permSet[permKey(p.module, p.action)] = true;
   }
-
-  return true;
 });
 
 async function saveDetails() {

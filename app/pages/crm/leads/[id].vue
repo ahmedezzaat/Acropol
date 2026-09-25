@@ -68,11 +68,19 @@ const assigneeOptions = computed(() => [
   ...(profiles.value ?? []).map((p) => ({ label: p.full_name || p.email, value: p.id })),
 ]);
 
-const { status } = await useAsyncData(`crm-lead-${leadId}`, async () => {
+// Sync from useAsyncData's own `data` (properly hydrated from the SSR
+// payload) via watchEffect, rather than only mutating `lead` as a one-off
+// side effect inside the handler — that mutation never replays on the
+// client when hydrating a fresh/direct page load (only the handler's
+// *return value* is transferred through the payload), which left the page
+// silently blank on anything but in-app SPA navigation.
+const { data: leadPayload, status } = await useAsyncData(`crm-lead-${leadId}`, async () => {
   const { data, error } = await supabase.from("leads").select("*").eq("id", leadId).single();
   if (error) throw error;
-  lead.value = data;
-  return true;
+  return data;
+});
+watchEffect(() => {
+  if (leadPayload.value) lead.value = leadPayload.value;
 });
 
 async function save() {

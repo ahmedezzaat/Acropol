@@ -412,7 +412,7 @@ export type Database = {
         Row: {
           id: string;
           deal_id: string;
-          type: "note" | "call" | "meeting" | "site_visit" | "stage_changed" | "assigned" | "created";
+          type: string;
           content: string | null;
           scheduled_at: string | null;
           completed_at: string | null;
@@ -423,7 +423,7 @@ export type Database = {
         Insert: {
           id?: string;
           deal_id: string;
-          type: "note" | "call" | "meeting" | "site_visit" | "stage_changed" | "assigned" | "created";
+          type: string;
           content?: string | null;
           scheduled_at?: string | null;
           completed_at?: string | null;
@@ -434,7 +434,7 @@ export type Database = {
         Update: {
           id?: string;
           deal_id?: string;
-          type?: "note" | "call" | "meeting" | "site_visit" | "stage_changed" | "assigned" | "created";
+          type?: string;
           content?: string | null;
           scheduled_at?: string | null;
           completed_at?: string | null;
@@ -458,6 +458,33 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      activity_types: {
+        Row: {
+          id: string;
+          key: string;
+          name: string;
+          icon: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          name: string;
+          icon?: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          key?: string;
+          name?: string;
+          icon?: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       quotes: {
         Row: {

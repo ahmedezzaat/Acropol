@@ -65,10 +65,25 @@ async function loadItems() {
   items.value = data ?? [];
 }
 
-const { status } = await useAsyncData(`crm-quote-${quoteId}`, async () => {
-  await loadQuote();
-  await loadItems();
-  return true;
+// See crm/leads/[id].vue for why the initial population goes through
+// useAsyncData's own `data` (via watchEffect) instead of only the
+// loadQuote()/loadItems() side effects — those two stay as-is for the
+// later client-triggered refreshes (after save/add/remove), which aren't
+// affected since they run purely client-side.
+const { data: quoteInitialPayload, status } = await useAsyncData(`crm-quote-${quoteId}`, async () => {
+  const [{ data: q, error: qErr }, { data: i, error: iErr }] = await Promise.all([
+    supabase.from("quotes").select("*").eq("id", quoteId).single(),
+    supabase.from("quote_items").select("*").eq("quote_id", quoteId).order("sort_order"),
+  ]);
+  if (qErr) throw qErr;
+  if (iErr) throw iErr;
+  return { quote: q, items: i ?? [] };
+});
+watchEffect(() => {
+  if (quoteInitialPayload.value) {
+    quote.value = quoteInitialPayload.value.quote;
+    items.value = quoteInitialPayload.value.items;
+  }
 });
 
 const { data: customer } = await useAsyncData<Customer | null>(`crm-quote-${quoteId}-customer`, async () => {

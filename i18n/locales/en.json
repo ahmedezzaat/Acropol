@@ -16,7 +16,8 @@
     "admin-roles": { "title": "@:admin.roles.title" },
     "admin-roles-id": { "title": "@:admin.roles.title" },
     "admin-pipelines": { "title": "@:admin.pipelines.title" },
-    "admin-pipelines-id": { "title": "@:admin.pipelines.title" }
+    "admin-pipelines-id": { "title": "@:admin.pipelines.title" },
+    "admin-activity-types": { "title": "@:admin.activityTypes.title" }
   },
   "validation": {
     "required": "This field is required",
@@ -178,6 +179,15 @@
       "newReasonDefault": "New reason",
       "reasonsSaved": "Reasons saved",
       "saveReasonsFailed": "Failed to save reasons"
+    },
+    "activityTypes": {
+      "title": "Activity Types",
+      "description": "The types available when logging a call, meeting, or other action in a deal's timeline (in addition to the built-in \"Note\").",
+      "name": "Name",
+      "addType": "Add type",
+      "newTypeDefault": "New type",
+      "typesSaved": "Saved",
+      "saveFailed": "Failed to save"
     }
   },
   "crm": {
@@ -266,6 +276,13 @@
         "title": "Timeline",
         "composerPlaceholder": "Add a note or describe the action...",
         "logActivity": "Log",
+        "logActivityButton": "Log Activity",
+        "quickNotePlaceholder": "Write a note...",
+        "addNote": "Add",
+        "forceScheduleTitle": "Schedule Next Action",
+        "forceScheduleHint": "This deal is still open — you must schedule the next follow-up action before closing.",
+        "scheduleFollowUp": "Schedule Follow-up",
+        "followUpScheduled": "Follow-up scheduled",
         "types": {
           "note": "Note",
           "call": "Call",

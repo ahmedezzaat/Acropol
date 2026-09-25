@@ -44,7 +44,10 @@ const reasonCategoryOptions = computed(() => [
   { label: t("admin.pipelines.reasonCategoryCompetitor"), value: "competitor" },
 ]);
 
-const { status } = await useAsyncData(`admin-pipeline-${pipelineId}`, async () => {
+// See crm/leads/[id].vue for why this goes through useAsyncData's own
+// `data` (via watchEffect) instead of only mutating the local refs inside
+// the handler.
+const { data: pipelinePayload, status } = await useAsyncData(`admin-pipeline-${pipelineId}`, async () => {
   const [{ data: pipeline, error: pipelineError }, { data: stageRows, error: stagesError }, { data: reasonRows, error: reasonsError }] =
     await Promise.all([
       supabase.from("pipelines").select("*").eq("id", pipelineId).single(),
@@ -56,22 +59,25 @@ const { status } = await useAsyncData(`admin-pipeline-${pipelineId}`, async () =
   if (stagesError) throw stagesError;
   if (reasonsError) throw reasonsError;
 
+  return { pipeline, stageRows: stageRows ?? [], reasonRows: reasonRows ?? [] };
+});
+watchEffect(() => {
+  if (!pipelinePayload.value) return;
+  const { pipeline, stageRows, reasonRows } = pipelinePayload.value;
   name.value = pipeline.name;
-  stages.value = (stageRows ?? []).map((s) => ({
+  stages.value = stageRows.map((s) => ({
     _key: newKey(),
     id: s.id,
     name: s.name,
     is_closed: s.is_closed,
     reason_category: s.reason_category,
   }));
-  archiveReasons.value = (reasonRows ?? [])
+  archiveReasons.value = reasonRows
     .filter((r) => r.category === "archive")
     .map((r) => ({ _key: newKey(), id: r.id, name: r.name }));
-  competitorReasons.value = (reasonRows ?? [])
+  competitorReasons.value = reasonRows
     .filter((r) => r.category === "competitor")
     .map((r) => ({ _key: newKey(), id: r.id, name: r.name }));
-
-  return true;
 });
 
 async function saveDetails() {

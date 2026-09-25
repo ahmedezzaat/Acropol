@@ -16,7 +16,8 @@
     "admin-roles": { "title": "@:admin.roles.title" },
     "admin-roles-id": { "title": "@:admin.roles.title" },
     "admin-pipelines": { "title": "@:admin.pipelines.title" },
-    "admin-pipelines-id": { "title": "@:admin.pipelines.title" }
+    "admin-pipelines-id": { "title": "@:admin.pipelines.title" },
+    "admin-activity-types": { "title": "@:admin.activityTypes.title" }
   },
   "validation": {
     "required": "هذا الحقل مطلوب",
@@ -178,6 +179,15 @@
       "newReasonDefault": "سبب جديد",
       "reasonsSaved": "تم حفظ الأسباب",
       "saveReasonsFailed": "فشل حفظ الأسباب"
+    },
+    "activityTypes": {
+      "title": "أنواع الأنشطة",
+      "description": "الأنواع المتاحة عند تسجيل مكالمة أو اجتماع أو أي إجراء آخر في السجل الزمني للصفقة (بالإضافة إلى \"ملاحظة\" الثابتة).",
+      "name": "الاسم",
+      "addType": "إضافة نوع",
+      "newTypeDefault": "نوع جديد",
+      "typesSaved": "تم الحفظ",
+      "saveFailed": "فشل الحفظ"
     }
   },
   "crm": {
@@ -266,6 +276,13 @@
         "title": "السجل الزمني",
         "composerPlaceholder": "أضف ملاحظة أو صف الإجراء...",
         "logActivity": "تسجيل",
+        "logActivityButton": "تسجيل نشاط تم",
+        "quickNotePlaceholder": "اكتب ملاحظة...",
+        "addNote": "إضافة",
+        "forceScheduleTitle": "جدولة الإجراء التالي",
+        "forceScheduleHint": "الصفقة ما زالت مفتوحة — يجب جدولة إجراء المتابعة التالي قبل الإغلاق.",
+        "scheduleFollowUp": "جدولة المتابعة",
+        "followUpScheduled": "تمت جدولة المتابعة",
         "types": {
           "note": "ملاحظة",
           "call": "مكالمة",

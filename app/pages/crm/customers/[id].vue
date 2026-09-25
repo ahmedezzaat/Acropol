@@ -39,11 +39,15 @@ const saving = ref(false);
 const canEdit = computed(() => hasPermission("crm_customers", "edit"));
 const canDelete = computed(() => hasPermission("crm_customers", "delete"));
 
-const { status } = await useAsyncData(`crm-customer-${customerId}`, async () => {
+// See leads/[id].vue for why this syncs via watchEffect from useAsyncData's
+// own `data` rather than only mutating `customer` inside the handler.
+const { data: customerPayload, status } = await useAsyncData(`crm-customer-${customerId}`, async () => {
   const { data, error } = await supabase.from("customers").select("*").eq("id", customerId).single();
   if (error) throw error;
-  customer.value = data;
-  return true;
+  return data;
+});
+watchEffect(() => {
+  if (customerPayload.value) customer.value = customerPayload.value;
 });
 
 const { data: deals } = await useAsyncData<Deal[]>(`crm-customer-${customerId}-deals`, async () => {
