@@ -289,8 +289,9 @@
           "meeting": "Meeting",
           "site_visit": "Site visit"
         },
-        "scheduleToggle": "Schedule for later",
         "scheduledAt": "Scheduled for",
+        "scheduledDate": "Date",
+        "scheduledTime": "Time",
         "upcomingTitle": "Upcoming",
         "noUpcoming": "No scheduled actions.",
         "markComplete": "Mark complete",

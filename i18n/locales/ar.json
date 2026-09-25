@@ -289,8 +289,9 @@
           "meeting": "اجتماع",
           "site_visit": "زيارة ميدانية"
         },
-        "scheduleToggle": "جدولة لوقت لاحق",
         "scheduledAt": "موعد التنفيذ",
+        "scheduledDate": "التاريخ",
+        "scheduledTime": "الوقت",
         "upcomingTitle": "المجدولة",
         "noUpcoming": "لا توجد إجراءات مجدولة.",
         "markComplete": "تحديد كمكتمل",

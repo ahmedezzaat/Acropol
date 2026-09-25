@@ -334,22 +334,47 @@ function activityTypeName(typeKey: string) {
 }
 
 const logComposerOpen = ref(false);
-// 'log' = pick what already happened; 'schedule' = forced follow-up step,
-// only entered when the deal isn't on a closed stage — a deal shouldn't be
-// left without a next action while it's still open.
+// 'log' = pick what already happened (no scheduling — this step is a pure
+// log); 'schedule' = forced follow-up step, only entered when the deal
+// isn't on a closed stage — a deal shouldn't be left without a next action
+// while it's still open.
 const composerStep = ref<"log" | "schedule">("log");
 const activityType = ref("");
 const activityContent = ref("");
-const scheduleEnabled = ref(false);
-const scheduledAt = ref("");
 const logging = ref(false);
+
+// Follow-up date/time — a native date input (opens the browser's own date
+// picker, defaults to today) plus separate hour/minute/AM-PM controls so
+// the time is always shown in a fixed 12-hour format regardless of the
+// browser's locale (a bare <input type="time"> can't guarantee that).
+const scheduledDate = ref("");
+const scheduledHour = ref(9);
+const scheduledMinute = ref(0);
+const scheduledMeridiem = ref<"AM" | "PM">("AM");
+const hourOptions = Array.from({ length: 12 }, (_, i) => i + 1);
+const minuteOptions = Array.from({ length: 12 }, (_, i) => i * 5);
+
+function resetScheduleFields() {
+  const now = new Date();
+  scheduledDate.value = now.toISOString().slice(0, 10);
+  const h = now.getHours();
+  scheduledHour.value = h % 12 === 0 ? 12 : h % 12;
+  scheduledMeridiem.value = h >= 12 ? "PM" : "AM";
+  scheduledMinute.value = Math.round(now.getMinutes() / 5) * 5 % 60;
+}
+
+function scheduledAtIso(): string | null {
+  if (!scheduledDate.value) return null;
+  const [y, m, d] = scheduledDate.value.split("-").map(Number);
+  let hour24 = scheduledHour.value % 12;
+  if (scheduledMeridiem.value === "PM") hour24 += 12;
+  return new Date(y, m - 1, d, hour24, scheduledMinute.value, 0, 0).toISOString();
+}
 
 function openComposer() {
   composerStep.value = "log";
   activityType.value = composerTypes.value[0]?.key ?? "";
   activityContent.value = "";
-  scheduleEnabled.value = false;
-  scheduledAt.value = "";
   logComposerOpen.value = true;
 }
 
@@ -360,7 +385,6 @@ async function logActivity() {
     deal_id: dealId,
     type: activityType.value,
     content: activityContent.value.trim(),
-    scheduled_at: scheduleEnabled.value && scheduledAt.value ? scheduledAt.value : null,
   });
   logging.value = false;
 
@@ -382,17 +406,18 @@ async function logActivity() {
   composerStep.value = "schedule";
   activityType.value = composerTypes.value[0]?.key ?? "";
   activityContent.value = "";
-  scheduledAt.value = "";
+  resetScheduleFields();
 }
 
 async function scheduleFollowUp() {
-  if (!activityContent.value.trim() || !activityType.value || !scheduledAt.value) return;
+  const scheduledAt = scheduledAtIso();
+  if (!activityContent.value.trim() || !activityType.value || !scheduledAt) return;
   logging.value = true;
   const { error } = await supabase.from("deal_activities").insert({
     deal_id: dealId,
     type: activityType.value,
     content: activityContent.value.trim(),
-    scheduled_at: scheduledAt.value,
+    scheduled_at: scheduledAt,
   });
   logging.value = false;
 
@@ -745,10 +770,6 @@ const timelineItems = computed<TimelineItem[]>(() =>
           :rows="3"
           autofocus
         />
-        <div class="flex flex-wrap items-center gap-3">
-          <UCheckbox v-model="scheduleEnabled" :label="t('crm.deals.timeline.scheduleToggle')" />
-          <UInput v-if="scheduleEnabled" v-model="scheduledAt" type="datetime-local" />
-        </div>
         <UButton
           :label="t('crm.deals.timeline.logActivity')"
           :loading="logging"
@@ -784,13 +805,26 @@ const timelineItems = computed<TimelineItem[]>(() =>
           class="w-full"
           :rows="3"
         />
-        <UFormField :label="t('crm.deals.timeline.scheduledAt')" required>
-          <UInput v-model="scheduledAt" type="datetime-local" class="w-full" />
+        <UFormField :label="t('crm.deals.timeline.scheduledDate')" required>
+          <UInput v-model="scheduledDate" type="date" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('crm.deals.timeline.scheduledTime')" required>
+          <div class="flex items-center gap-2">
+            <USelect v-model="scheduledHour" :items="hourOptions" class="w-20" />
+            <span class="text-muted">:</span>
+            <USelect
+              v-model="scheduledMinute"
+              :items="minuteOptions.map((m) => ({ label: String(m).padStart(2, '0'), value: m }))"
+              value-key="value"
+              class="w-24"
+            />
+            <USelect v-model="scheduledMeridiem" :items="['AM', 'PM']" class="w-24" />
+          </div>
         </UFormField>
         <UButton
           :label="t('crm.deals.timeline.scheduleFollowUp')"
           :loading="logging"
-          :disabled="!activityContent.trim() || !activityType || !scheduledAt"
+          :disabled="!activityContent.trim() || !activityType || !scheduledDate"
           block
           @click="scheduleFollowUp"
         />
