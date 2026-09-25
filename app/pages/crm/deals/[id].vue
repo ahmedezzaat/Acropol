@@ -336,12 +336,21 @@ function activityTypeName(typeKey: string) {
 
 const logComposerOpen = ref(false);
 // 'log' = pick what already happened (no scheduling — this step is a pure
-// log); 'schedule' = forced follow-up step, only entered when the deal
-// isn't on a closed stage — a deal shouldn't be left without a next action
-// while it's still open.
+// log); 'schedule' = the mandatory next-action step, only entered when the
+// deal isn't on a closed stage — a deal shouldn't be left without a next
+// action while it's still open. 'mode' distinguishes *why* we're in the
+// schedule step: logging a brand-new activity (nothing saved yet — see
+// logActivity) vs. completing an existing upcoming one (see markComplete).
 const composerStep = ref<"log" | "schedule">("log");
+const composerMode = ref<"log" | "complete">("log");
+const completingActivityId = ref<string | null>(null);
 const activityType = ref("");
 const activityContent = ref("");
+// The mandatory next action's own type/content — kept separate from the
+// fields above since, for the "log" mode, both steps are submitted together
+// in one call and need to carry two independent activities.
+const nextActivityType = ref("");
+const nextActivityContent = ref("");
 const logging = ref(false);
 
 // Follow-up date/time — a calendar popover (defaults to today, opened via
@@ -378,6 +387,8 @@ function scheduledAtIso(): string | null {
 }
 
 function openComposer() {
+  composerMode.value = "log";
+  completingActivityId.value = null;
   composerStep.value = "log";
   activityType.value = composerTypes.value[0]?.key ?? "";
   activityContent.value = "";
@@ -386,11 +397,26 @@ function openComposer() {
 
 async function logActivity() {
   if (!activityContent.value.trim() || !activityType.value) return;
+
+  if (currentStage.value?.is_closed) {
+    // Closed deals don't need a next action queued — save the log entry
+    // right away, same as before.
+    await saveClosedDealLog();
+    return;
+  }
+
+  // Deal is still open: nothing is saved yet. Move to the mandatory next-
+  // action step — the log entry and the next action are only ever written
+  // together (see submitSchedule), so a logged activity can never end up
+  // saved without a next action right behind it.
+  composerStep.value = "schedule";
+  nextActivityType.value = composerTypes.value[0]?.key ?? "";
+  nextActivityContent.value = "";
+  resetScheduleFields();
+}
+
+async function saveClosedDealLog() {
   logging.value = true;
-  // This step logs something that already happened, so it's closed the
-  // instant it's recorded — completed_at lets a report count how many
-  // activities a user actually logged, distinct from ones still pending
-  // (scheduled follow-ups, which only get completed_at via markComplete).
   const { error } = await supabase.from("deal_activities").insert({
     deal_id: dealId,
     type: activityType.value,
@@ -405,39 +431,59 @@ async function logActivity() {
   }
 
   toast.add({ title: t("crm.deals.timeline.activityLogged"), color: "success" });
+  logComposerOpen.value = false;
   refreshActivities();
-
-  if (currentStage.value?.is_closed) {
-    logComposerOpen.value = false;
-    return;
-  }
-
-  // Deal is still open — force scheduling the next action before the
-  // composer can close.
-  composerStep.value = "schedule";
-  activityType.value = composerTypes.value[0]?.key ?? "";
-  activityContent.value = "";
-  resetScheduleFields();
 }
 
-async function scheduleFollowUp() {
+async function submitSchedule() {
   const scheduledAt = scheduledAtIso();
-  if (!activityContent.value.trim() || !activityType.value || !scheduledAt) return;
+  if (!nextActivityContent.value.trim() || !nextActivityType.value || !scheduledAt) return;
   logging.value = true;
-  const { error } = await supabase.from("deal_activities").insert({
-    deal_id: dealId,
-    type: activityType.value,
-    content: activityContent.value.trim(),
-    scheduled_at: scheduledAt,
-  });
-  logging.value = false;
 
-  if (error) {
-    toast.add({ title: t("crm.deals.timeline.activityLogFailed"), description: error.message, color: "error" });
-    return;
+  if (composerMode.value === "complete" && completingActivityId.value) {
+    // Completing an existing upcoming activity — complete it and insert
+    // the next one atomically (single RPC call, one transaction), so it
+    // can never end up completed without a next action queued.
+    const { error } = await supabase.rpc("complete_deal_activity_with_followup", {
+      p_activity_id: completingActivityId.value,
+      p_next_type: nextActivityType.value,
+      p_next_content: nextActivityContent.value.trim(),
+      p_next_scheduled_at: scheduledAt,
+    });
+    logging.value = false;
+
+    if (error) {
+      toast.add({ title: t("crm.deals.timeline.activityLogFailed"), description: error.message, color: "error" });
+      return;
+    }
+    toast.add({ title: t("crm.deals.timeline.activityCompleted"), color: "success" });
+  } else {
+    // Logging a brand-new activity — insert the logged entry and the next
+    // action together as a single multi-row insert (one statement, one
+    // transaction), so the log can never be saved without the next action.
+    const { error } = await supabase.from("deal_activities").insert([
+      {
+        deal_id: dealId,
+        type: activityType.value,
+        content: activityContent.value.trim(),
+        completed_at: new Date().toISOString(),
+      },
+      {
+        deal_id: dealId,
+        type: nextActivityType.value,
+        content: nextActivityContent.value.trim(),
+        scheduled_at: scheduledAt,
+      },
+    ]);
+    logging.value = false;
+
+    if (error) {
+      toast.add({ title: t("crm.deals.timeline.activityLogFailed"), description: error.message, color: "error" });
+      return;
+    }
+    toast.add({ title: t("crm.deals.timeline.followUpScheduled"), color: "success" });
   }
 
-  toast.add({ title: t("crm.deals.timeline.followUpScheduled"), color: "success" });
   logComposerOpen.value = false;
   refreshActivities();
 }
@@ -469,6 +515,20 @@ async function logNote() {
 }
 
 async function markComplete(activity: Activity) {
+  if (!currentStage.value?.is_closed) {
+    // The deal is still open — completing this can't leave it without a
+    // next action, so route through the same mandatory-schedule step
+    // logActivity uses, pre-targeted at this activity (see submitSchedule).
+    composerMode.value = "complete";
+    completingActivityId.value = activity.id;
+    composerStep.value = "schedule";
+    nextActivityType.value = composerTypes.value[0]?.key ?? "";
+    nextActivityContent.value = "";
+    resetScheduleFields();
+    logComposerOpen.value = true;
+    return;
+  }
+
   const { error } = await supabase
     .from("deal_activities")
     .update({ completed_at: new Date().toISOString() })
@@ -804,14 +864,14 @@ const timelineItems = computed<TimelineItem[]>(() =>
             :key="type.key"
             :label="type.name"
             :icon="type.icon"
-            :variant="activityType === type.key ? 'solid' : 'soft'"
-            :color="activityType === type.key ? 'primary' : 'neutral'"
+            :variant="nextActivityType === type.key ? 'solid' : 'soft'"
+            :color="nextActivityType === type.key ? 'primary' : 'neutral'"
             size="sm"
-            @click="activityType = type.key"
+            @click="nextActivityType = type.key"
           />
         </div>
         <UTextarea
-          v-model="activityContent"
+          v-model="nextActivityContent"
           :placeholder="t('crm.deals.timeline.composerPlaceholder')"
           class="w-full"
           :rows="3"
@@ -838,9 +898,9 @@ const timelineItems = computed<TimelineItem[]>(() =>
         <UButton
           :label="t('crm.deals.timeline.scheduleFollowUp')"
           :loading="logging"
-          :disabled="!activityContent.trim() || !activityType || !scheduledDate || !scheduledTime"
+          :disabled="!nextActivityContent.trim() || !nextActivityType || !scheduledDate || !scheduledTime"
           block
-          @click="scheduleFollowUp"
+          @click="submitSchedule"
         />
       </div>
     </template>

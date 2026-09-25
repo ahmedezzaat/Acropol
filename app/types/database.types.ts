@@ -597,6 +597,15 @@ export type Database = {
         Args: { p_lead_id: string };
         Returns: string;
       };
+      complete_deal_activity_with_followup: {
+        Args: {
+          p_activity_id: string;
+          p_next_type: string;
+          p_next_content: string;
+          p_next_scheduled_at: string;
+        };
+        Returns: undefined;
+      };
     };
     Enums: {
       lead_status: "new" | "contacted" | "qualified" | "converted" | "lost";
