@@ -18,21 +18,45 @@ interface Customer {
   company: string | null;
   phone: string | null;
   email: string | null;
+  assigned_to: string | null;
+}
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  email: string;
 }
 
 const search = ref("");
+const canAssign = computed(() => hasPermission("crm_customers", "assign"));
 
 const { data: customers, refresh, status } = await useAsyncData<Customer[]>(
   "crm-customers",
   async () => {
     const { data, error } = await supabase
       .from("customers")
-      .select("id, name, company, phone, email")
+      .select("id, name, company, phone, email, assigned_to")
       .order("name");
     if (error) throw error;
     return data ?? [];
   },
 );
+
+const { data: profiles } = await useAsyncData<Profile[]>("crm-customers-profiles", async () => {
+  const { data, error } = await supabase.from("profiles").select("id, full_name, email").eq("is_active", true);
+  if (error) throw error;
+  return data ?? [];
+});
+
+function profileLabel(id: string | null) {
+  if (!id) return t("common.unassigned");
+  const p = profiles.value?.find((p) => p.id === id);
+  return p?.full_name || p?.email || "?";
+}
+const assigneeOptions = computed(() => [
+  { label: t("common.unassigned"), value: null },
+  ...(profiles.value ?? []).map((p) => ({ label: p.full_name || p.email, value: p.id })),
+]);
 
 const filteredCustomers = computed(() =>
   (customers.value ?? []).filter(
@@ -44,6 +68,7 @@ const columns = computed<TableColumn<Customer>[]>(() => [
   { accessorKey: "name", header: t("common.name") },
   { accessorKey: "company", header: t("crm.customers.company") },
   { id: "contact", header: t("crm.leads.contact") },
+  { id: "assigned", header: t("crm.customers.assignedTo") },
 ]);
 
 const createOpen = ref(false);
@@ -55,20 +80,38 @@ const schema = computed(() =>
     phone: z.string().optional(),
     email: z.string().optional(),
     address: z.string().optional(),
+    assigned_to: z.uuid().nullable().optional(),
   }),
 );
-type Schema = { name: string; company?: string; phone?: string; email?: string; address?: string };
-const state = reactive<Partial<Schema>>({ name: "", company: "", phone: "", email: "", address: "" });
+type Schema = {
+  name: string;
+  company?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  assigned_to?: string | null;
+};
+const state = reactive<Partial<Schema>>({
+  name: "",
+  company: "",
+  phone: "",
+  email: "",
+  address: "",
+  assigned_to: null,
+});
 
 async function onCreate(event: FormSubmitEvent<Schema>) {
   creating.value = true;
-  const { error } = await supabase.from("customers").insert({
+  const payload: Record<string, unknown> = {
     name: event.data.name,
     company: event.data.company || null,
     phone: event.data.phone || null,
     email: event.data.email || null,
     address: event.data.address || null,
-  });
+  };
+  if (canAssign.value) payload.assigned_to = event.data.assigned_to || null;
+
+  const { error } = await supabase.from("customers").insert(payload);
   creating.value = false;
 
   if (error) {
@@ -78,7 +121,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
 
   toast.add({ title: t("crm.customers.customerCreated"), color: "success" });
   createOpen.value = false;
-  Object.assign(state, { name: "", company: "", phone: "", email: "", address: "" });
+  Object.assign(state, { name: "", company: "", phone: "", email: "", address: "", assigned_to: null });
   refresh();
 }
 
@@ -124,6 +167,9 @@ function openCustomer(customer: Customer) {
             <div class="text-muted">{{ row.original.email }}</div>
           </div>
         </template>
+        <template #assigned-cell="{ row }">
+          {{ profileLabel(row.original.assigned_to) }}
+        </template>
       </UTable>
     </template>
   </UDashboardPanel>
@@ -146,6 +192,10 @@ function openCustomer(customer: Customer) {
         <UFormField name="address" :label="t('crm.customers.address')">
           <UTextarea v-model="state.address" class="w-full" />
         </UFormField>
+        <UFormField v-if="canAssign" name="assigned_to" :label="t('crm.customers.assignedTo')">
+          <USelect v-model="state.assigned_to" :items="assigneeOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <p v-else class="text-xs text-muted">{{ t("crm.customers.assignCreateHint") }}</p>
         <UButton type="submit" :label="t('crm.customers.createCustomer')" :loading="creating" block />
       </UForm>
     </template>

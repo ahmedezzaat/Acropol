@@ -18,6 +18,13 @@ interface Customer {
   phone: string | null;
   email: string | null;
   address: string | null;
+  assigned_to: string | null;
+}
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  email: string;
 }
 
 interface Deal {
@@ -38,6 +45,7 @@ const customer = ref<Customer | null>(null);
 const saving = ref(false);
 const canEdit = computed(() => hasPermission("crm_customers", "edit"));
 const canDelete = computed(() => hasPermission("crm_customers", "delete"));
+const canAssign = computed(() => hasPermission("crm_customers", "assign"));
 
 // See leads/[id].vue for why this syncs via watchEffect from useAsyncData's
 // own `data` rather than only mutating `customer` inside the handler.
@@ -49,6 +57,16 @@ const { data: customerPayload, status } = await useAsyncData(`crm-customer-${cus
 watchEffect(() => {
   if (customerPayload.value) customer.value = customerPayload.value;
 });
+
+const { data: profiles } = await useAsyncData<Profile[]>(`crm-customer-${customerId}-profiles`, async () => {
+  const { data, error } = await supabase.from("profiles").select("id, full_name, email").eq("is_active", true);
+  if (error) throw error;
+  return data ?? [];
+});
+const assigneeOptions = computed(() => [
+  { label: t("common.unassigned"), value: null },
+  ...(profiles.value ?? []).map((p) => ({ label: p.full_name || p.email, value: p.id })),
+]);
 
 const { data: deals } = await useAsyncData<Deal[]>(`crm-customer-${customerId}-deals`, async () => {
   const { data, error } = await supabase
@@ -73,16 +91,16 @@ const { data: quotes } = await useAsyncData<Quote[]>(`crm-customer-${customerId}
 async function save() {
   if (!customer.value) return;
   saving.value = true;
-  const { error } = await supabase
-    .from("customers")
-    .update({
-      name: customer.value.name,
-      company: customer.value.company,
-      phone: customer.value.phone,
-      email: customer.value.email,
-      address: customer.value.address,
-    })
-    .eq("id", customerId);
+  const payload: Record<string, unknown> = {
+    name: customer.value.name,
+    company: customer.value.company,
+    phone: customer.value.phone,
+    email: customer.value.email,
+    address: customer.value.address,
+  };
+  if (canAssign.value) payload.assigned_to = customer.value.assigned_to;
+
+  const { error } = await supabase.from("customers").update(payload).eq("id", customerId);
   saving.value = false;
 
   if (error) {
@@ -138,6 +156,16 @@ async function remove() {
             </UFormField>
             <UFormField :label="t('crm.customers.address')">
               <UTextarea v-model="customer.address" :disabled="!canEdit" class="w-full" />
+            </UFormField>
+            <UFormField :label="t('crm.customers.assignedTo')">
+              <USelect
+                v-model="customer.assigned_to"
+                :items="assigneeOptions"
+                value-key="value"
+                :disabled="!canAssign"
+                class="w-full"
+              />
+              <p v-if="!canAssign" class="mt-1 text-xs text-muted">{{ t("crm.customers.assignPermissionHint") }}</p>
             </UFormField>
             <UButton v-if="canEdit" :label="t('common.save')" :loading="saving" @click="save" />
           </div>

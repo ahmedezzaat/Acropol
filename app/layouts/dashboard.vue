@@ -44,6 +44,7 @@ const items = computed<NavigationMenuItem[][]>(() => {
       { label: t("admin.roles.title"), icon: "i-lucide-shield", to: "/admin/roles" },
       { label: t("admin.pipelines.title"), icon: "i-lucide-git-branch", to: "/admin/pipelines" },
       { label: t("admin.activityTypes.title"), icon: "i-lucide-list-checks", to: "/admin/activity-types" },
+      { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
     ]);
   }
 

@@ -17,7 +17,9 @@
     "admin-roles-id": { "title": "@:admin.roles.title" },
     "admin-pipelines": { "title": "@:admin.pipelines.title" },
     "admin-pipelines-id": { "title": "@:admin.pipelines.title" },
-    "admin-activity-types": { "title": "@:admin.activityTypes.title" }
+    "admin-activity-types": { "title": "@:admin.activityTypes.title" },
+    "admin-teams": { "title": "@:admin.teams.title" },
+    "admin-teams-id": { "title": "@:admin.teams.title" }
   },
   "validation": {
     "required": "This field is required",
@@ -66,7 +68,7 @@
     },
     "crm_deals": {
       "label": "Deals",
-      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete", "assign": "Assign deals" }
+      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete", "assign": "Assign deals", "view_all": "View all deals" }
     },
     "crm_quotes": {
       "label": "Quotes",
@@ -74,7 +76,7 @@
     },
     "crm_customers": {
       "label": "Customers",
-      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete" }
+      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete", "assign": "Assign customers", "view_all": "View all customers" }
     }
   },
   "auth": {
@@ -188,6 +190,29 @@
       "newTypeDefault": "New type",
       "typesSaved": "Saved",
       "saveFailed": "Failed to save"
+    },
+    "teams": {
+      "title": "Teams",
+      "newTeam": "New team",
+      "name": "Name",
+      "leader": "Team leader",
+      "createTeamTitle": "New team",
+      "createTeam": "Create team",
+      "teamCreated": "Team created",
+      "createTeamFailed": "Failed to create team",
+      "deleteTeam": "Delete team",
+      "teamDeleted": "Team deleted",
+      "deleteTeamFailed": "Failed to delete team",
+      "detailsTitle": "Details",
+      "saveDetails": "Save details",
+      "teamSaved": "Team saved",
+      "saveFailed": "Failed to save",
+      "membersTitle": "Members",
+      "membersDescription": "A member can't belong to more than one team at a time — adding them here automatically moves them out of any other team they were in.",
+      "selectMembers": "Select members",
+      "membersSaved": "Members saved",
+      "saveMembersFailed": "Failed to save members",
+      "memberOfOtherTeam": "Currently a member of another team"
     }
   },
   "crm": {
@@ -217,7 +242,7 @@
         "referral": "Referral"
       },
       "notes": "Notes",
-      "assignHint": "New leads are unassigned by default. You don't have permission to assign leads.",
+      "assignHint": "This lead will be assigned to you automatically. You don't have permission to assign it to someone else.",
       "createLead": "Create lead",
       "leadCreated": "Lead created",
       "createLeadFailed": "Failed to create lead",
@@ -244,10 +269,16 @@
       "dealTitle": "Title",
       "newDeal": "New deal",
       "customer": "Customer",
+      "leadSourceLabel": "Lead",
+      "existingLead": "Existing Lead",
+      "selectLead": "Select a lead",
       "pipeline": "Pipeline",
       "stage": "Stage",
       "reason": "Reason",
       "reasonRequired": "This stage requires selecting a reason.",
+      "changeStage": "Change stage to: {stage}",
+      "stageChangeNote": "Note",
+      "stageChangeNotePlaceholder": "Why is this deal moving?",
       "value": "Value",
       "expectedCloseDate": "Expected close date",
       "createDeal": "Create deal",
@@ -268,6 +299,7 @@
       "closedLabel": "closed",
       "assignedTo": "Assigned to",
       "assignPermissionHint": "You don't have permission to assign deals.",
+      "assignCreateHint": "This deal will be assigned to you automatically. You don't have permission to assign it to someone else.",
       "contactTitle": "Contact",
       "viewCustomer": "View customer profile",
       "fromLead": "Originated from a lead",
@@ -358,7 +390,10 @@
       "dealsTitle": "Deals",
       "noDealsYet": "No deals yet.",
       "quotesTitle": "Quotes",
-      "noQuotesYet": "No quotes yet."
+      "noQuotesYet": "No quotes yet.",
+      "assignedTo": "Assigned to",
+      "assignPermissionHint": "You don't have permission to assign customers.",
+      "assignCreateHint": "This customer will be assigned to you automatically. You don't have permission to assign them to someone else."
     }
   }
 }

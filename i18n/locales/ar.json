@@ -17,7 +17,9 @@
     "admin-roles-id": { "title": "@:admin.roles.title" },
     "admin-pipelines": { "title": "@:admin.pipelines.title" },
     "admin-pipelines-id": { "title": "@:admin.pipelines.title" },
-    "admin-activity-types": { "title": "@:admin.activityTypes.title" }
+    "admin-activity-types": { "title": "@:admin.activityTypes.title" },
+    "admin-teams": { "title": "@:admin.teams.title" },
+    "admin-teams-id": { "title": "@:admin.teams.title" }
   },
   "validation": {
     "required": "هذا الحقل مطلوب",
@@ -66,7 +68,7 @@
     },
     "crm_deals": {
       "label": "الصفقات",
-      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف", "assign": "إسناد الصفقات" }
+      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف", "assign": "إسناد الصفقات", "view_all": "عرض جميع الصفقات" }
     },
     "crm_quotes": {
       "label": "عروض الأسعار",
@@ -74,7 +76,7 @@
     },
     "crm_customers": {
       "label": "العملاء",
-      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف" }
+      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف", "assign": "إسناد العملاء", "view_all": "عرض جميع العملاء" }
     }
   },
   "auth": {
@@ -188,6 +190,29 @@
       "newTypeDefault": "نوع جديد",
       "typesSaved": "تم الحفظ",
       "saveFailed": "فشل الحفظ"
+    },
+    "teams": {
+      "title": "الفرق",
+      "newTeam": "فريق جديد",
+      "name": "الاسم",
+      "leader": "قائد الفريق",
+      "createTeamTitle": "فريق جديد",
+      "createTeam": "إنشاء فريق",
+      "teamCreated": "تم إنشاء الفريق",
+      "createTeamFailed": "فشل إنشاء الفريق",
+      "deleteTeam": "حذف الفريق",
+      "teamDeleted": "تم حذف الفريق",
+      "deleteTeamFailed": "فشل حذف الفريق",
+      "detailsTitle": "التفاصيل",
+      "saveDetails": "حفظ التفاصيل",
+      "teamSaved": "تم حفظ الفريق",
+      "saveFailed": "فشل الحفظ",
+      "membersTitle": "الأعضاء",
+      "membersDescription": "العضو لا يمكن أن ينتمي إلى أكثر من فريق في نفس الوقت — إضافته هنا تنقله تلقائيًا من أي فريق آخر كان ينتمي إليه.",
+      "selectMembers": "اختر الأعضاء",
+      "membersSaved": "تم حفظ الأعضاء",
+      "saveMembersFailed": "فشل حفظ الأعضاء",
+      "memberOfOtherTeam": "عضو حاليًا في فريق آخر"
     }
   },
   "crm": {
@@ -217,7 +242,7 @@
         "referral": "إحالة"
       },
       "notes": "ملاحظات",
-      "assignHint": "العملاء المحتملون الجدد غير مُسندين افتراضيًا. لا تملك صلاحية إسناد العملاء المحتملين.",
+      "assignHint": "سيتم إسناد هذا العميل المحتمل إليك تلقائيًا. لا تملك صلاحية إسناده لشخص آخر.",
       "createLead": "إنشاء عميل محتمل",
       "leadCreated": "تم إنشاء العميل المحتمل",
       "createLeadFailed": "فشل إنشاء العميل المحتمل",
@@ -244,10 +269,16 @@
       "dealTitle": "العنوان",
       "newDeal": "صفقة جديدة",
       "customer": "العميل",
+      "leadSourceLabel": "العميل المحتمل",
+      "existingLead": "عميل محتمل حالي",
+      "selectLead": "اختر العميل المحتمل",
       "pipeline": "المسار",
       "stage": "المرحلة",
       "reason": "السبب",
       "reasonRequired": "هذه المرحلة تتطلب اختيار سبب.",
+      "changeStage": "تغيير المرحلة إلى: {stage}",
+      "stageChangeNote": "ملاحظة",
+      "stageChangeNotePlaceholder": "لماذا يتم نقل هذه الصفقة؟",
       "value": "القيمة",
       "expectedCloseDate": "تاريخ الإغلاق المتوقع",
       "createDeal": "إنشاء صفقة",
@@ -268,6 +299,7 @@
       "closedLabel": "مغلقة",
       "assignedTo": "مُسند إلى",
       "assignPermissionHint": "لا تملك صلاحية إسناد الصفقات.",
+      "assignCreateHint": "سيتم إسناد هذه الصفقة إليك تلقائيًا. لا تملك صلاحية إسنادها لشخص آخر.",
       "contactTitle": "جهة الاتصال",
       "viewCustomer": "عرض ملف العميل",
       "fromLead": "نشأت من عميل محتمل",
@@ -358,7 +390,10 @@
       "dealsTitle": "الصفقات",
       "noDealsYet": "لا توجد صفقات بعد.",
       "quotesTitle": "عروض الأسعار",
-      "noQuotesYet": "لا توجد عروض أسعار بعد."
+      "noQuotesYet": "لا توجد عروض أسعار بعد.",
+      "assignedTo": "مُسند إلى",
+      "assignPermissionHint": "لا تملك صلاحية إسناد العملاء.",
+      "assignCreateHint": "سيتم إسناد هذا العميل إليك تلقائيًا. لا تملك صلاحية إسناده لشخص آخر."
     }
   }
 }

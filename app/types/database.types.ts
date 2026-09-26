@@ -22,6 +22,7 @@ export type Database = {
           email: string;
           full_name: string | null;
           role_id: string | null;
+          team_id: string | null;
           is_admin: boolean;
           is_active: boolean;
           created_at: string;
@@ -32,6 +33,7 @@ export type Database = {
           email: string;
           full_name?: string | null;
           role_id?: string | null;
+          team_id?: string | null;
           is_admin?: boolean;
           is_active?: boolean;
           created_at?: string;
@@ -42,6 +44,7 @@ export type Database = {
           email?: string;
           full_name?: string | null;
           role_id?: string | null;
+          team_id?: string | null;
           is_admin?: boolean;
           is_active?: boolean;
           created_at?: string;
@@ -53,6 +56,45 @@ export type Database = {
             columns: ["role_id"];
             isOneToOne: false;
             referencedRelation: "roles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "profiles_team_id_fkey";
+            columns: ["team_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      teams: {
+        Row: {
+          id: string;
+          name: string;
+          leader_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          leader_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          leader_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "teams_leader_id_fkey";
+            columns: ["leader_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
         ];
@@ -116,6 +158,7 @@ export type Database = {
           email: string | null;
           address: string | null;
           converted_from_lead_id: string | null;
+          assigned_to: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -128,6 +171,7 @@ export type Database = {
           email?: string | null;
           address?: string | null;
           converted_from_lead_id?: string | null;
+          assigned_to?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -140,6 +184,7 @@ export type Database = {
           email?: string | null;
           address?: string | null;
           converted_from_lead_id?: string | null;
+          assigned_to?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -150,6 +195,13 @@ export type Database = {
             columns: ["converted_from_lead_id"];
             isOneToOne: false;
             referencedRelation: "leads";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customers_assigned_to_fkey";
+            columns: ["assigned_to"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           },
           {
@@ -593,6 +645,10 @@ export type Database = {
         Args: { p_module: string };
         Returns: boolean;
       };
+      leads_my_team: {
+        Args: { p_profile_id: string };
+        Returns: boolean;
+      };
       crm_convert_lead: {
         Args: { p_lead_id: string };
         Returns: string;
@@ -600,9 +656,9 @@ export type Database = {
       complete_deal_activity_with_followup: {
         Args: {
           p_activity_id: string;
-          p_next_type: string;
-          p_next_content: string;
-          p_next_scheduled_at: string;
+          p_content: string;
+          p_next_type?: string | null;
+          p_next_scheduled_at?: string | null;
         };
         Returns: undefined;
       };
