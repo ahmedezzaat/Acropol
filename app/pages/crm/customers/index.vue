@@ -105,7 +105,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   const payload: Record<string, unknown> = {
     name: event.data.name,
     company: event.data.company || null,
-    phone: event.data.phone || null,
+    phone: trimOrNull(event.data.phone),
     email: event.data.email || null,
     address: event.data.address || null,
   };

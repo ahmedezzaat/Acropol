@@ -94,7 +94,7 @@ async function save() {
   const payload: Record<string, unknown> = {
     name: customer.value.name,
     company: customer.value.company,
-    phone: customer.value.phone,
+    phone: trimOrNull(customer.value.phone),
     email: customer.value.email,
     address: customer.value.address,
   };
