@@ -208,6 +208,10 @@ interface StageCount {
   stage: string;
   pipelineSort: number;
   stageSort: number;
+  // Position within its own pipeline's stage order (0-based) — a stage is
+  // ordinal, not nominal: swapping two stages changes the funnel's meaning,
+  // so its color should encode "how far along", not just "which one".
+  stageRank: number;
   count: number;
 }
 const dealsByStage = computed<StageCount[]>(() => {
@@ -219,16 +223,40 @@ const dealsByStage = computed<StageCount[]>(() => {
   for (const [stageId, count] of counts) {
     const stage = stages.value?.find((s) => s.id === stageId);
     const pipeline = pipelines.value?.find((p) => p.id === stage?.pipeline_id);
+    const pipelineStages = (stages.value ?? [])
+      .filter((s) => s.pipeline_id === stage?.pipeline_id)
+      .sort((a, b) => a.sort_order - b.sort_order);
     rows.push({
       pipeline: pipeline?.name ?? "—",
       stage: stage?.name ?? "—",
       pipelineSort: pipeline?.sort_order ?? 0,
       stageSort: stage?.sort_order ?? 0,
+      stageRank: Math.max(0, pipelineStages.findIndex((s) => s.id === stageId)),
       count,
     });
   }
   return rows.sort((a, b) => a.pipelineSort - b.pipelineSort || a.stageSort - b.stageSort);
 });
+
+const dealsByStageMax = computed(() => Math.max(1, ...dealsByStage.value.map((r) => r.count)));
+
+// Ordinal ramp: one hue (the app's own brand primary), monotone lightness
+// per stage position — light/dark pairs so each mode independently reads
+// as a clear light->dark progression against its own surface.
+const stageOrdinalSteps = [
+  "bg-kords-primary-200 dark:bg-kords-primary-900",
+  "bg-kords-primary-300 dark:bg-kords-primary-800",
+  "bg-kords-primary-400 dark:bg-kords-primary-700",
+  "bg-kords-primary-500 dark:bg-kords-primary-600",
+  "bg-kords-primary-600 dark:bg-kords-primary-500",
+  "bg-kords-primary-700 dark:bg-kords-primary-400",
+  "bg-kords-primary-800 dark:bg-kords-primary-300",
+  "bg-kords-primary-900 dark:bg-kords-primary-200",
+  "bg-kords-primary-950 dark:bg-kords-primary-100",
+];
+function stageBarClass(rank: number) {
+  return stageOrdinalSteps[Math.min(rank, stageOrdinalSteps.length - 1)];
+}
 
 interface AgentCount {
   agent: string;
@@ -357,10 +385,29 @@ const dealsByTeam = computed<TeamCount[]>(() => {
           </div>
         </UPageCard>
 
-        <div v-if="canDeals" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <UPageCard :title="t('crm.dashboard.dealsByStage')">
-            <div v-if="!dealsByStage.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
-            <table v-else class="w-full text-sm">
+        <UPageCard v-if="canDeals" :title="t('crm.dashboard.dealsByStage')">
+          <div v-if="!dealsByStage.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
+          <template v-else>
+            <!-- One hue, lightness stepped by position in the funnel (a
+                 stage is ordinal, not just "which one") — darker/lighter
+                 means further along, not a different category. -->
+            <div class="space-y-3">
+              <div v-for="row in dealsByStage" :key="`${row.pipeline}-${row.stage}`" class="space-y-1">
+                <div class="flex items-baseline justify-between gap-2 text-xs">
+                  <span class="text-muted">{{ row.pipeline }} · <span class="text-highlighted">{{ row.stage }}</span></span>
+                  <span class="font-medium text-highlighted">{{ row.count }}</span>
+                </div>
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-elevated">
+                  <div
+                    class="h-full rounded-full"
+                    :class="stageBarClass(row.stageRank)"
+                    :style="{ width: `${(row.count / dealsByStageMax) * 100}%` }"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <table class="mt-6 w-full text-sm">
               <thead>
                 <tr class="text-start text-muted">
                   <th class="py-1 text-start font-medium">{{ t("crm.dashboard.pipeline") }}</th>
@@ -369,15 +416,17 @@ const dealsByTeam = computed<TeamCount[]>(() => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="row in dealsByStage" :key="`${row.pipeline}-${row.stage}`" class="border-t border-default">
+                <tr v-for="row in dealsByStage" :key="`table-${row.pipeline}-${row.stage}`" class="border-t border-default">
                   <td class="py-1.5 text-muted">{{ row.pipeline }}</td>
                   <td class="py-1.5 text-highlighted">{{ row.stage }}</td>
                   <td class="py-1.5 text-end font-medium text-highlighted">{{ row.count }}</td>
                 </tr>
               </tbody>
             </table>
-          </UPageCard>
+          </template>
+        </UPageCard>
 
+        <div v-if="canDeals" class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <UPageCard :title="t('crm.dashboard.dealsByAgent')">
             <div v-if="!dealsByAgent.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
             <table v-else class="w-full text-sm">

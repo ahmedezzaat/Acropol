@@ -55,6 +55,7 @@ interface Stage {
   sort_order: number;
   is_closed: boolean;
   reason_category: "archive" | "competitor" | null;
+  system_key: "new" | "won" | "competitor" | "archive" | null;
 }
 
 interface Reason {
@@ -98,7 +99,7 @@ const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deal-pipelines",
 const { data: allStages } = await useAsyncData<Stage[]>("crm-deal-stages", async () => {
   const { data, error } = await supabase
     .from("pipeline_stages")
-    .select("id, pipeline_id, name, sort_order, is_closed, reason_category")
+    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key")
     .order("sort_order");
   if (error) throw error;
   return data ?? [];
@@ -250,6 +251,8 @@ const stageChangeModalOpen = ref(false);
 const pendingStageId = ref<string | null>(null);
 const pendingReasonId = ref<string | null>(null);
 const pendingNote = ref("");
+const pendingValue = ref<number | null>(null);
+const pendingCloseDate = ref("");
 const changingStage = ref(false);
 
 const pendingStage = computed(() => allStages.value?.find((s) => s.id === pendingStageId.value));
@@ -258,24 +261,37 @@ const pendingReasonOptions = computed(() =>
     .filter((r) => r.pipeline_id === deal.value?.pipeline_id && r.category === pendingStage.value?.reason_category)
     .map((r) => ({ label: r.name, value: r.id })),
 );
+// The "Won" stage is the pipeline's fixed system_key='won' stage — never a
+// heuristic, since is_closed/reason_category alone could match more than
+// one stage.
+const isWonStage = computed(() => pendingStage.value?.system_key === "won");
 
 function selectStage(stageId: string) {
   if (!canEdit.value || !deal.value || stageId === deal.value.stage_id) return;
   pendingStageId.value = stageId;
   pendingReasonId.value = null;
   pendingNote.value = "";
+  const stage = allStages.value?.find((s) => s.id === stageId);
+  const won = stage?.system_key === "won";
+  pendingValue.value = won ? deal.value.value : null;
+  pendingCloseDate.value = won ? deal.value.expected_close_date || today(getLocalTimeZone()).toString() : "";
   stageChangeModalOpen.value = true;
 }
 
 async function confirmStageChange() {
-  if (!deal.value || !pendingStageId.value || !pendingNote.value.trim()) return;
+  // TODO: the note was mandatory here; temporarily made optional, re-enable
+  // by restoring `|| !pendingNote.value.trim()` below.
+  if (!deal.value || !pendingStageId.value) return;
   if (pendingStage.value?.reason_category && !pendingReasonId.value) return;
+  if (isWonStage.value && (pendingValue.value == null || !pendingCloseDate.value)) return;
 
   changingStage.value = true;
-  const { error } = await supabase
-    .from("deals")
-    .update({ stage_id: pendingStageId.value, stage_reason_id: pendingReasonId.value })
-    .eq("id", dealId);
+  const updates: Record<string, unknown> = { stage_id: pendingStageId.value, stage_reason_id: pendingReasonId.value };
+  if (isWonStage.value) {
+    updates.value = pendingValue.value;
+    updates.expected_close_date = pendingCloseDate.value;
+  }
+  const { error } = await supabase.from("deals").update(updates).eq("id", dealId);
 
   if (error) {
     changingStage.value = false;
@@ -285,16 +301,23 @@ async function confirmStageChange() {
 
   // The stage change itself is auto-logged by a DB trigger (log_deal_activity)
   // — this adds the user's own note as a separate timeline entry right
-  // alongside it, so the "why" isn't lost.
-  await supabase.from("deal_activities").insert({
-    deal_id: dealId,
-    type: "note",
-    content: pendingNote.value.trim(),
-  });
+  // alongside it, so the "why" isn't lost. Optional while the note
+  // requirement is disabled, so skip the insert when left blank.
+  if (pendingNote.value.trim()) {
+    await supabase.from("deal_activities").insert({
+      deal_id: dealId,
+      type: "note",
+      content: pendingNote.value.trim(),
+    });
+  }
   changingStage.value = false;
 
   deal.value.stage_id = pendingStageId.value;
   deal.value.stage_reason_id = pendingReasonId.value;
+  if (isWonStage.value) {
+    deal.value.value = pendingValue.value;
+    deal.value.expected_close_date = pendingCloseDate.value;
+  }
   toast.add({ title: t("crm.deals.dealSaved"), color: "success" });
   stageChangeModalOpen.value = false;
   refreshActivities();
@@ -822,7 +845,15 @@ const timelineItems = computed<TimelineItem[]>(() =>
           <p class="text-sm text-muted">{{ t("crm.deals.reasonRequired") }}</p>
           <USelect v-model="pendingReasonId" :items="pendingReasonOptions" value-key="value" class="w-full" />
         </template>
-        <UFormField :label="t('crm.deals.stageChangeNote')" required>
+        <template v-if="isWonStage">
+          <UFormField :label="t('crm.deals.value')" required>
+            <UInputNumber v-model="pendingValue" class="w-full" />
+          </UFormField>
+          <UFormField :label="t('crm.deals.wonDate')" required>
+            <UInput v-model="pendingCloseDate" type="date" class="w-full" />
+          </UFormField>
+        </template>
+        <UFormField :label="t('crm.deals.stageChangeNote')">
           <UTextarea
             v-model="pendingNote"
             :placeholder="t('crm.deals.stageChangeNotePlaceholder')"
@@ -834,7 +865,10 @@ const timelineItems = computed<TimelineItem[]>(() =>
         <UButton
           :label="t('common.save')"
           :loading="changingStage"
-          :disabled="!pendingNote.trim() || (!!pendingStage?.reason_category && !pendingReasonId)"
+          :disabled="
+            (!!pendingStage?.reason_category && !pendingReasonId) ||
+            (isWonStage && (pendingValue == null || !pendingCloseDate))
+          "
           block
           @click="confirmStageChange"
         />

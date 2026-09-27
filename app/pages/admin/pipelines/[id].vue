@@ -13,6 +13,7 @@ interface StageRow {
   name: string;
   is_closed: boolean;
   reason_category: "archive" | "competitor" | null;
+  system_key: "new" | "won" | "competitor" | "archive" | null;
 }
 
 interface ReasonRow {
@@ -51,7 +52,11 @@ const { data: pipelinePayload, status } = await useAsyncData(`admin-pipeline-${p
   const [{ data: pipeline, error: pipelineError }, { data: stageRows, error: stagesError }, { data: reasonRows, error: reasonsError }] =
     await Promise.all([
       supabase.from("pipelines").select("*").eq("id", pipelineId).single(),
-      supabase.from("pipeline_stages").select("*").eq("pipeline_id", pipelineId).order("sort_order"),
+      supabase
+        .from("pipeline_stages")
+        .select("id, name, is_closed, reason_category, system_key")
+        .eq("pipeline_id", pipelineId)
+        .order("sort_order"),
       supabase.from("pipeline_stage_reasons").select("*").eq("pipeline_id", pipelineId).order("sort_order"),
     ]);
 
@@ -71,6 +76,7 @@ watchEffect(() => {
     name: s.name,
     is_closed: s.is_closed,
     reason_category: s.reason_category,
+    system_key: s.system_key,
   }));
   archiveReasons.value = reasonRows
     .filter((r) => r.category === "archive")
@@ -99,11 +105,16 @@ function addStage() {
     name: t("admin.pipelines.newStageDefault"),
     is_closed: false,
     reason_category: null,
+    system_key: null,
   });
 }
 
 function removeStage(index: number) {
   const stage = stages.value[index];
+  // The 4 fixed stages (New/Won/Bought from competitor/Archive) can never
+  // be deleted — enforced again at the DB trigger level, this is just the
+  // UI never offering the action.
+  if (stage.system_key) return;
   if (stage.id) removedStageIds.value.push(stage.id);
   stages.value.splice(index, 1);
 }
@@ -135,6 +146,7 @@ async function saveStages() {
       sort_order: index + 1,
       is_closed: stage.is_closed,
       reason_category: stage.reason_category,
+      system_key: stage.system_key,
     };
 
     const { data, error } = stage.id
@@ -273,15 +285,24 @@ async function deletePipeline() {
                 />
               </div>
               <UInput v-model="stage.name" :placeholder="t('admin.pipelines.stageName')" class="min-w-40 flex-1" />
-              <UCheckbox v-model="stage.is_closed" :label="t('admin.pipelines.closed')" />
+              <UCheckbox v-model="stage.is_closed" :disabled="!!stage.system_key" :label="t('admin.pipelines.closed')" />
               <USelect
                 v-model="stage.reason_category"
                 :items="reasonCategoryOptions"
                 value-key="value"
+                :disabled="!!stage.system_key"
                 :placeholder="t('admin.pipelines.reasonCategory')"
                 class="w-56"
               />
+              <UBadge
+                v-if="stage.system_key"
+                :label="t('admin.pipelines.fixedStage')"
+                icon="i-lucide-lock"
+                color="neutral"
+                variant="subtle"
+              />
               <UButton
+                v-else
                 icon="i-lucide-trash"
                 color="error"
                 variant="ghost"

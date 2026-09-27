@@ -311,6 +311,7 @@ export type Database = {
           sort_order: number;
           is_closed: boolean;
           reason_category: "archive" | "competitor" | null;
+          system_key: "new" | "won" | "competitor" | "archive" | null;
           created_at: string;
         };
         Insert: {
@@ -320,6 +321,7 @@ export type Database = {
           sort_order?: number;
           is_closed?: boolean;
           reason_category?: "archive" | "competitor" | null;
+          system_key?: "new" | "won" | "competitor" | "archive" | null;
           created_at?: string;
         };
         Update: {
@@ -329,6 +331,7 @@ export type Database = {
           sort_order?: number;
           is_closed?: boolean;
           reason_category?: "archive" | "competitor" | null;
+          system_key?: "new" | "won" | "competitor" | "archive" | null;
           created_at?: string;
         };
         Relationships: [

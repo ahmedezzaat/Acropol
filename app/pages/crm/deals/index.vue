@@ -170,6 +170,7 @@ function dealsForStage(stageId: string) {
 // on the lead page, just folded into one step.
 const createOpen = ref(false);
 const creating = ref(false);
+const showPhone2 = ref(false);
 const canAssign = computed(() => hasPermission("crm_deals", "assign"));
 const canCreateLead = computed(() => hasPermission("crm_leads", "create"));
 
@@ -276,6 +277,7 @@ function openCreate() {
   state.pipeline_id = activePipelineId.value ?? undefined;
   const firstStage = createPipelineStages.value[0];
   state.stage_id = firstStage?.id;
+  showPhone2.value = false;
   createOpen.value = true;
 }
 
@@ -484,9 +486,20 @@ function openDeal(deal: Deal) {
             <UInput v-model="state.lead_name" class="w-full" />
           </UFormField>
           <UFormField name="lead_phone" :label="t('common.phone')">
-            <UInput v-model="state.lead_phone" class="w-full" />
+            <UInput v-model="state.lead_phone" class="w-full">
+              <template v-if="!showPhone2" #trailing>
+                <UButton
+                  icon="i-lucide-plus"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  :aria-label="t('crm.leads.phone2')"
+                  @click="showPhone2 = true"
+                />
+              </template>
+            </UInput>
           </UFormField>
-          <UFormField name="lead_phone2" :label="t('crm.leads.phone2')">
+          <UFormField v-if="showPhone2" name="lead_phone2" :label="t('crm.leads.phone2')">
             <UInput v-model="state.lead_phone2" class="w-full" />
           </UFormField>
           <UFormField name="lead_email" :label="t('common.email')">
@@ -494,9 +507,6 @@ function openDeal(deal: Deal) {
           </UFormField>
           <UFormField name="lead_source" :label="t('crm.leads.source')">
             <USelect v-model="state.lead_source" :items="sourceOptions" value-key="value" class="w-full" />
-          </UFormField>
-          <UFormField name="lead_notes" :label="t('crm.leads.notes')">
-            <UTextarea v-model="state.lead_notes" class="w-full" :rows="2" />
           </UFormField>
         </template>
 
@@ -523,6 +533,9 @@ function openDeal(deal: Deal) {
           <USelect v-model="state.assigned_to" :items="assigneeOptions" value-key="value" class="w-full" />
         </UFormField>
         <p v-else class="text-xs text-muted">{{ t("crm.deals.assignCreateHint") }}</p>
+        <UFormField v-if="state.lead_mode === 'new'" name="lead_notes" :label="t('crm.leads.notes')">
+          <UTextarea v-model="state.lead_notes" class="w-full" :rows="2" />
+        </UFormField>
         <UButton type="submit" :label="t('crm.deals.createDeal')" :loading="creating" block />
       </UForm>
     </template>
