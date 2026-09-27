@@ -13,7 +13,7 @@ interface StageRow {
   name: string;
   is_closed: boolean;
   reason_category: "archive" | "competitor" | null;
-  system_key: "new" | "won" | "competitor" | "archive" | null;
+  system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
 }
 
 interface ReasonRow {

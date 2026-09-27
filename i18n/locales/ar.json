@@ -355,6 +355,12 @@
       "viewLead": "عرض العميل المحتمل",
       "noLeadForConversion": "لا يوجد عميل محتمل مرتبط بهذه الصفقة لتحويله إلى عميل",
       "createdOn": "أُنشئت في",
+      "attachFileRequiredTitle": "إرفاق ملف العرض",
+      "attachFileRequiredHint": "يجب إرفاق ملف العرض قبل نقل الصفقة إلى مرحلة \"تم ارسال العرض\".",
+      "attachFile": "إرفاق ملف",
+      "attachmentsTitle": "المرفقات",
+      "noAttachments": "لا توجد مرفقات.",
+      "attachmentUploadFailed": "فشل رفع الملف",
       "timeline": {
         "title": "السجل الزمني",
         "composerPlaceholder": "أضف ملاحظة أو صف الإجراء...",

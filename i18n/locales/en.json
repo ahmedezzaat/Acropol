@@ -355,6 +355,12 @@
       "viewLead": "View lead",
       "noLeadForConversion": "No lead is linked to this deal to convert into a customer",
       "createdOn": "Created on",
+      "attachFileRequiredTitle": "Attach the offer file",
+      "attachFileRequiredHint": "The offer file must be attached before moving this deal to the \"Offer sent\" stage.",
+      "attachFile": "Attach file",
+      "attachmentsTitle": "Attachments",
+      "noAttachments": "No attachments yet.",
+      "attachmentUploadFailed": "Failed to upload file",
       "timeline": {
         "title": "Timeline",
         "composerPlaceholder": "Add a note or describe the action...",

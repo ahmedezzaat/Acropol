@@ -311,7 +311,7 @@ export type Database = {
           sort_order: number;
           is_closed: boolean;
           reason_category: "archive" | "competitor" | null;
-          system_key: "new" | "won" | "competitor" | "archive" | null;
+          system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
           created_at: string;
         };
         Insert: {
@@ -321,7 +321,7 @@ export type Database = {
           sort_order?: number;
           is_closed?: boolean;
           reason_category?: "archive" | "competitor" | null;
-          system_key?: "new" | "won" | "competitor" | "archive" | null;
+          system_key?: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
           created_at?: string;
         };
         Update: {
@@ -331,7 +331,7 @@ export type Database = {
           sort_order?: number;
           is_closed?: boolean;
           reason_category?: "archive" | "competitor" | null;
-          system_key?: "new" | "won" | "competitor" | "archive" | null;
+          system_key?: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
           created_at?: string;
         };
         Relationships: [
@@ -508,6 +508,48 @@ export type Database = {
           {
             foreignKeyName: "deal_activities_created_by_fkey";
             columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      deal_attachments: {
+        Row: {
+          id: string;
+          deal_id: string;
+          file_name: string;
+          storage_path: string;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          deal_id: string;
+          file_name: string;
+          storage_path: string;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          deal_id?: string;
+          file_name?: string;
+          storage_path?: string;
+          uploaded_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "deal_attachments_deal_id_fkey";
+            columns: ["deal_id"];
+            isOneToOne: false;
+            referencedRelation: "deals";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "deal_attachments_uploaded_by_fkey";
+            columns: ["uploaded_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
