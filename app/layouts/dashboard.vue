@@ -37,10 +37,10 @@ const items = computed<NavigationMenuItem[][]>(() => {
         ? isCrm
           ? [
               { label: t("crm.dashboard.title"), to: "/crm/dashboard" },
+              ...resourceChildren,
               ...(hasAnyModulePermission("crm_deals")
                 ? [{ label: t("crm.calendar.title"), to: "/crm/calendar" }]
                 : []),
-              ...resourceChildren,
             ]
           : resourceChildren
         : undefined,
@@ -53,11 +53,19 @@ const items = computed<NavigationMenuItem[][]>(() => {
 
   if (isAdmin.value) {
     groups.push([
-      { label: t("admin.users.title"), icon: "i-lucide-users", to: "/admin/users" },
-      { label: t("admin.roles.title"), icon: "i-lucide-shield", to: "/admin/roles" },
-      { label: t("admin.pipelines.title"), icon: "i-lucide-git-branch", to: "/admin/pipelines" },
-      { label: t("admin.activityTypes.title"), icon: "i-lucide-list-checks", to: "/admin/activity-types" },
-      { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
+      {
+        label: t("nav.settings"),
+        icon: "i-lucide-settings",
+        type: "trigger",
+        defaultOpen: true,
+        children: [
+          { label: t("admin.users.title"), icon: "i-lucide-users", to: "/admin/users" },
+          { label: t("admin.roles.title"), icon: "i-lucide-shield", to: "/admin/roles" },
+          { label: t("admin.pipelines.title"), icon: "i-lucide-git-branch", to: "/admin/pipelines" },
+          { label: t("admin.activityTypes.title"), icon: "i-lucide-list-checks", to: "/admin/activity-types" },
+          { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
+        ],
+      },
     ]);
   }
 
@@ -74,9 +82,20 @@ async function signOut() {
   <UDashboardGroup>
     <UDashboardSidebar collapsible resizable>
       <template #header="{ collapsed }">
-        <span class="truncate font-semibold text-highlighted">
-          {{ collapsed ? t("nav.appName").charAt(0) : t("nav.appName") }}
-        </span>
+        <div class="flex w-full items-center justify-between gap-2">
+          <span class="truncate font-semibold text-highlighted">
+            {{ collapsed ? t("nav.appName").charAt(0) : t("nav.appName") }}
+          </span>
+          <UButton
+            v-if="!collapsed && hasAnyModulePermission('crm_deals')"
+            icon="i-lucide-calendar"
+            :aria-label="t('crm.calendar.title')"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            to="/crm/calendar"
+          />
+        </div>
       </template>
 
       <template #default="{ collapsed }">

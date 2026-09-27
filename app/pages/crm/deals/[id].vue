@@ -493,21 +493,94 @@ const nextActivityType = ref("");
 const completionNote = ref("");
 const completing = ref(false);
 
-const needsNextAction = computed(() => !currentStage.value?.is_closed);
+// The deal's stage can be changed right from this modal too, instead of
+// requiring a separate trip to the stage stepper — defaults to the deal's
+// current stage (no-op if left alone).
+const completeStageId = ref<string | null>(null);
+const completeReasonId = ref<string | null>(null);
+const completeValue = ref<number | null>(null);
+const completeCloseDate = ref("");
+
+const completeStage = computed(() => allStages.value?.find((s) => s.id === completeStageId.value));
+const completeReasonOptions = computed(() =>
+  (allReasons.value ?? [])
+    .filter((r) => r.pipeline_id === deal.value?.pipeline_id && r.category === completeStage.value?.reason_category)
+    .map((r) => ({ label: r.name, value: r.id })),
+);
+const completeIsWonStage = computed(() => completeStage.value?.system_key === "won");
+const completeStageChanged = computed(() => completeStageId.value !== deal.value?.stage_id);
+
+// Whether the deal will still be open after this completion — true if the
+// stage picked in this same modal (which may differ from the deal's
+// current one) isn't a closed stage.
+const needsNextAction = computed(() => !completeStage.value?.is_closed);
 
 const completeSubmitDisabled = computed(() => {
   if (!completionNote.value.trim()) return true;
+  if (completeStage.value?.reason_category && !completeReasonId.value) return true;
+  if (completeIsWonStage.value && (completeValue.value == null || !completeCloseDate.value)) return true;
   if (!needsNextAction.value) return false;
   return !nextActivityType.value || !scheduledDate.value || !scheduledTime.value;
 });
 
 async function submitComplete() {
-  if (completeSubmitDisabled.value || !completingActivityId.value) return;
+  if (completeSubmitDisabled.value || !completingActivityId.value || !deal.value) return;
   completing.value = true;
 
+  if (completeStageChanged.value) {
+    const updates: Record<string, unknown> = {
+      stage_id: completeStageId.value,
+      stage_reason_id: completeReasonId.value,
+    };
+    let resolvedCustomerId: string | null = deal.value.customer_id;
+    if (completeIsWonStage.value) {
+      updates.value = completeValue.value;
+      updates.expected_close_date = completeCloseDate.value;
+
+      if (!deal.value.customer_id) {
+        const { customerId, error: conversionError } = await resolveWonCustomerId(supabase, deal.value.lead_id);
+        if (conversionError || !customerId) {
+          completing.value = false;
+          const description = conversionError === "no_lead" ? t("crm.deals.noLeadForConversion") : conversionError;
+          toast.add({ title: t("crm.deals.saveFailed"), description: description ?? undefined, color: "error" });
+          return;
+        }
+        resolvedCustomerId = customerId;
+        updates.customer_id = customerId;
+      }
+    }
+
+    const { error: stageError } = await supabase.from("deals").update(updates).eq("id", dealId);
+    if (stageError) {
+      completing.value = false;
+      toast.add({ title: t("crm.deals.saveFailed"), description: stageError.message, color: "error" });
+      return;
+    }
+
+    if (completeIsWonStage.value && resolvedCustomerId && resolvedCustomerId !== deal.value.customer_id) {
+      await supabase
+        .from("quotes")
+        .update({ customer_id: resolvedCustomerId })
+        .eq("deal_id", dealId)
+        .is("customer_id", null);
+    }
+
+    deal.value.stage_id = completeStageId.value!;
+    deal.value.stage_reason_id = completeReasonId.value;
+    if (completeIsWonStage.value) {
+      deal.value.value = completeValue.value;
+      deal.value.expected_close_date = completeCloseDate.value;
+      if (deal.value.customer_id !== resolvedCustomerId) {
+        deal.value.customer_id = resolvedCustomerId;
+        refreshCustomer();
+      }
+    }
+  }
+
   // Completes the activity (with its required note) and, if the deal is
-  // still open, inserts the next action atomically in the same call, so it
-  // can never end up completed without a next action queued behind it.
+  // still open (on whichever stage was just picked above), inserts the next
+  // action atomically in the same call, so it can never end up completed
+  // without a next action queued behind it.
   const { error } = await supabase.rpc("complete_deal_activity_with_followup", {
     p_activity_id: completingActivityId.value,
     p_content: completionNote.value.trim(),
@@ -559,9 +632,22 @@ function markComplete(activity: Activity) {
   completingActivityId.value = activity.id;
   nextActivityType.value = composerTypes.value[0]?.key ?? "";
   completionNote.value = "";
+  completeStageId.value = deal.value?.stage_id ?? null;
+  completeReasonId.value = deal.value?.stage_reason_id ?? null;
+  completeValue.value = deal.value?.value ?? null;
+  completeCloseDate.value = deal.value?.expected_close_date || today(getLocalTimeZone()).toString();
   resetScheduleFields();
   completeModalOpen.value = true;
 }
+
+watch(completeStageId, (newStageId, oldStageId) => {
+  if (newStageId === oldStageId) return;
+  completeReasonId.value = null;
+  if (completeIsWonStage.value) {
+    completeValue.value = deal.value?.value ?? null;
+    completeCloseDate.value = deal.value?.expected_close_date || today(getLocalTimeZone()).toString();
+  }
+});
 
 async function removeActivity(activity: Activity) {
   const { error } = await supabase.from("deal_activities").delete().eq("id", activity.id);
@@ -898,7 +984,7 @@ const timelineItems = computed<TimelineItem[]>(() =>
             </UPopover>
           </UFormField>
           <UFormField :label="t('crm.deals.timeline.scheduledTime')" required class="flex-1">
-            <UInputTime v-model="scheduledTime" :hour-cycle="12" class="w-full" />
+            <UInputTime v-model="scheduledTime" locale="en-US" :hour-cycle="12" class="w-full" />
           </UFormField>
         </div>
         <UButton
@@ -927,6 +1013,29 @@ const timelineItems = computed<TimelineItem[]>(() =>
           :rows="3"
           autofocus
         />
+
+        <UFormField :label="t('crm.deals.changeStageLabel')">
+          <USelect
+            v-model="completeStageId"
+            :items="pipelineStages.map((s) => ({ label: s.name, value: s.id }))"
+            value-key="value"
+            class="w-full"
+          />
+        </UFormField>
+
+        <template v-if="completeStage?.reason_category">
+          <p class="text-sm text-muted">{{ t("crm.deals.reasonRequired") }}</p>
+          <USelect v-model="completeReasonId" :items="completeReasonOptions" value-key="value" class="w-full" />
+        </template>
+
+        <template v-if="completeIsWonStage">
+          <UFormField :label="t('crm.deals.value')" required>
+            <UInputNumber v-model="completeValue" class="w-full" />
+          </UFormField>
+          <UFormField :label="t('crm.deals.wonDate')" required>
+            <UInput v-model="completeCloseDate" type="date" class="w-full" />
+          </UFormField>
+        </template>
 
         <template v-if="needsNextAction">
           <UAlert
@@ -964,7 +1073,7 @@ const timelineItems = computed<TimelineItem[]>(() =>
               </UPopover>
             </UFormField>
             <UFormField :label="t('crm.deals.timeline.scheduledTime')" required class="flex-1">
-              <UInputTime v-model="scheduledTime" :hour-cycle="12" class="w-full" />
+              <UInputTime v-model="scheduledTime" locale="en-US" :hour-cycle="12" class="w-full" />
             </UFormField>
           </div>
         </template>

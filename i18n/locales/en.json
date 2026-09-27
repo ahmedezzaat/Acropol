@@ -4,6 +4,7 @@
     "login": { "title": "@:auth.login.title" },
     "403": { "title": "@:forbidden.title" },
     "crm": { "title": "@:modules.crm.label" },
+    "admin": { "title": "@:nav.settings" },
     "crm-dashboard": { "title": "@:crm.dashboard.title" },
     "crm-calendar": { "title": "@:crm.calendar.title" },
     "crm-leads": { "title": "@:crm.leads.title" },
@@ -50,7 +51,8 @@
   "nav": {
     "appName": "Acropol",
     "home": "Home",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "settings": "Settings"
   },
   "modules": {
     "crm": {
@@ -318,6 +320,7 @@
       "selectLead": "Select a lead",
       "pipeline": "Pipeline",
       "stage": "Stage",
+      "changeStageLabel": "Change stage",
       "reason": "Reason",
       "reasonRequired": "This stage requires selecting a reason.",
       "changeStage": "Change stage to: {stage}",

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: "dashboard" });
 
-const { hasAnyModulePermission, loaded } = usePermissions();
+const { hasAnyModulePermission, isAdmin, loaded } = usePermissions();
 const { t } = useI18n();
 
 const visibleModules = computed(() =>
@@ -24,7 +24,7 @@ const visibleModules = computed(() =>
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
 
-      <div v-else-if="visibleModules.length === 0" class="py-16 text-center text-muted">
+      <div v-else-if="visibleModules.length === 0 && !isAdmin" class="py-16 text-center text-muted">
         {{ t("home.noAccess") }}
       </div>
 
@@ -37,6 +37,14 @@ const visibleModules = computed(() =>
         >
           <UIcon :name="module.icon" class="size-8 text-primary" />
           <span class="font-medium text-highlighted">{{ t(module.labelKey) }}</span>
+        </ULink>
+        <ULink
+          v-if="isAdmin"
+          to="/admin"
+          class="flex flex-col items-center gap-3 rounded-lg border border-default p-6 text-center transition hover:border-primary hover:bg-elevated"
+        >
+          <UIcon name="i-lucide-settings" class="size-8 text-primary" />
+          <span class="font-medium text-highlighted">{{ t("nav.settings") }}</span>
         </ULink>
       </div>
     </template>

@@ -8,6 +8,7 @@ definePageMeta({
 });
 
 const supabase = useSupabaseClient();
+const user = useSupabaseUser();
 const toast = useToast();
 const { hasPermission } = usePermissions();
 const { t } = useI18n();
@@ -64,6 +65,12 @@ interface Profile {
   id: string;
   full_name: string | null;
   email: string;
+  team_id: string | null;
+}
+
+interface Team {
+  id: string;
+  leader_id: string;
 }
 
 const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deals-pipelines", async () => {
@@ -118,7 +125,18 @@ const { data: leadsList, refresh: refreshLeads } = await useAsyncData<LeadOption
 );
 
 const { data: profiles } = await useAsyncData<Profile[]>("crm-deals-profiles", async () => {
-  const { data, error } = await supabase.from("profiles").select("id, full_name, email").eq("is_active", true);
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, team_id")
+    .eq("is_active", true);
+  if (error) throw error;
+  return data ?? [];
+});
+
+// teams is openly readable by any authenticated user (see 0029), so this
+// is enough to resolve "do I lead a team, and which one" client-side.
+const { data: teams } = await useAsyncData<Team[]>("crm-deals-teams", async () => {
+  const { data, error } = await supabase.from("teams").select("id, leader_id");
   if (error) throw error;
   return data ?? [];
 });
@@ -153,6 +171,46 @@ function assigneeInitial(id: string | null) {
   return label.charAt(0).toUpperCase();
 }
 
+// --- Filter by assignee ---
+// useSupabaseUser() returns the decoded JWT claims here, not a full auth
+// User object — the id is under `sub`, same as server-side
+// serverSupabaseUser() (see server/utils/requireAdmin.ts).
+const currentUserId = computed(() => user.value?.sub as string | undefined);
+
+// Who shows up in the picker mirrors the same three-tier visibility used
+// everywhere else: view_all sees everyone, a team leader sees their team
+// (plus themselves), anyone else only ever sees their own deals anyway (via
+// RLS) so they only ever have themselves to pick from.
+const myTeam = computed(() => teams.value?.find((tm) => tm.leader_id === currentUserId.value));
+const canViewAllDeals = computed(() => hasPermission("crm_deals", "view_all"));
+
+const filterableProfiles = computed(() => {
+  if (canViewAllDeals.value) return profiles.value ?? [];
+  if (myTeam.value) {
+    return (profiles.value ?? []).filter(
+      (p) => p.id === currentUserId.value || p.team_id === myTeam.value!.id,
+    );
+  }
+  return (profiles.value ?? []).filter((p) => p.id === currentUserId.value);
+});
+
+const assigneeFilterOptions = computed(() => [
+  { label: t("common.all"), value: null },
+  ...filterableProfiles.value.map((p) => ({ label: p.full_name || p.email, value: p.id })),
+]);
+// Defaults to the logged-in user, but user.value can still be hydrating
+// when this ref is created (Supabase's session fetch is async even after
+// route middleware has already let the page through) — so set it
+// reactively the first time it's available, rather than only once at setup.
+const assigneeFilter = ref<string | null>(null);
+const assigneeFilterInitialized = ref(false);
+watchEffect(() => {
+  if (!assigneeFilterInitialized.value && currentUserId.value) {
+    assigneeFilter.value = currentUserId.value;
+    assigneeFilterInitialized.value = true;
+  }
+});
+
 const activePipelineId = ref<string | null>(null);
 watchEffect(() => {
   if (!activePipelineId.value && pipelines.value?.length) {
@@ -169,7 +227,9 @@ const activeStages = computed(() =>
 );
 
 function dealsForStage(stageId: string) {
-  return (deals.value ?? []).filter((d) => d.stage_id === stageId);
+  return (deals.value ?? []).filter(
+    (d) => d.stage_id === stageId && (assigneeFilter.value === null || d.assigned_to === assigneeFilter.value),
+  );
 }
 
 // --- Create deal ---
@@ -411,6 +471,17 @@ function openDeal(deal: Deal) {
       <UDashboardToolbar>
         <template #left>
           <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" />
+        </template>
+        <template #right>
+          <USelectMenu
+            v-model="assigneeFilter"
+            :items="assigneeFilterOptions"
+            value-key="value"
+            :icon="'i-lucide-user'"
+            :placeholder="t('crm.deals.assignedTo')"
+            searchable
+            class="w-56"
+          />
         </template>
       </UDashboardToolbar>
     </template>

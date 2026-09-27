@@ -4,6 +4,7 @@
     "login": { "title": "@:auth.login.title" },
     "403": { "title": "@:forbidden.title" },
     "crm": { "title": "@:modules.crm.label" },
+    "admin": { "title": "@:nav.settings" },
     "crm-dashboard": { "title": "@:crm.dashboard.title" },
     "crm-calendar": { "title": "@:crm.calendar.title" },
     "crm-leads": { "title": "@:crm.leads.title" },
@@ -50,7 +51,8 @@
   "nav": {
     "appName": "أكروبول",
     "home": "الرئيسية",
-    "signOut": "تسجيل الخروج"
+    "signOut": "تسجيل الخروج",
+    "settings": "الإعدادات"
   },
   "modules": {
     "crm": {
@@ -318,6 +320,7 @@
       "selectLead": "اختر العميل المحتمل",
       "pipeline": "المسار",
       "stage": "المرحلة",
+      "changeStageLabel": "تغيير المرحلة",
       "reason": "السبب",
       "reasonRequired": "هذه المرحلة تتطلب اختيار سبب.",
       "changeStage": "تغيير المرحلة إلى: {stage}",
