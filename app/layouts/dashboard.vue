@@ -18,7 +18,15 @@ const items = computed<NavigationMenuItem[][]>(() => {
     m.resources.some((r) => hasAnyModulePermission(r.key)),
   ).map((m) => {
     const accessibleResources = m.resources.filter((r) => hasAnyModulePermission(r.key));
-    const hasChildren = accessibleResources.length > 1;
+    // The CRM dashboard is always offered alongside whatever resources the
+    // user has, so it always has at least one sibling — never collapse it
+    // into a single direct link the way a lone resource otherwise would.
+    const isCrm = m.key === "crm";
+    const hasChildren = isCrm || accessibleResources.length > 1;
+    const resourceChildren = accessibleResources.map((r) => ({
+      label: t(r.labelKey),
+      to: resourceRoutes[r.key],
+    }));
     return {
       label: t(m.labelKey),
       icon: m.icon,
@@ -26,10 +34,9 @@ const items = computed<NavigationMenuItem[][]>(() => {
       type: hasChildren ? "trigger" : "link",
       defaultOpen: true,
       children: hasChildren
-        ? accessibleResources.map((r) => ({
-            label: t(r.labelKey),
-            to: resourceRoutes[r.key],
-          }))
+        ? isCrm
+          ? [{ label: t("crm.dashboard.title"), to: "/crm/dashboard" }, ...resourceChildren]
+          : resourceChildren
         : undefined,
     };
   });
