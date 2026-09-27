@@ -112,14 +112,17 @@ const editOpen = ref(false);
 const editing = ref(false);
 const editTarget = ref<Profile | null>(null);
 const editState = reactive({
+  email: "",
   full_name: "",
   role_id: null as string | null,
   is_admin: false,
   is_active: true,
 });
+const editEmailValid = computed(() => z.email().safeParse(editState.email).success);
 
 function openEdit(user: Profile) {
   editTarget.value = user;
+  editState.email = user.email;
   editState.full_name = user.full_name ?? "";
   editState.role_id = user.role_id;
   editState.is_admin = user.is_admin;
@@ -146,6 +149,37 @@ async function saveEdit() {
     });
   } finally {
     editing.value = false;
+  }
+}
+
+// --- Delete user ---
+const deleteOpen = ref(false);
+const deleting = ref(false);
+const deleteTarget = ref<Profile | null>(null);
+
+function openDelete(user: Profile) {
+  deleteTarget.value = user;
+  deleteOpen.value = true;
+}
+
+async function confirmDelete() {
+  if (!deleteTarget.value) return;
+  deleting.value = true;
+  try {
+    await $fetch(`/api/admin/users/${deleteTarget.value.id}/delete`, { method: "POST" });
+    toast.add({ title: t("admin.users.userDeleted"), color: "success" });
+    deleteOpen.value = false;
+    refreshUsers();
+  } catch (err: any) {
+    const code = err?.data?.statusMessage ?? "";
+    const description = code === "cannot_delete_self"
+      ? t("admin.users.cannotDeleteSelf")
+      : code.startsWith("has_data:")
+        ? t("admin.users.deleteUserBlocked")
+        : (code || err.message);
+    toast.add({ title: t("admin.users.deleteUserFailed"), description, color: "error" });
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -216,6 +250,14 @@ async function saveReset() {
             :items="[
               [{ label: t('common.edit'), icon: 'i-lucide-pencil', onSelect: () => openEdit(row.original) }],
               [{ label: t('admin.users.resetPassword'), icon: 'i-lucide-key', onSelect: () => openReset(row.original) }],
+              [
+                {
+                  label: t('admin.users.deleteUser'),
+                  icon: 'i-lucide-trash',
+                  color: 'error',
+                  onSelect: () => openDelete(row.original),
+                },
+              ],
             ]"
           >
             <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" />
@@ -249,6 +291,9 @@ async function saveReset() {
   <UModal v-model:open="editOpen" :title="t('admin.users.editUserTitle', { email: editTarget?.email ?? '' })">
     <template #body>
       <div class="space-y-4">
+        <UFormField :label="t('common.email')">
+          <UInput v-model="editState.email" type="email" class="w-full" />
+        </UFormField>
         <UFormField :label="t('admin.users.fullName')">
           <UInput v-model="editState.full_name" class="w-full" />
         </UFormField>
@@ -257,7 +302,22 @@ async function saveReset() {
         </UFormField>
         <UCheckbox v-model="editState.is_admin" :label="t('admin.users.administratorFullAccess')" />
         <UCheckbox v-model="editState.is_active" :label="t('admin.users.activeCanSignIn')" />
-        <UButton :label="t('common.save')" :loading="editing" block @click="saveEdit" />
+        <UButton :label="t('common.save')" :loading="editing" :disabled="!editEmailValid" block @click="saveEdit" />
+      </div>
+    </template>
+  </UModal>
+
+  <UModal v-model:open="deleteOpen" :title="t('admin.users.deleteUserTitle', { email: deleteTarget?.email ?? '' })">
+    <template #body>
+      <div class="space-y-4">
+        <p class="text-sm text-muted">{{ t("admin.users.deleteUserWarning") }}</p>
+        <UButton
+          :label="t('admin.users.deleteUser')"
+          color="error"
+          :loading="deleting"
+          block
+          @click="confirmDelete"
+        />
       </div>
     </template>
   </UModal>

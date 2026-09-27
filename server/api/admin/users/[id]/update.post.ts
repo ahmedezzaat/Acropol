@@ -1,6 +1,7 @@
 import * as z from "zod";
 
 const bodySchema = z.object({
+  email: z.email().optional(),
   full_name: z.string().min(1).optional(),
   role_id: z.uuid().nullable().optional(),
   is_admin: z.boolean().optional(),
@@ -13,6 +14,20 @@ export default defineEventHandler(async (event) => {
   if (!id) throw createError({ statusCode: 400, statusMessage: "Missing user id" });
 
   const body = await readValidatedBody(event, bodySchema.parse);
+
+  if (body.email !== undefined) {
+    // The email a user actually signs in with lives in Supabase Auth, not
+    // the profiles mirror — update it there first (auto-confirmed, no
+    // verification email, same admin-bypass pattern as password reset) so
+    // profiles.email is never set to an address Auth rejected.
+    const { error: authError } = await adminClient.auth.admin.updateUserById(id, {
+      email: body.email,
+      email_confirm: true,
+    });
+    if (authError) {
+      throw createError({ statusCode: 500, statusMessage: authError.message });
+    }
+  }
 
   // profiles RLS only allows self-updates (see supabase/migrations/0002) —
   // editing another user's role/admin/active status is deliberately only

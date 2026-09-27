@@ -123,7 +123,14 @@
       "newPassword": "New password",
       "resetPassword": "Reset password",
       "passwordReset": "Password reset",
-      "resetPasswordFailed": "Failed to reset password"
+      "resetPasswordFailed": "Failed to reset password",
+      "deleteUser": "Delete user",
+      "deleteUserTitle": "Delete {email}",
+      "deleteUserWarning": "This cannot be undone. A user can only be deleted if they have no leads, deals, customers, quotes, or team tied to them.",
+      "userDeleted": "User deleted",
+      "deleteUserFailed": "Failed to delete user",
+      "deleteUserBlocked": "This user can't be deleted because they're still tied to data (leads, deals, customers, quotes, or a team). Reassign that data to another user first.",
+      "cannotDeleteSelf": "You can't delete your own account"
     },
     "roles": {
       "title": "Roles",
