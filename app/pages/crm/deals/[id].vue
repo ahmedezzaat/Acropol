@@ -22,7 +22,7 @@ interface Deal {
   stage_reason_id: string | null;
   value: number | null;
   expected_close_date: string | null;
-  customer_id: string;
+  customer_id: string | null;
   lead_id: string | null;
   assigned_to: string | null;
   created_at: string;
@@ -32,6 +32,15 @@ interface Customer {
   id: string;
   name: string;
   company: string | null;
+  phone: string | null;
+  email: string | null;
+}
+
+interface LeadContact {
+  id: string;
+  name: string;
+  company_name: string | null;
+  lead_type: "individual" | "company";
   phone: string | null;
   email: string | null;
 }
@@ -147,12 +156,25 @@ watchEffect(() => {
   if (dealPayload.value) deal.value = dealPayload.value;
 });
 
-const { data: customer } = await useAsyncData<Customer | null>(`crm-deal-${dealId}-customer`, async () => {
-  if (!deal.value) return null;
+const { data: customer, refresh: refreshCustomer } = await useAsyncData<Customer | null>(`crm-deal-${dealId}-customer`, async () => {
+  if (!deal.value?.customer_id) return null;
   const { data, error } = await supabase
     .from("customers")
     .select("id, name, company, phone, email")
     .eq("id", deal.value.customer_id)
+    .single();
+  if (error) throw error;
+  return data;
+});
+
+// Pre-Won, the deal has no customer yet — the sidebar contact card falls
+// back to the originating lead's info instead.
+const { data: leadContact } = await useAsyncData<LeadContact | null>(`crm-deal-${dealId}-lead-contact`, async () => {
+  if (!deal.value?.lead_id) return null;
+  const { data, error } = await supabase
+    .from("leads")
+    .select("id, name, company_name, lead_type, phone, email")
+    .eq("id", deal.value.lead_id)
     .single();
   if (error) throw error;
   return data;
@@ -287,9 +309,22 @@ async function confirmStageChange() {
 
   changingStage.value = true;
   const updates: Record<string, unknown> = { stage_id: pendingStageId.value, stage_reason_id: pendingReasonId.value };
+  let resolvedCustomerId: string | null = deal.value.customer_id;
   if (isWonStage.value) {
     updates.value = pendingValue.value;
     updates.expected_close_date = pendingCloseDate.value;
+
+    if (!deal.value.customer_id) {
+      const { customerId, error: conversionError } = await resolveWonCustomerId(supabase, deal.value.lead_id);
+      if (conversionError || !customerId) {
+        changingStage.value = false;
+        const description = conversionError === "no_lead" ? t("crm.deals.noLeadForConversion") : conversionError;
+        toast.add({ title: t("crm.deals.saveFailed"), description: description ?? undefined, color: "error" });
+        return;
+      }
+      resolvedCustomerId = customerId;
+      updates.customer_id = customerId;
+    }
   }
   const { error } = await supabase.from("deals").update(updates).eq("id", dealId);
 
@@ -297,6 +332,16 @@ async function confirmStageChange() {
     changingStage.value = false;
     toast.add({ title: t("crm.deals.saveFailed"), description: error.message, color: "error" });
     return;
+  }
+
+  // Backfill any quotes created earlier in the pipeline (before the deal had
+  // a customer) now that one exists.
+  if (isWonStage.value && resolvedCustomerId && resolvedCustomerId !== deal.value.customer_id) {
+    await supabase
+      .from("quotes")
+      .update({ customer_id: resolvedCustomerId })
+      .eq("deal_id", dealId)
+      .is("customer_id", null);
   }
 
   // The stage change itself is auto-logged by a DB trigger (log_deal_activity)
@@ -317,6 +362,10 @@ async function confirmStageChange() {
   if (isWonStage.value) {
     deal.value.value = pendingValue.value;
     deal.value.expected_close_date = pendingCloseDate.value;
+    if (deal.value.customer_id !== resolvedCustomerId) {
+      deal.value.customer_id = resolvedCustomerId;
+      refreshCustomer();
+    }
   }
   toast.add({ title: t("crm.deals.dealSaved"), color: "success" });
   stageChangeModalOpen.value = false;
@@ -364,32 +413,9 @@ function activityTypeName(typeKey: string) {
   return allActivityTypes.value.find((t) => t.key === typeKey)?.name ?? typeKey;
 }
 
-const logComposerOpen = ref(false);
-// 'log' = pick what already happened (no scheduling — this step is a pure
-// log); 'schedule' = the mandatory next-action step, only entered when the
-// deal isn't on a closed stage — a deal shouldn't be left without a next
-// action while it's still open. 'mode' distinguishes *why* we're in the
-// schedule step: logging a brand-new activity (nothing saved yet — see
-// logActivity) vs. completing an existing upcoming one (see markComplete).
-const composerStep = ref<"log" | "schedule">("log");
-const composerMode = ref<"log" | "complete">("log");
-const completingActivityId = ref<string | null>(null);
-const activityType = ref("");
-const activityContent = ref("");
-// The mandatory next action's own type — kept separate from the log fields
-// above since, for the "log" mode, both steps are submitted together in one
-// call and need to carry two independent activities. The next action never
-// carries a note of its own (notes belong to what already happened).
-const nextActivityType = ref("");
-// Required note for the activity being completed ('complete' mode only) —
-// captures what actually happened, since completing something can't be a
-// silent, note-less action.
-const completionNote = ref("");
-const logging = ref(false);
-
 // Follow-up date/time — a calendar popover (defaults to today, opened via
 // UPopover + UCalendar so the user can pick a day visually) plus a compact
-// 12-hour time field.
+// 12-hour time field. Shared by both the schedule and complete modals below.
 const scheduledDate = ref<CalendarDate>(today(getLocalTimeZone()));
 const scheduledTime = ref<Time>(new Time(9, 0));
 const datePopoverOpen = ref(false);
@@ -420,129 +446,88 @@ function scheduledAtIso(): string | null {
   ).toISOString();
 }
 
-function openComposer() {
-  composerMode.value = "log";
-  completingActivityId.value = null;
-  composerStep.value = "log";
-  activityType.value = composerTypes.value[0]?.key ?? "";
-  activityContent.value = "";
-  logComposerOpen.value = true;
-}
+// --- Schedule a future activity — purely forward-looking: pick a type and
+// a date/time, nothing else (no note — notes belong to what already
+// happened, captured on completion instead). Only one open activity is
+// allowed per deal at a time (DB-enforced), so the trigger button is
+// disabled whenever one is already pending (see the "Upcoming" card).
+const scheduleModalOpen = ref(false);
+const scheduleType = ref("");
+const scheduling = ref(false);
+const scheduleSubmitDisabled = computed(
+  () => !scheduleType.value || !scheduledDate.value || !scheduledTime.value,
+);
 
-async function logActivity() {
-  if (!activityContent.value.trim() || !activityType.value) return;
-
-  if (currentStage.value?.is_closed || upcomingActivities.value.length > 0) {
-    // Closed deals don't need a next action queued, and an open deal that
-    // already has one pending doesn't need a second — a deal should only
-    // ever have at most one open activity at a time, never a pile of them.
-    await saveLogWithoutScheduling();
-    return;
-  }
-
-  // Deal is still open: nothing is saved yet. Pause briefly (with the
-  // button's own loading spinner) before flipping to the mandatory next-
-  // action step, so the transition doesn't feel instant — the user should
-  // register that they logged something before being asked to do something
-  // different now.
-  logging.value = true;
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-  logging.value = false;
-
-  // The log entry and the next action are only ever written together (see
-  // submitSchedule), so a logged activity can never end up saved without a
-  // next action right behind it.
-  composerStep.value = "schedule";
-  nextActivityType.value = composerTypes.value[0]?.key ?? "";
+function openScheduleModal() {
+  scheduleType.value = composerTypes.value[0]?.key ?? "";
   resetScheduleFields();
+  scheduleModalOpen.value = true;
 }
 
-async function saveLogWithoutScheduling() {
-  logging.value = true;
+async function scheduleActivity() {
+  if (scheduleSubmitDisabled.value) return;
+  scheduling.value = true;
   const { error } = await supabase.from("deal_activities").insert({
     deal_id: dealId,
-    type: activityType.value,
-    content: activityContent.value.trim(),
-    completed_at: new Date().toISOString(),
+    type: scheduleType.value,
+    scheduled_at: scheduledAtIso(),
   });
-  logging.value = false;
+  scheduling.value = false;
 
   if (error) {
     toast.add({ title: t("crm.deals.timeline.activityLogFailed"), description: error.message, color: "error" });
     return;
   }
-
-  toast.add({ title: t("crm.deals.timeline.activityLogged"), color: "success" });
-  logComposerOpen.value = false;
+  toast.add({ title: t("crm.deals.timeline.followUpScheduled"), color: "success" });
+  scheduleModalOpen.value = false;
   refreshActivities();
 }
 
-// Whether the "next action" fields (type + date/time) apply to the current
-// step — always true in 'log' mode, and true in 'complete' mode only when
-// the deal is still open (a closed deal doesn't need a next action queued).
-const needsNextAction = computed(() => composerMode.value !== "complete" || !currentStage.value?.is_closed);
+// --- Mark an existing scheduled activity complete — always requires a note
+// on what happened, and if the deal is still open, also requires scheduling
+// the next action right behind it, so a deal is never left without one
+// while active.
+const completeModalOpen = ref(false);
+const completingActivityId = ref<string | null>(null);
+const nextActivityType = ref("");
+const completionNote = ref("");
+const completing = ref(false);
 
-const scheduleSubmitDisabled = computed(() => {
-  if (composerMode.value === "complete" && !completionNote.value.trim()) return true;
+const needsNextAction = computed(() => !currentStage.value?.is_closed);
+
+const completeSubmitDisabled = computed(() => {
+  if (!completionNote.value.trim()) return true;
   if (!needsNextAction.value) return false;
   return !nextActivityType.value || !scheduledDate.value || !scheduledTime.value;
 });
 
-async function submitSchedule() {
-  if (scheduleSubmitDisabled.value) return;
-  logging.value = true;
+async function submitComplete() {
+  if (completeSubmitDisabled.value || !completingActivityId.value) return;
+  completing.value = true;
 
-  if (composerMode.value === "complete" && completingActivityId.value) {
-    // Completing an existing upcoming activity — complete it (with its
-    // required note) and, if the deal is still open, insert the next
-    // action atomically in the same call, so it can never end up
-    // completed without a next action queued behind it.
-    const { error } = await supabase.rpc("complete_deal_activity_with_followup", {
-      p_activity_id: completingActivityId.value,
-      p_content: completionNote.value.trim(),
-      p_next_type: needsNextAction.value ? nextActivityType.value : null,
-      p_next_scheduled_at: needsNextAction.value ? scheduledAtIso() : null,
-    });
-    logging.value = false;
+  // Completes the activity (with its required note) and, if the deal is
+  // still open, inserts the next action atomically in the same call, so it
+  // can never end up completed without a next action queued behind it.
+  const { error } = await supabase.rpc("complete_deal_activity_with_followup", {
+    p_activity_id: completingActivityId.value,
+    p_content: completionNote.value.trim(),
+    p_next_type: needsNextAction.value ? nextActivityType.value : null,
+    p_next_scheduled_at: needsNextAction.value ? scheduledAtIso() : null,
+  });
+  completing.value = false;
 
-    if (error) {
-      toast.add({ title: t("crm.deals.timeline.activityCompleteFailed"), description: error.message, color: "error" });
-      return;
-    }
-    toast.add({ title: t("crm.deals.timeline.activityCompleted"), color: "success" });
-  } else {
-    // Logging a brand-new activity — insert the logged entry and the next
-    // action together as a single multi-row insert (one statement, one
-    // transaction), so the log can never be saved without the next action.
-    const { error } = await supabase.from("deal_activities").insert([
-      {
-        deal_id: dealId,
-        type: activityType.value,
-        content: activityContent.value.trim(),
-        completed_at: new Date().toISOString(),
-      },
-      {
-        deal_id: dealId,
-        type: nextActivityType.value,
-        scheduled_at: scheduledAtIso(),
-      },
-    ]);
-    logging.value = false;
-
-    if (error) {
-      toast.add({ title: t("crm.deals.timeline.activityLogFailed"), description: error.message, color: "error" });
-      return;
-    }
-    toast.add({ title: t("crm.deals.timeline.followUpScheduled"), color: "success" });
+  if (error) {
+    toast.add({ title: t("crm.deals.timeline.activityCompleteFailed"), description: error.message, color: "error" });
+    return;
   }
-
-  logComposerOpen.value = false;
+  toast.add({ title: t("crm.deals.timeline.activityCompleted"), color: "success" });
+  completeModalOpen.value = false;
   refreshActivities();
 }
 
-// Quick note — always-visible single-line composer just below the "Log
-// Activity" button, separate from the modal (which only offers the
-// schedulable admin-managed types, not 'note').
+// Quick note — always-visible single-line composer just below the
+// "Schedule Activity" button, separate from the modals above (which only
+// offer the schedulable admin-managed types, not 'note').
 const quickNoteContent = ref("");
 const loggingNote = ref(false);
 
@@ -569,15 +554,13 @@ async function logNote() {
 function markComplete(activity: Activity) {
   // Completing an activity always requires a note on what happened — and
   // if the deal is still open, it also can't be left without a next action
-  // queued — so this always routes through the composer (see
-  // submitSchedule), never a silent direct update.
-  composerMode.value = "complete";
+  // queued — so this always routes through the modal (see submitComplete),
+  // never a silent direct update.
   completingActivityId.value = activity.id;
-  composerStep.value = "schedule";
   nextActivityType.value = composerTypes.value[0]?.key ?? "";
   completionNote.value = "";
   resetScheduleFields();
-  logComposerOpen.value = true;
+  completeModalOpen.value = true;
 }
 
 async function removeActivity(activity: Activity) {
@@ -713,9 +696,10 @@ const timelineItems = computed<TimelineItem[]>(() =>
                 <h2 class="font-semibold text-highlighted">{{ t("crm.deals.timeline.title") }}</h2>
                 <UButton
                   v-if="canEdit"
-                  icon="i-lucide-plus"
-                  :label="t('crm.deals.timeline.logActivityButton')"
-                  @click="openComposer"
+                  icon="i-lucide-calendar-plus"
+                  :label="t('crm.deals.timeline.scheduleActivityButton')"
+                  :disabled="upcomingActivities.length > 0"
+                  @click="openScheduleModal"
                 />
               </div>
             </template>
@@ -778,6 +762,19 @@ const timelineItems = computed<TimelineItem[]>(() =>
               <p v-if="deal.lead_id" class="mt-2 text-xs text-muted">{{ t("crm.deals.fromLead") }}</p>
               <ULink :to="`/crm/customers/${deal.customer_id}`" class="mt-2 inline-flex items-center gap-1 text-primary">
                 {{ t("crm.deals.viewCustomer") }}
+                <UIcon name="i-lucide-arrow-left" class="size-3" />
+              </ULink>
+            </div>
+            <div v-else-if="leadContact" class="space-y-1 text-sm">
+              <p class="font-medium text-highlighted">
+                {{ leadContact.lead_type === "company" && leadContact.company_name ? leadContact.company_name : leadContact.name }}
+              </p>
+              <p v-if="leadContact.lead_type === 'company'" class="text-muted">{{ leadContact.name }}</p>
+              <p v-if="leadContact.phone" class="text-muted">{{ leadContact.phone }}</p>
+              <p v-if="leadContact.email" class="text-muted">{{ leadContact.email }}</p>
+              <p class="mt-2 text-xs text-muted">{{ t("crm.deals.customerOnWin") }}</p>
+              <ULink :to="`/crm/leads/${deal.lead_id}`" class="mt-2 inline-flex items-center gap-1 text-primary">
+                {{ t("crm.deals.viewLead") }}
                 <UIcon name="i-lucide-arrow-left" class="size-3" />
               </ULink>
             </div>
@@ -853,15 +850,9 @@ const timelineItems = computed<TimelineItem[]>(() =>
             <UInput v-model="pendingCloseDate" type="date" class="w-full" />
           </UFormField>
         </template>
-        <UFormField :label="t('crm.deals.stageChangeNote')">
-          <UTextarea
-            v-model="pendingNote"
-            :placeholder="t('crm.deals.stageChangeNotePlaceholder')"
-            class="w-full"
-            :rows="3"
-            autofocus
-          />
-        </UFormField>
+        <!-- TODO: the stage-change note field is temporarily disabled;
+        pendingNote stays "" so confirmStageChange's insert never fires.
+        Re-enable by restoring this UFormField. -->
         <UButton
           :label="t('common.save')"
           :loading="changingStage"
@@ -876,51 +867,60 @@ const timelineItems = computed<TimelineItem[]>(() =>
     </template>
   </UModal>
 
-  <UModal
-    v-model:open="logComposerOpen"
-    :title="
-      composerStep === 'log'
-        ? t('crm.deals.timeline.logActivityButton')
-        : composerMode === 'complete'
-          ? t('crm.deals.timeline.markComplete')
-          : t('crm.deals.timeline.forceScheduleTitle')
-    "
-    :close="composerStep === 'log'"
-    :dismissible="composerStep === 'log'"
-  >
+  <UModal v-model:open="scheduleModalOpen" :title="t('crm.deals.timeline.scheduleActivityButton')">
     <template #body>
-      <div v-if="composerStep === 'log'" class="space-y-3">
+      <div class="space-y-3">
         <div class="flex flex-wrap gap-2">
           <UButton
             v-for="type in composerTypes"
             :key="type.key"
             :label="type.name"
             :icon="type.icon"
-            :variant="activityType === type.key ? 'solid' : 'soft'"
-            :color="activityType === type.key ? 'primary' : 'neutral'"
+            :variant="scheduleType === type.key ? 'solid' : 'soft'"
+            :color="scheduleType === type.key ? 'primary' : 'neutral'"
             size="sm"
-            @click="activityType = type.key"
+            @click="scheduleType = type.key"
           />
         </div>
-        <UTextarea
-          v-model="activityContent"
-          :placeholder="t('crm.deals.timeline.composerPlaceholder')"
-          class="w-full"
-          :rows="3"
-          autofocus
-        />
+        <div class="flex gap-3">
+          <UFormField :label="t('crm.deals.timeline.scheduledDate')" required class="flex-1">
+            <UPopover v-model:open="datePopoverOpen">
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-calendar"
+                :label="formattedScheduledDate"
+                class="w-full justify-start"
+              />
+              <template #content>
+                <UCalendar v-model="scheduledDate" class="p-2" @update:model-value="datePopoverOpen = false" />
+              </template>
+            </UPopover>
+          </UFormField>
+          <UFormField :label="t('crm.deals.timeline.scheduledTime')" required class="flex-1">
+            <UInputTime v-model="scheduledTime" :hour-cycle="12" class="w-full" />
+          </UFormField>
+        </div>
         <UButton
-          :label="t('crm.deals.timeline.logActivity')"
-          :loading="logging"
-          :disabled="!activityContent.trim() || !activityType"
+          :label="t('crm.deals.timeline.scheduleActivityButton')"
+          :loading="scheduling"
+          :disabled="scheduleSubmitDisabled"
           block
-          @click="logActivity"
+          @click="scheduleActivity"
         />
       </div>
+    </template>
+  </UModal>
 
-      <div v-else class="space-y-3">
+  <UModal
+    v-model:open="completeModalOpen"
+    :title="t('crm.deals.timeline.markComplete')"
+    :close="false"
+    :dismissible="false"
+  >
+    <template #body>
+      <div class="space-y-3">
         <UTextarea
-          v-if="composerMode === 'complete'"
           v-model="completionNote"
           :placeholder="t('crm.deals.timeline.composerPlaceholder')"
           class="w-full"
@@ -970,11 +970,11 @@ const timelineItems = computed<TimelineItem[]>(() =>
         </template>
 
         <UButton
-          :label="composerMode === 'complete' ? t('crm.deals.timeline.markComplete') : t('crm.deals.timeline.scheduleFollowUp')"
-          :loading="logging"
-          :disabled="scheduleSubmitDisabled"
+          :label="t('crm.deals.timeline.markComplete')"
+          :loading="completing"
+          :disabled="completeSubmitDisabled"
           block
-          @click="submitSchedule"
+          @click="submitComplete"
         />
       </div>
     </template>

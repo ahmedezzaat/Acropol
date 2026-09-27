@@ -5,6 +5,7 @@
     "403": { "title": "@:forbidden.title" },
     "crm": { "title": "@:modules.crm.label" },
     "crm-dashboard": { "title": "@:crm.dashboard.title" },
+    "crm-calendar": { "title": "@:crm.calendar.title" },
     "crm-leads": { "title": "@:crm.leads.title" },
     "crm-leads-id": { "title": "@:crm.leads.title" },
     "crm-deals": { "title": "@:crm.deals.title" },
@@ -252,6 +253,14 @@
       "count": "Count",
       "noData": "No data in this period."
     },
+    "calendar": {
+      "title": "Calendar",
+      "today": "Today",
+      "upcoming": "Upcoming",
+      "overdue": "Overdue",
+      "closed": "Closed",
+      "noActivities": "No activities"
+    },
     "leads": {
       "title": "Leads",
       "newLead": "New lead",
@@ -339,12 +348,14 @@
       "contactTitle": "Contact",
       "viewCustomer": "View customer profile",
       "fromLead": "Originated from a lead",
+      "customerOnWin": "A customer will be created when this deal is won",
+      "viewLead": "View lead",
+      "noLeadForConversion": "No lead is linked to this deal to convert into a customer",
       "createdOn": "Created on",
       "timeline": {
         "title": "Timeline",
         "composerPlaceholder": "Add a note or describe the action...",
-        "logActivity": "Log",
-        "logActivityButton": "Log Activity",
+        "scheduleActivityButton": "Schedule Activity",
         "quickNotePlaceholder": "Write a note...",
         "addNote": "Add",
         "forceScheduleTitle": "Schedule Next Action",
@@ -383,6 +394,7 @@
       "title": "Quotes",
       "quoteNumber": "Quote #",
       "customer": "Customer",
+      "noCustomerYet": "Not converted to a customer yet (happens when the deal is won)",
       "validUntil": "Valid until",
       "tax": "Tax",
       "detailsTitle": "Details",

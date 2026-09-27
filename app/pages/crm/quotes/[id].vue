@@ -21,7 +21,7 @@ interface Quote {
   subtotal: number;
   tax: number;
   total: number;
-  customer_id: string;
+  customer_id: string | null;
 }
 
 interface QuoteItem {
@@ -87,7 +87,7 @@ watchEffect(() => {
 });
 
 const { data: customer } = await useAsyncData<Customer | null>(`crm-quote-${quoteId}-customer`, async () => {
-  if (!quote.value) return null;
+  if (!quote.value?.customer_id) return null;
   const { data, error } = await supabase
     .from("customers")
     .select("id, name")
@@ -195,9 +195,10 @@ async function removeQuote() {
         <UPageCard :title="t('crm.quotes.detailsTitle')">
           <div class="space-y-4">
             <UFormField :label="t('crm.quotes.customer')">
-              <ULink :to="`/crm/customers/${quote.customer_id}`" class="text-primary">
+              <ULink v-if="quote.customer_id" :to="`/crm/customers/${quote.customer_id}`" class="text-primary">
                 {{ customer?.name }}
               </ULink>
+              <span v-else class="text-sm text-muted">{{ t("crm.quotes.noCustomerYet") }}</span>
             </UFormField>
             <UFormField :label="t('common.status')">
               <USelect v-model="quote.status" :items="statusOptions" value-key="value" :disabled="!canEdit" class="w-full" />

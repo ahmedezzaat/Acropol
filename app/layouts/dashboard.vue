@@ -35,7 +35,13 @@ const items = computed<NavigationMenuItem[][]>(() => {
       defaultOpen: true,
       children: hasChildren
         ? isCrm
-          ? [{ label: t("crm.dashboard.title"), to: "/crm/dashboard" }, ...resourceChildren]
+          ? [
+              { label: t("crm.dashboard.title"), to: "/crm/dashboard" },
+              ...(hasAnyModulePermission("crm_deals")
+                ? [{ label: t("crm.calendar.title"), to: "/crm/calendar" }]
+                : []),
+              ...resourceChildren,
+            ]
           : resourceChildren
         : undefined,
     };

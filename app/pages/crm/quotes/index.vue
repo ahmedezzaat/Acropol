@@ -14,7 +14,7 @@ interface Quote {
   quote_number: string;
   status: string;
   total: number;
-  customer_id: string;
+  customer_id: string | null;
 }
 
 interface Customer {
@@ -37,7 +37,7 @@ const { data: customers } = await useAsyncData<Customer[]>("crm-quotes-customers
   return data ?? [];
 });
 
-function customerName(id: string) {
+function customerName(id: string | null) {
   return customers.value?.find((c) => c.id === id)?.name ?? "—";
 }
 

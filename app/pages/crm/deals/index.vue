@@ -25,6 +25,7 @@ interface Stage {
   sort_order: number;
   is_closed: boolean;
   reason_category: "archive" | "competitor" | null;
+  system_key: "new" | "won" | "competitor" | "archive" | null;
 }
 
 interface Reason {
@@ -38,7 +39,8 @@ interface Deal {
   id: string;
   title: string;
   value: number | null;
-  customer_id: string;
+  customer_id: string | null;
+  lead_id: string | null;
   pipeline_id: string;
   stage_id: string;
   assigned_to: string | null;
@@ -73,7 +75,7 @@ const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deals-pipelines"
 const { data: allStages } = await useAsyncData<Stage[]>("crm-deals-stages", async () => {
   const { data, error } = await supabase
     .from("pipeline_stages")
-    .select("id, pipeline_id, name, sort_order, is_closed, reason_category")
+    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key")
     .order("sort_order");
   if (error) throw error;
   return data ?? [];
@@ -91,7 +93,7 @@ const { data: allReasons } = await useAsyncData<Reason[]>("crm-deals-reasons", a
 const { data: deals, refresh, status } = await useAsyncData<Deal[]>("crm-deals", async () => {
   const { data, error } = await supabase
     .from("deals")
-    .select("id, title, value, customer_id, pipeline_id, stage_id, assigned_to")
+    .select("id, title, value, customer_id, lead_id, pipeline_id, stage_id, assigned_to")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -123,6 +125,14 @@ const { data: profiles } = await useAsyncData<Profile[]>("crm-deals-profiles", a
 
 function customerName(id: string) {
   return customers.value?.find((c) => c.id === id)?.name ?? "—";
+}
+// Pre-Won a deal has no customer yet — fall back to its lead's name so the
+// board still shows who the deal is with.
+function dealContactName(deal: Deal) {
+  if (deal.customer_id) return customerName(deal.customer_id);
+  const lead = leadsList.value?.find((l) => l.id === deal.lead_id);
+  if (!lead) return "—";
+  return lead.lead_type === "company" && lead.company_name ? lead.company_name : lead.name;
 }
 const leadOptions = computed(() =>
   (leadsList.value ?? []).map((l) => ({
@@ -300,22 +310,16 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   creating.value = true;
 
   let leadId: string;
-  let customerId: string;
+  // A lead only becomes a customer once its deal is actually Won — not at
+  // deal-creation time (quotes and the rest of the pipeline run fine
+  // against a lead alone). Reuse an already-converted lead's customer if
+  // it has one either way.
+  let customerId: string | null = null;
 
   if (event.data.lead_mode === "existing") {
     leadId = event.data.existing_lead_id!;
     const existingLead = leadsList.value?.find((l) => l.id === leadId);
-    if (existingLead?.customer_id) {
-      customerId = existingLead.customer_id;
-    } else {
-      const { data, error } = await supabase.rpc("crm_convert_lead", { p_lead_id: leadId });
-      if (error || !data) {
-        creating.value = false;
-        toast.add({ title: t("crm.deals.createDealFailed"), description: error?.message, color: "error" });
-        return;
-      }
-      customerId = data;
-    }
+    customerId = existingLead?.customer_id ?? null;
   } else {
     const leadPayload: Record<string, unknown> = {
       lead_type: event.data.lead_type,
@@ -340,14 +344,20 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
       return;
     }
     leadId = newLead.id;
+  }
 
-    const { data, error } = await supabase.rpc("crm_convert_lead", { p_lead_id: leadId });
-    if (error || !data) {
+  // A deal can also be created directly into the Won stage — convert right
+  // away in that one case, same as a later stage-change into Won would.
+  const selectedStage = allStages.value?.find((s) => s.id === event.data.stage_id);
+  if (selectedStage?.system_key === "won" && !customerId) {
+    const { customerId: resolved, error } = await resolveWonCustomerId(supabase, leadId);
+    if (error || !resolved) {
       creating.value = false;
-      toast.add({ title: t("crm.deals.createDealFailed"), description: error?.message, color: "error" });
+      const description = error === "no_lead" ? t("crm.deals.noLeadForConversion") : error;
+      toast.add({ title: t("crm.deals.createDealFailed"), description: description ?? undefined, color: "error" });
       return;
     }
-    customerId = data;
+    customerId = resolved;
   }
 
   const payload: Record<string, unknown> = {
@@ -436,7 +446,7 @@ function openDeal(deal: Deal) {
                   size="2xs"
                 />
               </div>
-              <div class="text-muted">{{ customerName(deal.customer_id) }}</div>
+              <div class="text-muted">{{ dealContactName(deal) }}</div>
               <div v-if="deal.value" class="text-muted">{{ deal.value }}</div>
             </div>
             <div v-if="dealsForStage(stage.id).length === 0" class="py-4 text-center text-xs text-muted">

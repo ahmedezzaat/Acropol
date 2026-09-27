@@ -5,6 +5,7 @@
     "403": { "title": "@:forbidden.title" },
     "crm": { "title": "@:modules.crm.label" },
     "crm-dashboard": { "title": "@:crm.dashboard.title" },
+    "crm-calendar": { "title": "@:crm.calendar.title" },
     "crm-leads": { "title": "@:crm.leads.title" },
     "crm-leads-id": { "title": "@:crm.leads.title" },
     "crm-deals": { "title": "@:crm.deals.title" },
@@ -252,6 +253,14 @@
       "count": "العدد",
       "noData": "لا توجد بيانات في هذه الفترة."
     },
+    "calendar": {
+      "title": "التقويم",
+      "today": "اليوم",
+      "upcoming": "قادمة",
+      "overdue": "متأخرة",
+      "closed": "مكتملة",
+      "noActivities": "لا توجد أنشطة"
+    },
     "leads": {
       "title": "العملاء المحتملون",
       "newLead": "عميل محتمل جديد",
@@ -339,12 +348,14 @@
       "contactTitle": "جهة الاتصال",
       "viewCustomer": "عرض ملف العميل",
       "fromLead": "نشأت من عميل محتمل",
+      "customerOnWin": "سيتم إنشاء عميل عند الفوز بالصفقة",
+      "viewLead": "عرض العميل المحتمل",
+      "noLeadForConversion": "لا يوجد عميل محتمل مرتبط بهذه الصفقة لتحويله إلى عميل",
       "createdOn": "أُنشئت في",
       "timeline": {
         "title": "السجل الزمني",
         "composerPlaceholder": "أضف ملاحظة أو صف الإجراء...",
-        "logActivity": "تسجيل",
-        "logActivityButton": "تسجيل نشاط تم",
+        "scheduleActivityButton": "جدولة نشاط",
         "quickNotePlaceholder": "اكتب ملاحظة...",
         "addNote": "إضافة",
         "forceScheduleTitle": "جدولة الإجراء التالي",
@@ -383,6 +394,7 @@
       "title": "عروض الأسعار",
       "quoteNumber": "رقم العرض",
       "customer": "العميل",
+      "noCustomerYet": "لم يتحول العميل المحتمل إلى عميل بعد (يتم ذلك عند الفوز بالصفقة)",
       "validUntil": "صالح حتى",
       "tax": "الضريبة",
       "detailsTitle": "التفاصيل",

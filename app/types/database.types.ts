@@ -382,7 +382,7 @@ export type Database = {
       deals: {
         Row: {
           id: string;
-          customer_id: string;
+          customer_id: string | null;
           lead_id: string | null;
           title: string;
           pipeline_id: string;
@@ -397,7 +397,7 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          customer_id: string;
+          customer_id?: string | null;
           lead_id?: string | null;
           title: string;
           pipeline_id: string;
@@ -412,7 +412,7 @@ export type Database = {
         };
         Update: {
           id?: string;
-          customer_id?: string;
+          customer_id?: string | null;
           lead_id?: string | null;
           title?: string;
           pipeline_id?: string;
@@ -545,7 +545,7 @@ export type Database = {
         Row: {
           id: string;
           deal_id: string;
-          customer_id: string;
+          customer_id: string | null;
           quote_number: string;
           status: Database["public"]["Enums"]["quote_status"];
           valid_until: string | null;
@@ -559,7 +559,7 @@ export type Database = {
         Insert: {
           id?: string;
           deal_id: string;
-          customer_id: string;
+          customer_id?: string | null;
           quote_number?: string;
           status?: Database["public"]["Enums"]["quote_status"];
           valid_until?: string | null;
@@ -573,7 +573,7 @@ export type Database = {
         Update: {
           id?: string;
           deal_id?: string;
-          customer_id?: string;
+          customer_id?: string | null;
           quote_number?: string;
           status?: Database["public"]["Enums"]["quote_status"];
           valid_until?: string | null;
