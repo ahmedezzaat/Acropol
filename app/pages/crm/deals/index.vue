@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import * as z from "zod";
-import type { FormSubmitEvent } from "@nuxt/ui";
+import type { FormSubmitEvent, TableColumn } from "@nuxt/ui";
 
 definePageMeta({
   layout: "dashboard",
@@ -45,6 +45,7 @@ interface Deal {
   pipeline_id: string;
   stage_id: string;
   assigned_to: string | null;
+  created_at: string;
 }
 
 interface Customer {
@@ -100,7 +101,7 @@ const { data: allReasons } = await useAsyncData<Reason[]>("crm-deals-reasons", a
 const { data: deals, refresh, status } = await useAsyncData<Deal[]>("crm-deals", async () => {
   const { data, error } = await supabase
     .from("deals")
-    .select("id, title, value, customer_id, lead_id, pipeline_id, stage_id, assigned_to")
+    .select("id, title, value, customer_id, lead_id, pipeline_id, stage_id, assigned_to, created_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -226,10 +227,124 @@ const activeStages = computed(() =>
   (allStages.value ?? []).filter((s) => s.pipeline_id === activePipelineId.value),
 );
 
+// --- Filter by stage and creation date — shared by both the kanban board
+// and the list view below, alongside the existing assignee filter.
+const stageFilter = ref<string | null>(null);
+const stageFilterOptions = computed(() => [
+  { label: t("common.all"), value: null },
+  ...activeStages.value.map((s) => ({ label: s.name, value: s.id })),
+]);
+watch(activePipelineId, () => {
+  stageFilter.value = null;
+});
+const dateFrom = ref("");
+const dateTo = ref("");
+
+// The kanban board only renders columns for the stage(s) actually picked —
+// narrowing to one stage means seeing just that one column.
+const visibleStages = computed(() =>
+  stageFilter.value ? activeStages.value.filter((s) => s.id === stageFilter.value) : activeStages.value,
+);
+
+function matchesFilters(deal: Deal) {
+  if (assigneeFilter.value !== null && deal.assigned_to !== assigneeFilter.value) return false;
+  if (stageFilter.value !== null && deal.stage_id !== stageFilter.value) return false;
+  if (dateFrom.value && deal.created_at < dateFrom.value) return false;
+  if (dateTo.value && deal.created_at.slice(0, 10) > dateTo.value) return false;
+  return true;
+}
+
 function dealsForStage(stageId: string) {
-  return (deals.value ?? []).filter(
-    (d) => d.stage_id === stageId && (assigneeFilter.value === null || d.assigned_to === assigneeFilter.value),
-  );
+  return (deals.value ?? []).filter((d) => d.stage_id === stageId && matchesFilters(d));
+}
+
+// --- List view — the same pipeline + filters as the kanban board, just
+// flattened into a sortable table instead of stage columns.
+const viewMode = ref<"kanban" | "list">("kanban");
+const listDeals = computed(() =>
+  (deals.value ?? []).filter((d) => d.pipeline_id === activePipelineId.value && matchesFilters(d)),
+);
+function stageName(stageId: string) {
+  return allStages.value?.find((s) => s.id === stageId)?.name ?? "—";
+}
+function profileLabel(id: string | null) {
+  if (!id) return t("common.unassigned");
+  const p = profiles.value?.find((p) => p.id === id);
+  return p?.full_name || p?.email || "?";
+}
+
+const UCheckbox = resolveComponent("UCheckbox");
+const table = useTemplateRef<any>("dealsTable");
+const rowSelection = ref<Record<string, boolean>>({});
+const selectedCount = computed<number>(() => table.value?.tableApi?.getFilteredSelectedRowModel().rows.length ?? 0);
+
+const listColumns = computed<TableColumn<Deal>[]>(() => [
+  ...(canAssign.value
+    ? [
+        {
+          id: "select",
+          header: ({ table }: { table: any }) =>
+            h(UCheckbox, {
+              modelValue: table.getIsSomePageRowsSelected() ? "indeterminate" : table.getIsAllPageRowsSelected(),
+              "onUpdate:modelValue": (value: boolean | "indeterminate") =>
+                table.toggleAllPageRowsSelected(!!value),
+              "aria-label": t("common.selectAll"),
+            }),
+          cell: ({ row }: { row: any }) =>
+            h(UCheckbox, {
+              modelValue: row.getIsSelected(),
+              "onUpdate:modelValue": (value: boolean | "indeterminate") => row.toggleSelected(!!value),
+              "aria-label": t("common.selectRow"),
+              onClick: (e: Event) => e.stopPropagation(),
+            }),
+        },
+      ]
+    : []),
+  { accessorKey: "title", header: t("crm.deals.dealTitle") },
+  { id: "stage", header: t("crm.deals.stage") },
+  { id: "contact", header: t("crm.deals.contactTitle") },
+  { accessorKey: "value", header: t("crm.deals.value") },
+  { id: "assigned", header: t("crm.deals.assignedTo") },
+]);
+
+// --- Reassign from the list table — single row (inline select) or bulk
+// (select several rows, then one picker for all of them). RLS/the deals
+// assignment trigger enforce crm_deals:assign server-side regardless, but
+// this UI is only offered when the user actually holds it.
+const reassigning = ref(false);
+async function reassignDeal(dealId: string, assignedTo: string | null) {
+  reassigning.value = true;
+  const { error } = await supabase.from("deals").update({ assigned_to: assignedTo }).eq("id", dealId);
+  reassigning.value = false;
+  if (error) {
+    toast.add({ title: t("crm.deals.reassignFailed"), description: error.message, color: "error" });
+    return;
+  }
+  toast.add({ title: t("crm.deals.reassigned"), color: "success" });
+  refresh();
+}
+
+const bulkReassignOpen = ref(false);
+const bulkReassignTarget = ref<string | null>(null);
+function openBulkReassign() {
+  bulkReassignTarget.value = null;
+  bulkReassignOpen.value = true;
+}
+async function confirmBulkReassign() {
+  const rows = table.value?.tableApi?.getFilteredSelectedRowModel().rows ?? [];
+  const ids = rows.map((r: any) => r.original.id as string);
+  if (!ids.length) return;
+  reassigning.value = true;
+  const { error } = await supabase.from("deals").update({ assigned_to: bulkReassignTarget.value }).in("id", ids);
+  reassigning.value = false;
+  if (error) {
+    toast.add({ title: t("crm.deals.reassignFailed"), description: error.message, color: "error" });
+    return;
+  }
+  toast.add({ title: t("crm.deals.reassigned"), color: "success" });
+  bulkReassignOpen.value = false;
+  rowSelection.value = {};
+  refresh();
 }
 
 // --- Create deal ---
@@ -473,15 +588,43 @@ function openDeal(deal: Deal) {
           <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" />
         </template>
         <template #right>
-          <USelectMenu
-            v-model="assigneeFilter"
-            :items="assigneeFilterOptions"
-            value-key="value"
-            :icon="'i-lucide-user'"
-            :placeholder="t('crm.deals.assignedTo')"
-            searchable
-            class="w-56"
-          />
+          <div class="flex flex-wrap items-center gap-2">
+            <USelectMenu
+              v-model="assigneeFilter"
+              :items="assigneeFilterOptions"
+              value-key="value"
+              :icon="'i-lucide-user'"
+              :placeholder="t('crm.deals.assignedTo')"
+              searchable
+              class="w-48"
+            />
+            <USelectMenu
+              v-model="stageFilter"
+              :items="stageFilterOptions"
+              value-key="value"
+              :icon="'i-lucide-git-branch'"
+              :placeholder="t('crm.deals.stage')"
+              class="w-44"
+            />
+            <UInput v-model="dateFrom" type="date" :placeholder="t('crm.deals.createdFrom')" class="w-40" />
+            <UInput v-model="dateTo" type="date" :placeholder="t('crm.deals.createdTo')" class="w-40" />
+            <UButtonGroup>
+              <UButton
+                icon="i-lucide-kanban"
+                :color="viewMode === 'kanban' ? 'primary' : 'neutral'"
+                :variant="viewMode === 'kanban' ? 'solid' : 'outline'"
+                :aria-label="t('crm.deals.kanbanView')"
+                @click="viewMode = 'kanban'"
+              />
+              <UButton
+                icon="i-lucide-list"
+                :color="viewMode === 'list' ? 'primary' : 'neutral'"
+                :variant="viewMode === 'list' ? 'solid' : 'outline'"
+                :aria-label="t('crm.deals.listView')"
+                @click="viewMode = 'list'"
+              />
+            </UButtonGroup>
+          </div>
         </template>
       </UDashboardToolbar>
     </template>
@@ -491,9 +634,9 @@ function openDeal(deal: Deal) {
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
 
-      <div v-else class="flex gap-4 overflow-x-auto pb-4">
+      <div v-else-if="viewMode === 'kanban'" class="flex gap-4 overflow-x-auto pb-4">
         <div
-          v-for="stage in activeStages"
+          v-for="stage in visibleStages"
           :key="stage.id"
           class="w-64 shrink-0 rounded-lg border border-default"
           :class="stage.is_closed ? 'bg-elevated' : 'bg-default'"
@@ -526,6 +669,46 @@ function openDeal(deal: Deal) {
           </div>
         </div>
       </div>
+
+      <template v-else>
+        <div v-if="canAssign && selectedCount > 0" class="mb-3 flex items-center gap-3">
+          <span class="text-sm text-muted">{{ t("crm.deals.selectedCount", { count: selectedCount }) }}</span>
+          <UButton
+            icon="i-lucide-user-check"
+            size="sm"
+            variant="soft"
+            :label="t('crm.deals.bulkReassign')"
+            @click="openBulkReassign"
+          />
+        </div>
+        <UTable
+          ref="dealsTable"
+          v-model:row-selection="rowSelection"
+          :data="listDeals"
+          :columns="listColumns"
+          @select="(_e, row) => openDeal(row.original)"
+        >
+          <template #stage-cell="{ row }">
+            {{ stageName(row.original.stage_id) }}
+          </template>
+          <template #contact-cell="{ row }">
+            {{ dealContactName(row.original) }}
+          </template>
+          <template #assigned-cell="{ row }">
+            <USelect
+              v-if="canAssign"
+              :model-value="row.original.assigned_to"
+              :items="assigneeOptions"
+              value-key="value"
+              size="xs"
+              class="w-40"
+              @click.stop
+              @update:model-value="(value: string | null) => reassignDeal(row.original.id, value)"
+            />
+            <span v-else>{{ profileLabel(row.original.assigned_to) }}</span>
+          </template>
+        </UTable>
+      </template>
     </template>
   </UDashboardPanel>
 
@@ -619,6 +802,25 @@ function openDeal(deal: Deal) {
         </UFormField>
         <UButton type="submit" :label="t('crm.deals.createDeal')" :loading="creating" block />
       </UForm>
+    </template>
+  </UModal>
+
+  <UModal v-model:open="bulkReassignOpen" :title="t('crm.deals.bulkReassignTitle', { count: selectedCount })">
+    <template #body>
+      <div class="space-y-3">
+        <USelect
+          v-model="bulkReassignTarget"
+          :items="assigneeOptions"
+          value-key="value"
+          class="w-full"
+        />
+        <UButton
+          :label="t('crm.deals.bulkReassign')"
+          :loading="reassigning"
+          block
+          @click="confirmBulkReassign"
+        />
+      </div>
     </template>
   </UModal>
 </template>

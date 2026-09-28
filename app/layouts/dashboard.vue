@@ -17,7 +17,11 @@ const items = computed<NavigationMenuItem[][]>(() => {
   const moduleItems: NavigationMenuItem[] = MODULES.filter((m) =>
     m.resources.some((r) => hasAnyModulePermission(r.key)),
   ).map((m) => {
-    const accessibleResources = m.resources.filter((r) => hasAnyModulePermission(r.key));
+    // Quotes is temporarily hidden from navigation — see crm/deals/[id].vue
+    // for the matching hide on the deal page.
+    const accessibleResources = m.resources.filter(
+      (r) => hasAnyModulePermission(r.key) && r.key !== "crm_quotes",
+    );
     // The CRM dashboard is always offered alongside whatever resources the
     // user has, so it always has at least one sibling — never collapse it
     // into a single direct link the way a lone resource otherwise would.
@@ -31,7 +35,10 @@ const items = computed<NavigationMenuItem[][]>(() => {
       label: t(m.labelKey),
       icon: m.icon,
       to: hasChildren ? undefined : m.route,
-      type: hasChildren ? "trigger" : "link",
+      // CRM's children stay permanently expanded (no collapse toggle) — a
+      // "label" item type renders its children without an accordion
+      // trigger at all, unlike "trigger" which the user could click closed.
+      type: hasChildren ? (isCrm ? "label" : "trigger") : "link",
       defaultOpen: true,
       children: hasChildren
         ? isCrm

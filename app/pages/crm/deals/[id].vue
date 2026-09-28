@@ -42,7 +42,9 @@ interface LeadContact {
   company_name: string | null;
   lead_type: "individual" | "company";
   phone: string | null;
+  phone2: string | null;
   email: string | null;
+  source: string | null;
 }
 
 interface Quote {
@@ -107,6 +109,7 @@ const canEdit = computed(() => hasPermission("crm_deals", "edit"));
 const canDelete = computed(() => hasPermission("crm_deals", "delete"));
 const canAssign = computed(() => hasPermission("crm_deals", "assign"));
 const canCreateQuote = computed(() => hasPermission("crm_quotes", "create"));
+const canEditLead = computed(() => hasPermission("crm_leads", "edit"));
 
 const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deal-pipelines", async () => {
   const { data, error } = await supabase.from("pipelines").select("id, name").order("sort_order");
@@ -177,16 +180,19 @@ const { data: customer, refresh: refreshCustomer } = await useAsyncData<Customer
 
 // Pre-Won, the deal has no customer yet — the sidebar contact card falls
 // back to the originating lead's info instead.
-const { data: leadContact } = await useAsyncData<LeadContact | null>(`crm-deal-${dealId}-lead-contact`, async () => {
-  if (!deal.value?.lead_id) return null;
-  const { data, error } = await supabase
-    .from("leads")
-    .select("id, name, company_name, lead_type, phone, email")
-    .eq("id", deal.value.lead_id)
-    .single();
-  if (error) throw error;
-  return data;
-});
+const { data: leadContact, refresh: refreshLeadContact } = await useAsyncData<LeadContact | null>(
+  `crm-deal-${dealId}-lead-contact`,
+  async () => {
+    if (!deal.value?.lead_id) return null;
+    const { data, error } = await supabase
+      .from("leads")
+      .select("id, name, company_name, lead_type, phone, phone2, email, source")
+      .eq("id", deal.value.lead_id)
+      .single();
+    if (error) throw error;
+    return data;
+  },
+);
 
 const { data: quotes } = await useAsyncData<Quote[]>(`crm-deal-${dealId}-quotes`, async () => {
   const { data, error } = await supabase
@@ -236,6 +242,67 @@ async function downloadAttachment(attachment: DealAttachment) {
     return;
   }
   window.open(data.signedUrl, "_blank");
+}
+
+// --- Edit the deal's originating lead right from this page, without
+// navigating away — the lead record is the source of the contact info
+// shown in the sidebar card whether the deal has converted to a customer
+// yet or not.
+const editLeadTypeOptions = computed(() => [
+  { label: t("crm.leads.type.individual"), value: "individual" },
+  { label: t("crm.leads.type.company"), value: "company" },
+]);
+const editSourceKeys = ["facebook", "instagram", "meta", "google", "website", "event", "referral"] as const;
+const editSourceOptions = computed(() =>
+  editSourceKeys.map((s) => ({ label: t(`crm.leads.sourceValues.${s}`), value: s })),
+);
+
+const editLeadModalOpen = ref(false);
+const editLeadType = ref<"individual" | "company">("individual");
+const editCompanyName = ref("");
+const editName = ref("");
+const editPhone = ref("");
+const editPhone2 = ref("");
+const editEmail = ref("");
+const editSource = ref<(typeof editSourceKeys)[number] | undefined>(undefined);
+const editLeadSaving = ref(false);
+
+const editLeadSubmitDisabled = computed(() => !editName.value.trim() || !editPhone.value.trim());
+
+function openEditLead() {
+  if (!leadContact.value) return;
+  editLeadType.value = leadContact.value.lead_type;
+  editCompanyName.value = leadContact.value.company_name ?? "";
+  editName.value = leadContact.value.name;
+  editPhone.value = leadContact.value.phone ?? "";
+  editPhone2.value = leadContact.value.phone2 ?? "";
+  editEmail.value = leadContact.value.email ?? "";
+  editSource.value = leadContact.value.source ?? undefined;
+  editLeadModalOpen.value = true;
+}
+
+async function saveEditLead() {
+  if (editLeadSubmitDisabled.value || !deal.value?.lead_id) return;
+  editLeadSaving.value = true;
+  const payload: Record<string, unknown> = {
+    lead_type: editLeadType.value,
+    company_name: editLeadType.value === "company" ? editCompanyName.value.trim() || null : null,
+    name: editName.value.trim(),
+    phone: editPhone.value.trim(),
+    phone2: trimOrNull(editPhone2.value),
+    email: editEmail.value.trim() || null,
+    source: editSource.value ?? null,
+  };
+  const { error } = await supabase.from("leads").update(payload).eq("id", deal.value.lead_id);
+  editLeadSaving.value = false;
+
+  if (error) {
+    toast.add({ title: t("crm.leads.saveFailed"), description: error.message, color: "error" });
+    return;
+  }
+  toast.add({ title: t("crm.leads.leadSaved"), color: "success" });
+  editLeadModalOpen.value = false;
+  refreshLeadContact();
 }
 
 const { data: activities, refresh: refreshActivities } = await useAsyncData<Activity[]>(
@@ -314,9 +381,10 @@ async function createQuote() {
   navigateTo(`/crm/quotes/${data.id}`);
 }
 
-// --- Stage stepper: every change is confirmed in a modal that always
-// requires a note (why the stage is moving), plus a reason select when the
-// target stage demands one.
+// --- Stage stepper: every change is confirmed in a modal that requires a
+// note (why the stage is moving) — except Won, Bought from competitor, and
+// Archive, which already require enough context of their own (value+date,
+// or a reason) — plus a reason select when the target stage demands one.
 const stageChangeModalOpen = ref(false);
 const pendingStageId = ref<string | null>(null);
 const pendingReasonId = ref<string | null>(null);
@@ -337,6 +405,11 @@ const pendingReasonOptions = computed(() =>
 // match more than one stage.
 const isWonStage = computed(() => pendingStage.value?.system_key === "won");
 const isOfferSentStage = computed(() => pendingStage.value?.system_key === "offer_sent");
+// A note is required on every stage change except Won (which already
+// requires value + close date), Bought from competitor, and Archive
+// (which already require picking a reason) — those already capture "why"
+// well enough on their own.
+const noteRequired = computed(() => !isWonStage.value && !pendingStage.value?.reason_category);
 
 function selectStage(stageId: string) {
   if (!canEdit.value || !deal.value || stageId === deal.value.stage_id) return;
@@ -352,9 +425,8 @@ function selectStage(stageId: string) {
 }
 
 async function confirmStageChange() {
-  // TODO: the note was mandatory here; temporarily made optional, re-enable
-  // by restoring `|| !pendingNote.value.trim()` below.
   if (!deal.value || !pendingStageId.value) return;
+  if (noteRequired.value && !pendingNote.value.trim()) return;
   if (pendingStage.value?.reason_category && !pendingReasonId.value) return;
   if (isWonStage.value && (pendingValue.value == null || !pendingCloseDate.value)) return;
   if (isOfferSentStage.value && !pendingFile.value) return;
@@ -412,8 +484,9 @@ async function confirmStageChange() {
 
   // The stage change itself is auto-logged by a DB trigger (log_deal_activity)
   // — this adds the user's own note as a separate timeline entry right
-  // alongside it, so the "why" isn't lost. Optional while the note
-  // requirement is disabled, so skip the insert when left blank.
+  // alongside it, so the "why" isn't lost. Required except for Won/
+  // competitor/archive (see noteRequired), but still recorded whenever one
+  // is provided on those too.
   if (pendingNote.value.trim()) {
     await supabase.from("deal_activities").insert({
       deal_id: dealId,
@@ -927,10 +1000,21 @@ const timelineItems = computed<TimelineItem[]>(() =>
               <p v-if="customer.phone" class="text-muted">{{ customer.phone }}</p>
               <p v-if="customer.email" class="text-muted">{{ customer.email }}</p>
               <p v-if="deal.lead_id" class="mt-2 text-xs text-muted">{{ t("crm.deals.fromLead") }}</p>
-              <ULink :to="`/crm/customers/${deal.customer_id}`" class="mt-2 inline-flex items-center gap-1 text-primary">
-                {{ t("crm.deals.viewCustomer") }}
-                <UIcon name="i-lucide-arrow-left" class="size-3" />
-              </ULink>
+              <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <ULink :to="`/crm/customers/${deal.customer_id}`" class="inline-flex items-center gap-1 text-primary">
+                  {{ t("crm.deals.viewCustomer") }}
+                  <UIcon name="i-lucide-arrow-left" class="size-3" />
+                </ULink>
+                <button
+                  v-if="canEditLead && leadContact"
+                  type="button"
+                  class="inline-flex items-center gap-1 text-primary"
+                  @click="openEditLead"
+                >
+                  <UIcon name="i-lucide-pencil" class="size-3" />
+                  {{ t("crm.deals.editLeadData") }}
+                </button>
+              </div>
             </div>
             <div v-else-if="leadContact" class="space-y-1 text-sm">
               <p class="font-medium text-highlighted">
@@ -940,10 +1024,21 @@ const timelineItems = computed<TimelineItem[]>(() =>
               <p v-if="leadContact.phone" class="text-muted">{{ leadContact.phone }}</p>
               <p v-if="leadContact.email" class="text-muted">{{ leadContact.email }}</p>
               <p class="mt-2 text-xs text-muted">{{ t("crm.deals.customerOnWin") }}</p>
-              <ULink :to="`/crm/leads/${deal.lead_id}`" class="mt-2 inline-flex items-center gap-1 text-primary">
-                {{ t("crm.deals.viewLead") }}
-                <UIcon name="i-lucide-arrow-left" class="size-3" />
-              </ULink>
+              <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <ULink :to="`/crm/leads/${deal.lead_id}`" class="inline-flex items-center gap-1 text-primary">
+                  {{ t("crm.deals.viewLead") }}
+                  <UIcon name="i-lucide-arrow-left" class="size-3" />
+                </ULink>
+                <button
+                  v-if="canEditLead"
+                  type="button"
+                  class="inline-flex items-center gap-1 text-primary"
+                  @click="openEditLead"
+                >
+                  <UIcon name="i-lucide-pencil" class="size-3" />
+                  {{ t("crm.deals.editLeadData") }}
+                </button>
+              </div>
             </div>
           </UPageCard>
 
@@ -983,20 +1078,8 @@ const timelineItems = computed<TimelineItem[]>(() =>
             </div>
           </UPageCard>
 
-          <UPageCard :title="t('crm.deals.quotesTitle')">
-            <template #footer v-if="canCreateQuote">
-              <UButton :label="t('crm.deals.newQuote')" icon="i-lucide-plus" variant="soft" :loading="creatingQuote" @click="createQuote" />
-            </template>
-            <div v-if="!quotes?.length" class="text-sm text-muted">{{ t("crm.deals.noQuotesYet") }}</div>
-            <ul v-else class="divide-y divide-default">
-              <li v-for="quote in quotes" :key="quote.id" class="py-2">
-                <ULink :to="`/crm/quotes/${quote.id}`" class="flex items-center justify-between">
-                  <span>{{ quote.quote_number }}</span>
-                  <span class="text-sm text-muted">{{ t(`crm.quotes.statusValues.${quote.status}`) }} · {{ quote.total }}</span>
-                </ULink>
-              </li>
-            </ul>
-          </UPageCard>
+          <!-- Quotes card temporarily hidden — see layouts/dashboard.vue for
+          the matching hide of the sidebar's Quotes nav entry. -->
 
           <UPageCard v-if="attachments?.length" :title="t('crm.deals.attachmentsTitle')">
             <ul class="divide-y divide-default">
@@ -1044,13 +1127,20 @@ const timelineItems = computed<TimelineItem[]>(() =>
             <UFileUpload v-model="pendingFile" class="w-full" />
           </UFormField>
         </template>
-        <!-- TODO: the stage-change note field is temporarily disabled;
-        pendingNote stays "" so confirmStageChange's insert never fires.
-        Re-enable by restoring this UFormField. -->
+        <UFormField v-if="noteRequired" :label="t('crm.deals.stageChangeNote')" required>
+          <UTextarea
+            v-model="pendingNote"
+            :placeholder="t('crm.deals.stageChangeNotePlaceholder')"
+            class="w-full"
+            :rows="3"
+            autofocus
+          />
+        </UFormField>
         <UButton
           :label="t('common.save')"
           :loading="changingStage"
           :disabled="
+            (noteRequired && !pendingNote.trim()) ||
             (!!pendingStage?.reason_category && !pendingReasonId) ||
             (isWonStage && (pendingValue == null || !pendingCloseDate)) ||
             (isOfferSentStage && !pendingFile)
@@ -1206,6 +1296,41 @@ const timelineItems = computed<TimelineItem[]>(() =>
           :disabled="completeSubmitDisabled"
           block
           @click="submitComplete"
+        />
+      </div>
+    </template>
+  </UModal>
+
+  <UModal v-model:open="editLeadModalOpen" :title="t('crm.deals.editLeadDataTitle')">
+    <template #body>
+      <div class="space-y-3">
+        <UFormField :label="t('crm.leads.leadType')">
+          <URadioGroup v-model="editLeadType" orientation="horizontal" :items="editLeadTypeOptions" value-key="value" />
+        </UFormField>
+        <UFormField v-if="editLeadType === 'company'" :label="t('crm.leads.companyName')">
+          <UInput v-model="editCompanyName" class="w-full" />
+        </UFormField>
+        <UFormField :label="editLeadType === 'company' ? t('crm.leads.contactPerson') : t('common.name')">
+          <UInput v-model="editName" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('common.phone')">
+          <UInput v-model="editPhone" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('crm.leads.phone2')">
+          <UInput v-model="editPhone2" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('common.email')">
+          <UInput v-model="editEmail" type="email" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('crm.leads.source')">
+          <USelect v-model="editSource" :items="editSourceOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <UButton
+          :label="t('common.save')"
+          :loading="editLeadSaving"
+          :disabled="editLeadSubmitDisabled"
+          block
+          @click="saveEditLead"
         />
       </div>
     </template>
