@@ -11,7 +11,7 @@ const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const toast = useToast();
 const { hasPermission } = usePermissions();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 interface Pipeline {
   id: string;
@@ -267,6 +267,9 @@ const listDeals = computed(() =>
 function stageName(stageId: string) {
   return allStages.value?.find((s) => s.id === stageId)?.name ?? "—";
 }
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(locale.value === "ar" ? "ar" : "en", { dateStyle: "medium" });
+}
 function profileLabel(id: string | null) {
   if (!id) return t("common.unassigned");
   const p = profiles.value?.find((p) => p.id === id);
@@ -300,11 +303,11 @@ const listColumns = computed<TableColumn<Deal>[]>(() => [
         },
       ]
     : []),
-  { accessorKey: "title", header: t("crm.deals.dealTitle") },
-  { id: "stage", header: t("crm.deals.stage") },
   { id: "contact", header: t("crm.deals.contactTitle") },
-  { accessorKey: "value", header: t("crm.deals.value") },
+  { id: "stage", header: t("crm.deals.stage") },
+  { accessorKey: "title", header: t("crm.deals.dealTitle") },
   { id: "assigned", header: t("crm.deals.assignedTo") },
+  { id: "created", header: t("crm.deals.createdOn") },
 ]);
 
 // --- Reassign from the list table — single row (inline select) or bulk
@@ -652,15 +655,12 @@ function openDeal(deal: Deal) {
               class="cursor-pointer rounded-md border border-default bg-default p-2 text-sm hover:border-primary"
               @click="openDeal(deal)"
             >
-              <div class="flex items-start justify-between gap-2">
-                <div class="font-medium text-highlighted">{{ deal.title }}</div>
-                <UAvatar
-                  v-if="deal.assigned_to"
-                  :text="assigneeInitial(deal.assigned_to)"
-                  size="2xs"
-                />
+              <div class="font-medium text-highlighted">{{ dealContactName(deal) }}</div>
+              <div class="text-muted">{{ deal.title }}</div>
+              <div v-if="deal.assigned_to" class="mt-1 flex items-center gap-1.5 text-xs text-muted">
+                <UAvatar :text="assigneeInitial(deal.assigned_to)" size="2xs" />
+                <span>{{ profileLabel(deal.assigned_to) }}</span>
               </div>
-              <div class="text-muted">{{ dealContactName(deal) }}</div>
               <div v-if="deal.value" class="text-muted">{{ deal.value }}</div>
             </div>
             <div v-if="dealsForStage(stage.id).length === 0" class="py-4 text-center text-xs text-muted">
@@ -706,6 +706,9 @@ function openDeal(deal: Deal) {
               @update:model-value="(value: string | null) => reassignDeal(row.original.id, value)"
             />
             <span v-else>{{ profileLabel(row.original.assigned_to) }}</span>
+          </template>
+          <template #created-cell="{ row }">
+            {{ formatDate(row.original.created_at) }}
           </template>
         </UTable>
       </template>
