@@ -9,7 +9,7 @@ definePageMeta({
 
 const supabase = useSupabaseClient();
 const toast = useToast();
-const { hasPermission } = usePermissions();
+const { hasPermission, hasAnyModulePermission } = usePermissions();
 const { t } = useI18n();
 
 interface Lead {
@@ -43,6 +43,18 @@ const { data: leads, refresh, status: leadsStatus } = await useAsyncData<Lead[]>
     return data ?? [];
   },
 );
+
+// Only checked when the viewer can see deals at all — otherwise crm_deals
+// RLS would return zero rows and every lead would falsely show as
+// deal-less.
+const canSeeDeals = computed(() => hasAnyModulePermission("crm_deals"));
+const { data: leadIdsWithDeals } = await useAsyncData<string[]>("crm-leads-deal-flags", async () => {
+  if (!canSeeDeals.value) return [];
+  const { data, error } = await supabase.from("deals").select("lead_id").not("lead_id", "is", null);
+  if (error) throw error;
+  return (data ?? []).map((d) => d.lead_id as string);
+});
+const leadIdsWithDealsSet = computed(() => new Set(leadIdsWithDeals.value ?? []));
 
 const { data: profiles } = await useAsyncData<Profile[]>("crm-leads-profiles", async () => {
   const { data, error } = await supabase.from("profiles").select("id, full_name, email").eq("is_active", true);
@@ -81,7 +93,7 @@ const filteredLeads = computed(() => {
 });
 
 const columns = computed<TableColumn<Lead>[]>(() => [
-  { accessorKey: "name", header: t("common.name") },
+  { id: "name", header: t("common.name") },
   { id: "contact", header: t("crm.leads.contact") },
   { accessorKey: "status", header: t("common.status") },
   { id: "assigned", header: t("crm.leads.assignedTo") },
@@ -244,9 +256,32 @@ function openLead(lead: Lead) {
         :loading="leadsStatus === 'pending' || leadsStatus === 'idle'"
         @select="(_e, row) => openLead(row.original)"
       >
+        <template #name-cell="{ row }">
+          <div class="flex items-center gap-2">
+            <span>{{ row.original.name }}</span>
+            <UBadge
+              v-if="canSeeDeals && !leadIdsWithDealsSet.has(row.original.id)"
+              :label="t('crm.leads.noDeal')"
+              color="warning"
+              variant="subtle"
+              size="sm"
+            />
+          </div>
+        </template>
         <template #contact-cell="{ row }">
           <div class="text-sm">
-            <div>{{ row.original.phone }}</div>
+            <a
+              v-if="toWhatsAppLink(row.original.phone)"
+              :href="toWhatsAppLink(row.original.phone)!"
+              target="_blank"
+              rel="noopener noreferrer"
+              :aria-label="t('crm.deals.chatOnWhatsApp')"
+              class="inline-flex text-[#25D366] hover:opacity-80"
+              @click.stop
+            >
+              <UIcon name="i-simple-icons-whatsapp" class="size-4" />
+            </a>
+            <span v-else>—</span>
             <div class="text-muted">{{ row.original.email }}</div>
           </div>
         </template>

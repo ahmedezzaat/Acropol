@@ -365,10 +365,8 @@ const dealsByTeam = computed<TeamCount[]>(() => {
             <div class="text-2xl font-bold text-highlighted">{{ customersCount ?? 0 }}</div>
             <div class="text-sm text-muted">{{ t("crm.dashboard.totalCustomers") }}</div>
           </UPageCard>
-          <UPageCard v-if="canQuotes">
-            <div class="text-2xl font-bold text-highlighted">{{ quotesCount ?? 0 }}</div>
-            <div class="text-sm text-muted">{{ t("crm.dashboard.totalQuotes") }}</div>
-          </UPageCard>
+          <!-- Quotes stat card hidden alongside the rest of the Quotes
+          feature — see crm/deals/[id].vue and layouts/dashboard.vue. -->
         </div>
 
         <UPageCard v-if="canLeads" :title="t('crm.dashboard.leadsByType')">

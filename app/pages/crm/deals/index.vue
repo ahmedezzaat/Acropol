@@ -52,6 +52,7 @@ interface Deal {
 interface Customer {
   id: string;
   name: string;
+  phone: string | null;
 }
 
 interface LeadOption {
@@ -122,10 +123,35 @@ const { data: deals, refresh, status } = await useAsyncData<Deal[]>("crm-deals",
 });
 
 const { data: customers, refresh: refreshCustomers } = await useAsyncData<Customer[]>("crm-deals-customers", async () => {
-  const { data, error } = await supabase.from("customers").select("id, name").order("name");
+  const { data, error } = await supabase.from("customers").select("id, name, phone").order("name");
   if (error) throw error;
   return data ?? [];
 });
+
+// Latest note per deal, for the Kanban card and list view — fetched newest
+// first so the first row seen per deal_id is already its latest note.
+const { data: noteActivities } = await useAsyncData<{ deal_id: string; content: string | null }[]>(
+  "crm-deals-last-notes",
+  async () => {
+    const { data, error } = await supabase
+      .from("deal_activities")
+      .select("deal_id, content, created_at")
+      .eq("type", "note")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  },
+);
+const lastNoteByDeal = computed(() => {
+  const map = new Map<string, string>();
+  for (const a of noteActivities.value ?? []) {
+    if (!map.has(a.deal_id) && a.content) map.set(a.deal_id, a.content);
+  }
+  return map;
+});
+function lastNote(dealId: string) {
+  return lastNoteByDeal.value.get(dealId) ?? null;
+}
 
 const { data: leadsList, refresh: refreshLeads } = await useAsyncData<LeadOption[]>(
   "crm-deals-leads",
@@ -166,6 +192,10 @@ function dealContactName(deal: Deal) {
   const lead = leadsList.value?.find((l) => l.id === deal.lead_id);
   if (!lead) return "—";
   return lead.lead_type === "company" && lead.company_name ? lead.company_name : lead.name;
+}
+function dealContactPhone(deal: Deal) {
+  if (deal.customer_id) return customers.value?.find((c) => c.id === deal.customer_id)?.phone ?? null;
+  return leadsList.value?.find((l) => l.id === deal.lead_id)?.phone ?? null;
 }
 const leadOptions = computed(() =>
   (leadsList.value ?? []).map((l) => ({
@@ -329,6 +359,7 @@ const listColumns = computed<TableColumn<Deal>[]>(() => [
   { accessorKey: "title", header: t("crm.deals.dealTitle") },
   { id: "assigned", header: t("crm.deals.assignedTo") },
   { id: "created", header: t("crm.deals.createdOn") },
+  { id: "lastNote", header: t("crm.deals.lastNote") },
 ]);
 
 // --- Reassign from the list table — single row (inline select) or bulk
@@ -709,6 +740,10 @@ function openDeal(deal: Deal) {
               <div v-if="dealReasonName(deal)" class="mt-1 text-xs text-muted">
                 {{ t("crm.deals.reason") }}: {{ dealReasonName(deal) }}
               </div>
+              <div v-if="lastNote(deal.id)" class="mt-1 flex items-start gap-1 text-xs text-muted">
+                <UIcon name="i-lucide-sticky-note" class="mt-0.5 size-3 shrink-0" />
+                <span class="line-clamp-2">{{ lastNote(deal.id) }}</span>
+              </div>
             </div>
             <div v-if="dealsForStage(stage.id).length === 0" class="py-4 text-center text-xs text-muted">
               {{ t("crm.deals.noDealsInStage") }}
@@ -742,7 +777,20 @@ function openDeal(deal: Deal) {
             {{ dealReasonName(row.original) ?? "—" }}
           </template>
           <template #contact-cell="{ row }">
-            {{ dealContactName(row.original) }}
+            <div class="flex items-center gap-1.5">
+              <span>{{ dealContactName(row.original) }}</span>
+              <a
+                v-if="toWhatsAppLink(dealContactPhone(row.original))"
+                :href="toWhatsAppLink(dealContactPhone(row.original))!"
+                target="_blank"
+                rel="noopener noreferrer"
+                :aria-label="t('crm.deals.chatOnWhatsApp')"
+                class="text-[#25D366] hover:opacity-80"
+                @click.stop
+              >
+                <UIcon name="i-simple-icons-whatsapp" class="size-4" />
+              </a>
+            </div>
           </template>
           <template #assigned-cell="{ row }">
             <USelect
@@ -759,6 +807,9 @@ function openDeal(deal: Deal) {
           </template>
           <template #created-cell="{ row }">
             {{ formatDate(row.original.created_at) }}
+          </template>
+          <template #lastNote-cell="{ row }">
+            <span class="line-clamp-2 max-w-64 text-muted">{{ lastNote(row.original.id) ?? "—" }}</span>
           </template>
         </UTable>
       </template>
