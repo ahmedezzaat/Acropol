@@ -205,6 +205,15 @@
       "typesSaved": "تم الحفظ",
       "saveFailed": "فشل الحفظ"
     },
+    "productCategories": {
+      "title": "فئات المنتجات",
+      "description": "الفئات المتاحة للاختيار في حقل \"العميل مهتم بـ\" عند إنشاء صفقة.",
+      "name": "الاسم",
+      "addCategory": "إضافة فئة",
+      "newCategoryDefault": "فئة جديدة",
+      "categoriesSaved": "تم الحفظ",
+      "saveFailed": "فشل الحفظ"
+    },
     "teams": {
       "title": "الفرق",
       "newTeam": "فريق جديد",
@@ -291,6 +300,8 @@
       },
       "notes": "ملاحظات",
       "assignHint": "سيتم إسناد هذا العميل المحتمل إليك تلقائيًا. لا تملك صلاحية إسناده لشخص آخر.",
+      "duplicatePhone": "رقم الهاتف هذا مرتبط بعميل محتمل موجود بالفعل:",
+      "viewExistingLead": "عرض العميل المحتمل",
       "createLead": "إنشاء عميل محتمل",
       "leadCreated": "تم إنشاء العميل المحتمل",
       "createLeadFailed": "فشل إنشاء العميل المحتمل",
@@ -315,6 +326,7 @@
     "deals": {
       "title": "الصفقات",
       "dealTitle": "العميل مهتم بـ",
+      "selectCategories": "اختر الفئات",
       "newDeal": "صفقة جديدة",
       "customer": "العميل",
       "leadSourceLabel": "العميل المحتمل",
@@ -365,6 +377,7 @@
       "customerOnWin": "سيتم إنشاء عميل عند الفوز بالصفقة",
       "viewLead": "عرض العميل المحتمل",
       "editLeadData": "تعديل بيانات العميل",
+      "chatOnWhatsApp": "محادثة عبر واتساب",
       "editLeadDataTitle": "تعديل بيانات العميل المحتمل",
       "noLeadForConversion": "لا يوجد عميل محتمل مرتبط بهذه الصفقة لتحويله إلى عميل",
       "createdOn": "أُنشئت في",

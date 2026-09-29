@@ -149,7 +149,7 @@ async function remove() {
               <UInput v-model="customer.company" :disabled="!canEdit" class="w-full" />
             </UFormField>
             <UFormField :label="t('common.phone')">
-              <UInput v-model="customer.phone" :disabled="!canEdit" class="w-full" />
+              <PhoneInput v-model="customer.phone" :disabled="!canEdit" />
             </UFormField>
             <UFormField :label="t('common.email')">
               <UInput v-model="customer.email" type="email" :disabled="!canEdit" class="w-full" />

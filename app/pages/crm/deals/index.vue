@@ -46,6 +46,7 @@ interface Deal {
   stage_id: string;
   assigned_to: string | null;
   created_at: string;
+  stage_reason_id: string | null;
 }
 
 interface Customer {
@@ -57,6 +58,7 @@ interface LeadOption {
   id: string;
   name: string;
   phone: string | null;
+  phone2: string | null;
   lead_type: "individual" | "company";
   company_name: string | null;
   customer_id: string | null;
@@ -98,10 +100,22 @@ const { data: allReasons } = await useAsyncData<Reason[]>("crm-deals-reasons", a
   return data ?? [];
 });
 
+interface ProductCategory {
+  id: string;
+  name: string;
+}
+
+const { data: productCategories } = await useAsyncData<ProductCategory[]>("crm-deals-product-categories", async () => {
+  const { data, error } = await supabase.from("product_categories").select("id, name").order("sort_order");
+  if (error) throw error;
+  return data ?? [];
+});
+const categoryItems = computed(() => (productCategories.value ?? []).map((c) => ({ label: c.name, value: c.id })));
+
 const { data: deals, refresh, status } = await useAsyncData<Deal[]>("crm-deals", async () => {
   const { data, error } = await supabase
     .from("deals")
-    .select("id, title, value, customer_id, lead_id, pipeline_id, stage_id, assigned_to, created_at")
+    .select("id, title, value, customer_id, lead_id, pipeline_id, stage_id, assigned_to, created_at, stage_reason_id")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -118,7 +132,7 @@ const { data: leadsList, refresh: refreshLeads } = await useAsyncData<LeadOption
   async () => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, name, phone, lead_type, company_name, customer_id")
+      .select("id, name, phone, phone2, lead_type, company_name, customer_id")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -267,6 +281,12 @@ const listDeals = computed(() =>
 function stageName(stageId: string) {
   return allStages.value?.find((s) => s.id === stageId)?.name ?? "—";
 }
+// Only archive/competitor stages carry a reason — nothing to show otherwise.
+function dealReasonName(deal: Deal) {
+  const stage = allStages.value?.find((s) => s.id === deal.stage_id);
+  if (!stage?.reason_category || !deal.stage_reason_id) return null;
+  return allReasons.value?.find((r) => r.id === deal.stage_reason_id)?.name ?? null;
+}
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(locale.value === "ar" ? "ar" : "en", { dateStyle: "medium" });
 }
@@ -305,6 +325,7 @@ const listColumns = computed<TableColumn<Deal>[]>(() => [
     : []),
   { id: "contact", header: t("crm.deals.contactTitle") },
   { id: "stage", header: t("crm.deals.stage") },
+  { id: "reason", header: t("crm.deals.reason") },
   { accessorKey: "title", header: t("crm.deals.dealTitle") },
   { id: "assigned", header: t("crm.deals.assignedTo") },
   { id: "created", header: t("crm.deals.createdOn") },
@@ -387,7 +408,7 @@ const schema = computed(() =>
       lead_email: z.string().optional(),
       lead_source: z.enum(sourceKeys).optional(),
       lead_notes: z.string().optional(),
-      title: z.string().min(1, t("validation.required")),
+      category_ids: z.array(z.uuid()).min(1, t("validation.required")),
       pipeline_id: z.uuid(t("validation.required")),
       stage_id: z.uuid(t("validation.required")),
       stage_reason_id: z.uuid().nullable().optional(),
@@ -422,7 +443,7 @@ type Schema = {
   lead_email?: string;
   lead_source?: (typeof sourceKeys)[number];
   lead_notes?: string;
-  title: string;
+  category_ids: string[];
   pipeline_id: string;
   stage_id: string;
   stage_reason_id?: string | null;
@@ -441,7 +462,7 @@ function blankState(): Partial<Schema> {
     lead_email: "",
     lead_source: undefined,
     lead_notes: "",
-    title: "",
+    category_ids: [],
     pipeline_id: undefined,
     stage_id: undefined,
     stage_reason_id: null,
@@ -484,7 +505,26 @@ watch(
   },
 );
 
+// Catch the common case of a rep (re-)entering a lead someone already has,
+// by matching on phone regardless of formatting (local "0...", "+20...",
+// with/without spaces). Only checks leads this user can already see (same
+// own/team/view_all scoping as everywhere else), not a global lookup.
+const duplicateNewLead = computed(() => {
+  if (state.lead_mode !== "new") return null;
+  const candidates = [phoneDigits(state.lead_phone), phoneDigits(state.lead_phone2)].filter(
+    (d): d is string => !!d,
+  );
+  if (!candidates.length) return null;
+  return (
+    leadsList.value?.find((l) => {
+      const existing = [phoneDigits(l.phone), phoneDigits(l.phone2)].filter((d): d is string => !!d);
+      return existing.some((e) => candidates.includes(e));
+    }) ?? null
+  );
+});
+
 async function onCreate(event: FormSubmitEvent<Schema>) {
+  if (duplicateNewLead.value) return;
   creating.value = true;
 
   let leadId: string;
@@ -538,8 +578,12 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     customerId = resolved;
   }
 
+  const categoryNames = (productCategories.value ?? [])
+    .filter((c) => event.data.category_ids.includes(c.id))
+    .map((c) => c.name);
+
   const payload: Record<string, unknown> = {
-    title: event.data.title,
+    title: categoryNames.join("، "),
     customer_id: customerId,
     lead_id: leadId,
     pipeline_id: event.data.pipeline_id,
@@ -662,6 +706,9 @@ function openDeal(deal: Deal) {
                 <span>{{ profileLabel(deal.assigned_to) }}</span>
               </div>
               <div v-if="deal.value" class="text-muted">{{ deal.value }}</div>
+              <div v-if="dealReasonName(deal)" class="mt-1 text-xs text-muted">
+                {{ t("crm.deals.reason") }}: {{ dealReasonName(deal) }}
+              </div>
             </div>
             <div v-if="dealsForStage(stage.id).length === 0" class="py-4 text-center text-xs text-muted">
               {{ t("crm.deals.noDealsInStage") }}
@@ -690,6 +737,9 @@ function openDeal(deal: Deal) {
         >
           <template #stage-cell="{ row }">
             {{ stageName(row.original.stage_id) }}
+          </template>
+          <template #reason-cell="{ row }">
+            {{ dealReasonName(row.original) ?? "—" }}
           </template>
           <template #contact-cell="{ row }">
             {{ dealContactName(row.original) }}
@@ -753,22 +803,39 @@ function openDeal(deal: Deal) {
             <UInput v-model="state.lead_name" class="w-full" />
           </UFormField>
           <UFormField name="lead_phone" :label="t('common.phone')">
-            <UInput v-model="state.lead_phone" class="w-full">
-              <template v-if="!showPhone2" #trailing>
-                <UButton
-                  icon="i-lucide-plus"
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  :aria-label="t('crm.leads.phone2')"
-                  @click="showPhone2 = true"
-                />
-              </template>
-            </UInput>
+            <div class="flex items-center gap-1">
+              <PhoneInput v-model="state.lead_phone" class="flex-1" />
+              <UButton
+                v-if="!showPhone2"
+                icon="i-lucide-plus"
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                :aria-label="t('crm.leads.phone2')"
+                @click="showPhone2 = true"
+              />
+            </div>
           </UFormField>
           <UFormField v-if="showPhone2" name="lead_phone2" :label="t('crm.leads.phone2')">
-            <UInput v-model="state.lead_phone2" class="w-full" />
+            <PhoneInput v-model="state.lead_phone2" class="w-full" />
           </UFormField>
+          <UAlert
+            v-if="duplicateNewLead"
+            color="warning"
+            variant="subtle"
+            icon="i-lucide-triangle-alert"
+            :title="t('crm.leads.duplicatePhone')"
+          >
+            <template #description>
+              <ULink
+                :to="`/crm/leads/${duplicateNewLead.id}`"
+                class="inline-flex items-center gap-1 font-medium text-primary"
+              >
+                {{ duplicateNewLead.name }}
+                <UIcon name="i-lucide-arrow-left" class="size-3" />
+              </ULink>
+            </template>
+          </UAlert>
           <UFormField name="lead_email" :label="t('common.email')">
             <UInput v-model="state.lead_email" type="email" class="w-full" />
           </UFormField>
@@ -779,8 +846,29 @@ function openDeal(deal: Deal) {
 
         <USeparator />
 
-        <UFormField name="title" :label="t('crm.deals.dealTitle')">
-          <UInput v-model="state.title" class="w-full" />
+        <UFormField name="category_ids" :label="t('crm.deals.dealTitle')">
+          <USelectMenu
+            v-model="state.category_ids"
+            :items="categoryItems"
+            value-key="value"
+            multiple
+            :placeholder="t('crm.deals.selectCategories')"
+            class="w-full"
+          >
+            <template #default>
+              <div v-if="state.category_ids?.length" class="flex flex-wrap gap-1 py-0.5">
+                <UBadge v-for="id in state.category_ids" :key="id" color="neutral" variant="subtle" class="gap-1">
+                  {{ categoryItems.find((c) => c.value === id)?.label }}
+                  <UIcon
+                    name="i-lucide-x"
+                    class="size-3 cursor-pointer"
+                    @click.stop="state.category_ids = state.category_ids?.filter((v) => v !== id)"
+                  />
+                </UBadge>
+              </div>
+              <span v-else class="text-muted">{{ t("crm.deals.selectCategories") }}</span>
+            </template>
+          </USelectMenu>
         </UFormField>
         <UFormField name="pipeline_id" :label="t('crm.deals.pipeline')">
           <USelect v-model="state.pipeline_id" :items="pipelineTabs" value-key="value" class="w-full" />
@@ -803,7 +891,13 @@ function openDeal(deal: Deal) {
         <UFormField v-if="state.lead_mode === 'new'" name="lead_notes" :label="t('crm.leads.notes')">
           <UTextarea v-model="state.lead_notes" class="w-full" :rows="2" />
         </UFormField>
-        <UButton type="submit" :label="t('crm.deals.createDeal')" :loading="creating" block />
+        <UButton
+          type="submit"
+          :label="t('crm.deals.createDeal')"
+          :loading="creating"
+          :disabled="!!duplicateNewLead"
+          block
+        />
       </UForm>
     </template>
   </UModal>

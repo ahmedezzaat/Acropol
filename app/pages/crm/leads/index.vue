@@ -16,6 +16,7 @@ interface Lead {
   id: string;
   name: string;
   phone: string | null;
+  phone2: string | null;
   email: string | null;
   status: string;
   assigned_to: string | null;
@@ -36,7 +37,7 @@ const { data: leads, refresh, status: leadsStatus } = await useAsyncData<Lead[]>
   async () => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, name, phone, email, status, assigned_to, created_at")
+      .select("id, name, phone, phone2, email, status, assigned_to, created_at")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -160,7 +161,23 @@ function resetCreateState() {
   state.assigned_to = null;
 }
 
+// Catch the common case of a rep (re-)entering a lead someone already has,
+// by matching on phone regardless of formatting (local "0...", "+20...",
+// with/without spaces). Only checks leads this user can already see (same
+// own/team/view_all scoping as everywhere else), not a global lookup.
+const duplicateLead = computed(() => {
+  const candidates = [phoneDigits(state.phone), phoneDigits(state.phone2)].filter((d): d is string => !!d);
+  if (!candidates.length) return null;
+  return (
+    leads.value?.find((l) => {
+      const existing = [phoneDigits(l.phone), phoneDigits(l.phone2)].filter((d): d is string => !!d);
+      return existing.some((e) => candidates.includes(e));
+    }) ?? null
+  );
+});
+
 async function onCreate(event: FormSubmitEvent<Schema>) {
+  if (duplicateLead.value) return;
   creating.value = true;
   const payload: Record<string, unknown> = {
     lead_type: event.data.lead_type,
@@ -263,11 +280,25 @@ function openLead(lead: Lead) {
         </UFormField>
 
         <UFormField name="phone" :label="t('common.phone')">
-          <UInput v-model="state.phone" class="w-full" />
+          <PhoneInput v-model="state.phone" />
         </UFormField>
         <UFormField name="phone2" :label="t('crm.leads.phone2')">
-          <UInput v-model="state.phone2" class="w-full" />
+          <PhoneInput v-model="state.phone2" />
         </UFormField>
+        <UAlert
+          v-if="duplicateLead"
+          color="warning"
+          variant="subtle"
+          icon="i-lucide-triangle-alert"
+          :title="t('crm.leads.duplicatePhone')"
+        >
+          <template #description>
+            <ULink :to="`/crm/leads/${duplicateLead.id}`" class="inline-flex items-center gap-1 font-medium text-primary">
+              {{ duplicateLead.name }}
+              <UIcon name="i-lucide-arrow-left" class="size-3" />
+            </ULink>
+          </template>
+        </UAlert>
         <UFormField name="email" :label="t('common.email')">
           <UInput v-model="state.email" type="email" class="w-full" />
         </UFormField>
@@ -286,7 +317,7 @@ function openLead(lead: Lead) {
           <UTextarea v-model="state.notes" class="w-full" :rows="3" />
         </UFormField>
 
-        <UButton type="submit" :label="t('crm.leads.createLead')" :loading="creating" block />
+        <UButton type="submit" :label="t('crm.leads.createLead')" :loading="creating" :disabled="!!duplicateLead" block />
       </UForm>
     </template>
   </UModal>

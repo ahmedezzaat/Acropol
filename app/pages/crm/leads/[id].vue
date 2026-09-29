@@ -194,10 +194,10 @@ async function remove() {
           <UInput v-model="lead.name" :disabled="!canEdit" class="w-full" />
         </UFormField>
         <UFormField :label="t('common.phone')">
-          <UInput v-model="lead.phone" :disabled="!canEdit" class="w-full" />
+          <PhoneInput v-model="lead.phone" :disabled="!canEdit" />
         </UFormField>
         <UFormField :label="t('crm.leads.phone2')">
-          <UInput v-model="lead.phone2" :disabled="!canEdit" class="w-full" />
+          <PhoneInput v-model="lead.phone2" :disabled="!canEdit" />
         </UFormField>
         <UFormField :label="t('common.email')">
           <UInput v-model="lead.email" type="email" :disabled="!canEdit" class="w-full" />

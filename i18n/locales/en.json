@@ -205,6 +205,15 @@
       "typesSaved": "Saved",
       "saveFailed": "Failed to save"
     },
+    "productCategories": {
+      "title": "Product Categories",
+      "description": "The categories available in the \"Customer is interested in\" field when creating a deal.",
+      "name": "Name",
+      "addCategory": "Add category",
+      "newCategoryDefault": "New category",
+      "categoriesSaved": "Saved",
+      "saveFailed": "Failed to save"
+    },
     "teams": {
       "title": "Teams",
       "newTeam": "New team",
@@ -291,6 +300,8 @@
       },
       "notes": "Notes",
       "assignHint": "This lead will be assigned to you automatically. You don't have permission to assign it to someone else.",
+      "duplicatePhone": "This phone number is already linked to an existing lead:",
+      "viewExistingLead": "View existing lead",
       "createLead": "Create lead",
       "leadCreated": "Lead created",
       "createLeadFailed": "Failed to create lead",
@@ -315,6 +326,7 @@
     "deals": {
       "title": "Deals",
       "dealTitle": "Customer is interested in",
+      "selectCategories": "Select categories",
       "newDeal": "New deal",
       "customer": "Customer",
       "leadSourceLabel": "Lead",
@@ -365,6 +377,7 @@
       "customerOnWin": "A customer will be created when this deal is won",
       "viewLead": "View lead",
       "editLeadData": "Edit lead data",
+      "chatOnWhatsApp": "Chat on WhatsApp",
       "editLeadDataTitle": "Edit lead data",
       "noLeadForConversion": "No lead is linked to this deal to convert into a customer",
       "createdOn": "Created on",

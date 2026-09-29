@@ -184,7 +184,7 @@ function openCustomer(customer: Customer) {
           <UInput v-model="state.company" class="w-full" />
         </UFormField>
         <UFormField name="phone" :label="t('common.phone')">
-          <UInput v-model="state.phone" class="w-full" />
+          <PhoneInput v-model="state.phone" />
         </UFormField>
         <UFormField name="email" :label="t('common.email')">
           <UInput v-model="state.email" type="email" class="w-full" />

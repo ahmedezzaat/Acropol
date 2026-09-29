@@ -155,6 +155,10 @@ const pipelineStages = computed(() =>
     .sort((a, b) => a.sort_order - b.sort_order),
 );
 const currentStage = computed(() => allStages.value?.find((s) => s.id === deal.value?.stage_id));
+const currentReasonName = computed(() => {
+  if (!currentStage.value?.reason_category || !deal.value?.stage_reason_id) return null;
+  return allReasons.value?.find((r) => r.id === deal.value?.stage_reason_id)?.name ?? null;
+});
 
 // See leads/[id].vue for why this syncs via watchEffect from useAsyncData's
 // own `data` rather than only mutating `deal` inside the handler.
@@ -897,6 +901,9 @@ const timelineItems = computed<TimelineItem[]>(() =>
                 @click="selectStage(stage.id)"
               />
             </div>
+            <p v-if="currentReasonName" class="mt-3 text-sm text-muted">
+              {{ t("crm.deals.reason") }}: <span class="text-highlighted">{{ currentReasonName }}</span>
+            </p>
           </UPageCard>
 
           <!-- Upcoming -->
@@ -997,7 +1004,20 @@ const timelineItems = computed<TimelineItem[]>(() =>
             <div v-if="customer" class="space-y-1 text-sm">
               <p class="font-medium text-highlighted">{{ customer.name }}</p>
               <p v-if="customer.company" class="text-muted">{{ customer.company }}</p>
-              <p v-if="customer.phone" class="text-muted">{{ customer.phone }}</p>
+              <p v-if="customer.phone" class="flex items-center gap-1.5 text-muted">
+                {{ customer.phone }}
+                <a
+                  v-if="toWhatsAppLink(customer.phone)"
+                  :href="toWhatsAppLink(customer.phone)!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :aria-label="t('crm.deals.chatOnWhatsApp')"
+                  class="text-[#25D366] hover:opacity-80"
+                  @click.stop
+                >
+                  <UIcon name="i-simple-icons-whatsapp" class="size-4" />
+                </a>
+              </p>
               <p v-if="customer.email" class="text-muted">{{ customer.email }}</p>
               <p v-if="deal.lead_id" class="mt-2 text-xs text-muted">{{ t("crm.deals.fromLead") }}</p>
               <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -1021,7 +1041,20 @@ const timelineItems = computed<TimelineItem[]>(() =>
                 {{ leadContact.lead_type === "company" && leadContact.company_name ? leadContact.company_name : leadContact.name }}
               </p>
               <p v-if="leadContact.lead_type === 'company'" class="text-muted">{{ leadContact.name }}</p>
-              <p v-if="leadContact.phone" class="text-muted">{{ leadContact.phone }}</p>
+              <p v-if="leadContact.phone" class="flex items-center gap-1.5 text-muted">
+                {{ leadContact.phone }}
+                <a
+                  v-if="toWhatsAppLink(leadContact.phone)"
+                  :href="toWhatsAppLink(leadContact.phone)!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :aria-label="t('crm.deals.chatOnWhatsApp')"
+                  class="text-[#25D366] hover:opacity-80"
+                  @click.stop
+                >
+                  <UIcon name="i-simple-icons-whatsapp" class="size-4" />
+                </a>
+              </p>
               <p v-if="leadContact.email" class="text-muted">{{ leadContact.email }}</p>
               <p class="mt-2 text-xs text-muted">{{ t("crm.deals.customerOnWin") }}</p>
               <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -1314,10 +1347,10 @@ const timelineItems = computed<TimelineItem[]>(() =>
           <UInput v-model="editName" class="w-full" />
         </UFormField>
         <UFormField :label="t('common.phone')">
-          <UInput v-model="editPhone" class="w-full" />
+          <PhoneInput v-model="editPhone" />
         </UFormField>
         <UFormField :label="t('crm.leads.phone2')">
-          <UInput v-model="editPhone2" class="w-full" />
+          <PhoneInput v-model="editPhone2" />
         </UFormField>
         <UFormField :label="t('common.email')">
           <UInput v-model="editEmail" type="email" class="w-full" />
