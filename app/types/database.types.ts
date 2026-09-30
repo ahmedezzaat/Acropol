@@ -312,6 +312,8 @@ export type Database = {
           is_closed: boolean;
           reason_category: "archive" | "competitor" | null;
           system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
+          max_stay_days: number | null;
+          max_stay_hours: number | null;
           created_at: string;
         };
         Insert: {
@@ -322,6 +324,8 @@ export type Database = {
           is_closed?: boolean;
           reason_category?: "archive" | "competitor" | null;
           system_key?: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
+          max_stay_days?: number | null;
+          max_stay_hours?: number | null;
           created_at?: string;
         };
         Update: {
@@ -332,6 +336,8 @@ export type Database = {
           is_closed?: boolean;
           reason_category?: "archive" | "competitor" | null;
           system_key?: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
+          max_stay_days?: number | null;
+          max_stay_hours?: number | null;
           created_at?: string;
         };
         Relationships: [
@@ -394,6 +400,7 @@ export type Database = {
           created_by: string;
           created_at: string;
           updated_at: string;
+          history_hidden_before: string | null;
         };
         Insert: {
           id?: string;
@@ -409,6 +416,7 @@ export type Database = {
           created_by?: string;
           created_at?: string;
           updated_at?: string;
+          history_hidden_before?: string | null;
         };
         Update: {
           id?: string;
@@ -424,6 +432,7 @@ export type Database = {
           created_by?: string;
           created_at?: string;
           updated_at?: string;
+          history_hidden_before?: string | null;
         };
         Relationships: [
           {

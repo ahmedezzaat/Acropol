@@ -25,3 +25,17 @@ export function toWhatsAppLink(phone: string | null | undefined): string | null 
   const digits = phoneDigits(phone);
   return digits ? `https://wa.me/${digits}` : null;
 }
+
+// Used by search boxes — a query matches a stored phone if either the raw
+// digits (ignoring formatting) contain it, or the country-code-normalized
+// forms do (so "01099307789" and "+201099307789" find each other, and a
+// partial tail like "9307789" still matches via the raw-digit check).
+export function phoneMatches(stored: string | null | undefined, query: string): boolean {
+  const rawQuery = query.replace(/\D/g, "");
+  if (!rawQuery) return false;
+  const rawStored = stored?.replace(/\D/g, "") ?? "";
+  if (rawStored.includes(rawQuery)) return true;
+  const normQuery = phoneDigits(query);
+  const normStored = phoneDigits(stored);
+  return !!normQuery && !!normStored && normStored.includes(normQuery);
+}

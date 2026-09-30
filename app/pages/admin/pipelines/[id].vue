@@ -14,6 +14,8 @@ interface StageRow {
   is_closed: boolean;
   reason_category: "archive" | "competitor" | null;
   system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
+  max_stay_days: number | null;
+  max_stay_hours: number | null;
 }
 
 interface ReasonRow {
@@ -54,7 +56,7 @@ const { data: pipelinePayload, status } = await useAsyncData(`admin-pipeline-${p
       supabase.from("pipelines").select("*").eq("id", pipelineId).single(),
       supabase
         .from("pipeline_stages")
-        .select("id, name, is_closed, reason_category, system_key")
+        .select("id, name, is_closed, reason_category, system_key, max_stay_days, max_stay_hours")
         .eq("pipeline_id", pipelineId)
         .order("sort_order"),
       supabase.from("pipeline_stage_reasons").select("*").eq("pipeline_id", pipelineId).order("sort_order"),
@@ -77,6 +79,8 @@ watchEffect(() => {
     is_closed: s.is_closed,
     reason_category: s.reason_category,
     system_key: s.system_key,
+    max_stay_days: s.max_stay_days,
+    max_stay_hours: s.max_stay_hours,
   }));
   archiveReasons.value = reasonRows
     .filter((r) => r.category === "archive")
@@ -106,6 +110,8 @@ function addStage() {
     is_closed: false,
     reason_category: null,
     system_key: null,
+    max_stay_days: null,
+    max_stay_hours: null,
   });
 }
 
@@ -147,6 +153,8 @@ async function saveStages() {
       is_closed: stage.is_closed,
       reason_category: stage.reason_category,
       system_key: stage.system_key,
+      max_stay_days: stage.max_stay_days,
+      max_stay_hours: stage.max_stay_hours,
     };
 
     const { data, error } = stage.id
@@ -294,6 +302,23 @@ async function deletePipeline() {
                 :placeholder="t('admin.pipelines.reasonCategory')"
                 class="w-56"
               />
+              <div class="flex items-center gap-1">
+                <UInputNumber
+                  v-model="stage.max_stay_days"
+                  :min="0"
+                  :placeholder="t('admin.pipelines.days')"
+                  class="w-24"
+                />
+                <span class="text-xs text-muted">{{ t("admin.pipelines.days") }}</span>
+                <UInputNumber
+                  v-model="stage.max_stay_hours"
+                  :min="0"
+                  :max="23"
+                  :placeholder="t('admin.pipelines.hours')"
+                  class="w-24"
+                />
+                <span class="text-xs text-muted">{{ t("admin.pipelines.hours") }}</span>
+              </div>
               <UBadge
                 v-if="stage.system_key"
                 :label="t('admin.pipelines.fixedStage')"

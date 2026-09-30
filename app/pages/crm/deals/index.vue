@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import * as z from "zod";
 import type { FormSubmitEvent, TableColumn } from "@nuxt/ui";
+import { getPaginationRowModel } from "@tanstack/vue-table";
 
 definePageMeta({
   layout: "dashboard",
@@ -27,6 +28,8 @@ interface Stage {
   is_closed: boolean;
   reason_category: "archive" | "competitor" | null;
   system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
+  max_stay_days: number | null;
+  max_stay_hours: number | null;
 }
 
 interface Reason {
@@ -86,7 +89,7 @@ const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deals-pipelines"
 const { data: allStages } = await useAsyncData<Stage[]>("crm-deals-stages", async () => {
   const { data, error } = await supabase
     .from("pipeline_stages")
-    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key")
+    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key, max_stay_days, max_stay_hours")
     .order("sort_order");
   if (error) throw error;
   return data ?? [];
@@ -151,6 +154,68 @@ const lastNoteByDeal = computed(() => {
 });
 function lastNote(dealId: string) {
   return lastNoteByDeal.value.get(dealId) ?? null;
+}
+
+// Time a deal has spent in its current stage — the most recent
+// stage_changed activity's timestamp is exactly when it entered whatever
+// stage it's on now; a deal that's never moved falls back to its creation
+// date.
+const { data: stageChangeActivities } = await useAsyncData<{ deal_id: string; created_at: string }[]>(
+  "crm-deals-stage-changes",
+  async () => {
+    const { data, error } = await supabase
+      .from("deal_activities")
+      .select("deal_id, created_at")
+      .eq("type", "stage_changed")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  },
+);
+const stageEnteredAtByDeal = computed(() => {
+  const map = new Map<string, string>();
+  for (const a of stageChangeActivities.value ?? []) {
+    if (!map.has(a.deal_id)) map.set(a.deal_id, a.created_at);
+  }
+  return map;
+});
+function stageEnteredAt(deal: Deal) {
+  return stageEnteredAtByDeal.value.get(deal.id) ?? deal.created_at;
+}
+// Capped at 14 days for the bar fill — past that it's just "very stale" and
+// the exact ratio stops being useful; the label still shows the real count.
+const STAGE_AGE_CAP_DAYS = 14;
+function stageAgeDays(deal: Deal) {
+  // Clamp negative — clock skew between this client and the server can put
+  // a just-created deal's timestamp a hair in the "future".
+  return Math.max(0, Date.now() - new Date(stageEnteredAt(deal)).getTime()) / 86400000;
+}
+function stageAgeLabel(deal: Deal) {
+  const days = stageAgeDays(deal);
+  if (days < 1) {
+    const hours = Math.max(1, Math.round(days * 24));
+    return t("crm.deals.stageAgeHours", { count: hours });
+  }
+  return t("crm.deals.stageAgeDays", { count: Math.round(days) });
+}
+function stageAgeRatio(deal: Deal) {
+  return Math.min(stageAgeDays(deal) / STAGE_AGE_CAP_DAYS, 1) * 100;
+}
+function stageAgeColor(deal: Deal): "success" | "warning" | "error" {
+  const days = stageAgeDays(deal);
+  if (days < 3) return "success";
+  if (days < 7) return "warning";
+  return "error";
+}
+// null means the stage has no configured limit — nothing to flag against.
+function stageStayLimitDays(deal: Deal) {
+  const stage = allStages.value?.find((s) => s.id === deal.stage_id);
+  if (!stage || (stage.max_stay_days == null && stage.max_stay_hours == null)) return null;
+  return (stage.max_stay_days ?? 0) + (stage.max_stay_hours ?? 0) / 24;
+}
+function isStageOverdue(deal: Deal) {
+  const limit = stageStayLimitDays(deal);
+  return limit !== null && stageAgeDays(deal) > limit;
 }
 
 const { data: leadsList, refresh: refreshLeads } = await useAsyncData<LeadOption[]>(
@@ -283,6 +348,7 @@ watch(activePipelineId, () => {
 });
 const dateFrom = ref("");
 const dateTo = ref("");
+const dealSearch = ref("");
 
 // The kanban board only renders columns for the stage(s) actually picked —
 // narrowing to one stage means seeing just that one column.
@@ -295,6 +361,12 @@ function matchesFilters(deal: Deal) {
   if (stageFilter.value !== null && deal.stage_id !== stageFilter.value) return false;
   if (dateFrom.value && deal.created_at < dateFrom.value) return false;
   if (dateTo.value && deal.created_at.slice(0, 10) > dateTo.value) return false;
+  if (dealSearch.value) {
+    const q = dealSearch.value.toLowerCase();
+    const matchesName = dealContactName(deal).toLowerCase().includes(q);
+    const matchesPhone = phoneMatches(dealContactPhone(deal), dealSearch.value);
+    if (!matchesName && !matchesPhone) return false;
+  }
   return true;
 }
 
@@ -320,6 +392,47 @@ function dealReasonName(deal: Deal) {
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(locale.value === "ar" ? "ar" : "en", { dateStyle: "medium" });
 }
+function formatCurrency(value: number | null) {
+  if (!value) return null;
+  // Always Western digits with thousands separators — matches how dates
+  // and every other number in this app render regardless of locale; only
+  // the currency label itself follows the language.
+  const amount = value.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  return `${amount} ${t("common.currency")}`;
+}
+// Drives both the Kanban column's accent bar and the list view's stage
+// badge color — closed-won reads as success, closed-lost/archived as
+// error/neutral, anything still open stays primary.
+function stageAccentColor(stage: Stage | undefined): "success" | "error" | "neutral" | "primary" {
+  if (!stage) return "neutral";
+  if (stage.system_key === "won") return "success";
+  if (stage.system_key === "competitor" || stage.reason_category === "competitor") return "error";
+  if (stage.system_key === "archive" || stage.reason_category === "archive") return "neutral";
+  return "primary";
+}
+function stageTotalValue(stageId: string) {
+  return dealsForStage(stageId).reduce((sum, d) => sum + (d.value ?? 0), 0);
+}
+function sortIcon(column: { getIsSorted: () => false | "asc" | "desc" }) {
+  const dir = column.getIsSorted();
+  if (dir === "asc") return "i-lucide-arrow-up";
+  if (dir === "desc") return "i-lucide-arrow-down";
+  return "i-lucide-arrow-up-down";
+}
+function stageAccentBorderClass(stage: Stage) {
+  return {
+    success: "border-t-success",
+    error: "border-t-error",
+    primary: "border-t-primary",
+    neutral: "border-t-default",
+  }[stageAccentColor(stage)];
+}
+// The "Customer is interested in" title is a "، "-joined list of product
+// categories (see onCreate) — split it back out for chip display. Legacy
+// free-text titles (pre-dating that field) just render as a single chip.
+function dealCategories(deal: Deal) {
+  return deal.title ? deal.title.split(/[،,]\s*/).filter(Boolean) : [];
+}
 function profileLabel(id: string | null) {
   if (!id) return t("common.unassigned");
   const p = profiles.value?.find((p) => p.id === id);
@@ -330,6 +443,13 @@ const UCheckbox = resolveComponent("UCheckbox");
 const table = useTemplateRef<any>("dealsTable");
 const rowSelection = ref<Record<string, boolean>>({});
 const selectedCount = computed<number>(() => table.value?.tableApi?.getFilteredSelectedRowModel().rows.length ?? 0);
+const sorting = ref([{ id: "created", desc: true }]);
+const pagination = ref({ pageIndex: 0, pageSize: 20 });
+// Any filter changing the row set should land the user back on page 1
+// instead of possibly showing an empty out-of-range page.
+watch([assigneeFilter, stageFilter, dateFrom, dateTo, dealSearch, activePipelineId], () => {
+  pagination.value.pageIndex = 0;
+});
 
 const listColumns = computed<TableColumn<Deal>[]>(() => [
   ...(canAssign.value
@@ -355,49 +475,105 @@ const listColumns = computed<TableColumn<Deal>[]>(() => [
     : []),
   { id: "contact", header: t("crm.deals.contactTitle") },
   { id: "stage", header: t("crm.deals.stage") },
+  {
+    id: "stageAge",
+    accessorFn: (row) => stageAgeDays(row),
+    header: t("crm.deals.timeInStage"),
+  },
   { id: "reason", header: t("crm.deals.reason") },
   { accessorKey: "title", header: t("crm.deals.dealTitle") },
+  { accessorKey: "value", header: t("crm.deals.value") },
   { id: "assigned", header: t("crm.deals.assignedTo") },
-  { id: "created", header: t("crm.deals.createdOn") },
+  { accessorKey: "created_at", id: "created", header: t("crm.deals.createdOn") },
   { id: "lastNote", header: t("crm.deals.lastNote") },
 ]);
 
-// --- Reassign from the list table — single row (inline select) or bulk
-// (select several rows, then one picker for all of them). RLS/the deals
-// assignment trigger enforce crm_deals:assign server-side regardless, but
-// this UI is only offered when the user actually holds it.
+// --- Reassign from the list table — single row (inline select opens this
+// same modal, pre-filled) or bulk (select several rows, then one picker for
+// all of them). Every reassignment also requires picking the deal's stage
+// (kept at its current stage by default for a single deal, forced to an
+// explicit choice for bulk since selected deals can span different
+// stages) and a history-visibility choice — "hide" stamps
+// history_hidden_before so everything up to now drops out of the timeline
+// for anyone without crm_deals view_all (RLS-enforced, not just hidden in
+// the UI), while view_all always sees the full history regardless. RLS/the
+// deals assignment trigger enforce crm_deals:assign server-side regardless,
+// but this UI is only offered when the user actually holds it.
 const reassigning = ref(false);
-async function reassignDeal(dealId: string, assignedTo: string | null) {
-  reassigning.value = true;
-  const { error } = await supabase.from("deals").update({ assigned_to: assignedTo }).eq("id", dealId);
-  reassigning.value = false;
-  if (error) {
-    toast.add({ title: t("crm.deals.reassignFailed"), description: error.message, color: "error" });
-    return;
-  }
-  toast.add({ title: t("crm.deals.reassigned"), color: "success" });
-  refresh();
+const reassignOpen = ref(false);
+const reassignDealIds = ref<string[]>([]);
+const reassignTarget = ref<string | null>(null);
+const reassignStageId = ref<string | null>(null);
+const reassignReasonId = ref<string | null>(null);
+const reassignHideHistory = ref(false);
+
+const reassignStage = computed(() => allStages.value?.find((s) => s.id === reassignStageId.value));
+const reassignReasonOptions = computed(() =>
+  (allReasons.value ?? [])
+    .filter((r) => r.pipeline_id === activePipelineId.value && r.category === reassignStage.value?.reason_category)
+    .map((r) => ({ label: r.name, value: r.id })),
+);
+const reassignValid = computed(
+  () => !!reassignStageId.value && (!reassignStage.value?.reason_category || !!reassignReasonId.value),
+);
+
+function openReassign(dealIds: string[], prefillAssignee?: string | null) {
+  reassignDealIds.value = dealIds;
+  reassignTarget.value = prefillAssignee ?? null;
+  // A single deal defaults to staying on its current stage (still an
+  // explicit, changeable choice); bulk has no single sensible default
+  // since the selected deals can already be on different stages.
+  reassignStageId.value =
+    dealIds.length === 1 ? (deals.value?.find((d) => d.id === dealIds[0])?.stage_id ?? null) : null;
+  reassignReasonId.value = null;
+  reassignHideHistory.value = false;
+  reassignOpen.value = true;
+}
+function openBulkReassign() {
+  const rows = table.value?.tableApi?.getFilteredSelectedRowModel().rows ?? [];
+  openReassign(rows.map((r: any) => r.original.id as string));
 }
 
-const bulkReassignOpen = ref(false);
-const bulkReassignTarget = ref<string | null>(null);
-function openBulkReassign() {
-  bulkReassignTarget.value = null;
-  bulkReassignOpen.value = true;
-}
-async function confirmBulkReassign() {
-  const rows = table.value?.tableApi?.getFilteredSelectedRowModel().rows ?? [];
-  const ids = rows.map((r: any) => r.original.id as string);
-  if (!ids.length) return;
+async function confirmReassign() {
+  if (!reassignValid.value || !reassignDealIds.value.length) return;
   reassigning.value = true;
-  const { error } = await supabase.from("deals").update({ assigned_to: bulkReassignTarget.value }).in("id", ids);
+
+  const updates: Record<string, unknown> = {
+    assigned_to: reassignTarget.value,
+    stage_id: reassignStageId.value,
+    stage_reason_id: reassignStage.value?.reason_category ? reassignReasonId.value : null,
+  };
+  if (reassignHideHistory.value) updates.history_hidden_before = new Date().toISOString();
+
+  let error: { message: string } | null = null;
+  if (reassignStage.value?.system_key === "won") {
+    // Each deal's customer has to be resolved individually (different
+    // leads), so this one case can't be a single batch update.
+    for (const dealId of reassignDealIds.value) {
+      const deal = deals.value?.find((d) => d.id === dealId);
+      if (deal?.customer_id) {
+        ({ error } = await supabase.from("deals").update(updates).eq("id", dealId));
+      } else {
+        const { customerId, error: resolveError } = await resolveWonCustomerId(supabase, deal?.lead_id ?? null);
+        if (resolveError || !customerId) {
+          error = { message: resolveError ?? "conversion failed" };
+        } else {
+          ({ error } = await supabase.from("deals").update({ ...updates, customer_id: customerId }).eq("id", dealId));
+        }
+      }
+      if (error) break;
+    }
+  } else {
+    ({ error } = await supabase.from("deals").update(updates).in("id", reassignDealIds.value));
+  }
+
   reassigning.value = false;
   if (error) {
     toast.add({ title: t("crm.deals.reassignFailed"), description: error.message, color: "error" });
     return;
   }
   toast.add({ title: t("crm.deals.reassigned"), color: "success" });
-  bulkReassignOpen.value = false;
+  reassignOpen.value = false;
   rowSelection.value = {};
   refresh();
 }
@@ -640,7 +816,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
 }
 
 function openDeal(deal: Deal) {
-  navigateTo(`/crm/deals/${deal.id}`);
+  navigateTo(`/crm/deals/${deal.id}`, { open: { target: "_blank" } });
 }
 </script>
 
@@ -663,7 +839,15 @@ function openDeal(deal: Deal) {
 
       <UDashboardToolbar>
         <template #left>
-          <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" />
+          <div class="flex flex-wrap items-center gap-2">
+            <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" />
+            <UInput
+              v-model="dealSearch"
+              icon="i-lucide-search"
+              :placeholder="t('crm.deals.searchPlaceholder')"
+              class="w-56"
+            />
+          </div>
         </template>
         <template #right>
           <div class="flex flex-wrap items-center gap-2">
@@ -686,6 +870,16 @@ function openDeal(deal: Deal) {
             />
             <UInput v-model="dateFrom" type="date" :placeholder="t('crm.deals.createdFrom')" class="w-40" />
             <UInput v-model="dateTo" type="date" :placeholder="t('crm.deals.createdTo')" class="w-40" />
+            <UButton
+              v-if="stageFilter || dateFrom || dateTo || dealSearch"
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              :label="t('crm.deals.clearFilters')"
+              @click="stageFilter = null; dateFrom = ''; dateTo = ''; dealSearch = '';"
+            />
+            <USeparator orientation="vertical" class="h-6" />
             <UButtonGroup>
               <UButton
                 icon="i-lucide-kanban"
@@ -716,36 +910,70 @@ function openDeal(deal: Deal) {
         <div
           v-for="stage in visibleStages"
           :key="stage.id"
-          class="w-64 shrink-0 rounded-lg border border-default"
-          :class="stage.is_closed ? 'bg-elevated' : 'bg-default'"
+          class="flex w-72 shrink-0 flex-col rounded-lg border border-t-4 border-default"
+          :class="[stage.is_closed ? 'bg-elevated' : 'bg-default', stageAccentBorderClass(stage)]"
         >
-          <div class="flex items-center justify-between border-b border-default p-3">
-            <span class="font-medium text-highlighted">{{ stage.name }}</span>
-            <UBadge :label="String(dealsForStage(stage.id).length)" color="neutral" variant="subtle" />
+          <div class="sticky top-0 z-10 rounded-t-[5px] border-b border-default bg-[inherit] p-3">
+            <div class="flex items-center justify-between gap-2">
+              <span class="truncate font-medium text-highlighted">{{ stage.name }}</span>
+              <UBadge :label="String(dealsForStage(stage.id).length)" color="neutral" variant="subtle" />
+            </div>
+            <div v-if="stageTotalValue(stage.id)" class="mt-0.5 text-xs text-muted">
+              {{ formatCurrency(stageTotalValue(stage.id)) }}
+            </div>
           </div>
           <div class="space-y-2 p-2">
             <div
               v-for="deal in dealsForStage(stage.id)"
               :key="deal.id"
-              class="cursor-pointer rounded-md border border-default bg-default p-2 text-sm hover:border-primary"
+              class="cursor-pointer rounded-lg border border-default bg-default p-3 text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
               @click="openDeal(deal)"
             >
-              <div class="font-medium text-highlighted">{{ dealContactName(deal) }}</div>
-              <div class="text-muted">{{ deal.title }}</div>
-              <div v-if="deal.assigned_to" class="mt-1 flex items-center gap-1.5 text-xs text-muted">
-                <UAvatar :text="assigneeInitial(deal.assigned_to)" size="2xs" />
-                <span>{{ profileLabel(deal.assigned_to) }}</span>
+              <div class="flex items-start justify-between gap-2">
+                <span class="truncate font-medium text-highlighted">{{ dealContactName(deal) }}</span>
+                <span v-if="deal.value" class="shrink-0 text-xs font-semibold text-highlighted">
+                  {{ formatCurrency(deal.value) }}
+                </span>
               </div>
-              <div v-if="deal.value" class="text-muted">{{ deal.value }}</div>
-              <div v-if="dealReasonName(deal)" class="mt-1 text-xs text-muted">
+              <div v-if="dealCategories(deal).length" class="mt-1.5 flex flex-wrap gap-1">
+                <UBadge
+                  v-for="cat in dealCategories(deal)"
+                  :key="cat"
+                  :label="cat"
+                  size="sm"
+                  variant="subtle"
+                  color="neutral"
+                />
+              </div>
+              <div class="mt-2">
+                <UProgress :model-value="stageAgeDays(deal)" :max="STAGE_AGE_CAP_DAYS" :color="stageAgeColor(deal)" size="xs" />
+                <span class="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                  {{ stageAgeLabel(deal) }}
+                  <UIcon
+                    v-if="isStageOverdue(deal)"
+                    name="i-lucide-triangle-alert"
+                    :title="t('crm.deals.stageOverdue')"
+                    class="size-3.5 text-error"
+                  />
+                </span>
+              </div>
+              <div v-if="deal.assigned_to" class="mt-2 flex items-center gap-1.5 text-xs text-muted">
+                <UAvatar :text="assigneeInitial(deal.assigned_to)" size="2xs" />
+                <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
+              </div>
+              <div v-if="dealReasonName(deal)" class="mt-1.5 text-xs text-muted">
                 {{ t("crm.deals.reason") }}: {{ dealReasonName(deal) }}
               </div>
-              <div v-if="lastNote(deal.id)" class="mt-1 flex items-start gap-1 text-xs text-muted">
+              <div v-if="lastNote(deal.id)" class="mt-1.5 flex items-start gap-1 text-xs text-muted">
                 <UIcon name="i-lucide-sticky-note" class="mt-0.5 size-3 shrink-0" />
                 <span class="line-clamp-2">{{ lastNote(deal.id) }}</span>
               </div>
             </div>
-            <div v-if="dealsForStage(stage.id).length === 0" class="py-4 text-center text-xs text-muted">
+            <div
+              v-if="dealsForStage(stage.id).length === 0"
+              class="flex flex-col items-center gap-1 rounded-lg border border-dashed border-default py-6 text-center text-xs text-muted"
+            >
+              <UIcon name="i-lucide-inbox" class="size-5" />
               {{ t("crm.deals.noDealsInStage") }}
             </div>
           </div>
@@ -766,12 +994,20 @@ function openDeal(deal: Deal) {
         <UTable
           ref="dealsTable"
           v-model:row-selection="rowSelection"
+          v-model:sorting="sorting"
+          v-model:pagination="pagination"
           :data="listDeals"
           :columns="listColumns"
+          :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
+          class="[&_tbody_tr]:cursor-pointer"
           @select="(_e, row) => openDeal(row.original)"
         >
           <template #stage-cell="{ row }">
-            {{ stageName(row.original.stage_id) }}
+            <UBadge
+              :label="stageName(row.original.stage_id)"
+              :color="stageAccentColor(allStages?.find((s) => s.id === row.original.stage_id))"
+              variant="subtle"
+            />
           </template>
           <template #reason-cell="{ row }">
             {{ dealReasonName(row.original) ?? "—" }}
@@ -792,6 +1028,20 @@ function openDeal(deal: Deal) {
               </a>
             </div>
           </template>
+          <template #value-header="{ column }">
+            <UButton
+              :label="t('crm.deals.value')"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :trailing-icon="sortIcon(column)"
+              class="-mx-2.5"
+              @click="column.toggleSorting(column.getIsSorted() === 'asc')"
+            />
+          </template>
+          <template #value-cell="{ row }">
+            <span class="font-medium text-highlighted">{{ formatCurrency(row.original.value) ?? "—" }}</span>
+          </template>
           <template #assigned-cell="{ row }">
             <USelect
               v-if="canAssign"
@@ -801,17 +1051,72 @@ function openDeal(deal: Deal) {
               size="xs"
               class="w-40"
               @click.stop
-              @update:model-value="(value: string | null) => reassignDeal(row.original.id, value)"
+              @update:model-value="(value: string | null) => openReassign([row.original.id], value)"
             />
-            <span v-else>{{ profileLabel(row.original.assigned_to) }}</span>
+            <div v-else class="flex items-center gap-1.5">
+              <UAvatar v-if="row.original.assigned_to" :text="assigneeInitial(row.original.assigned_to)" size="3xs" />
+              <span>{{ profileLabel(row.original.assigned_to) }}</span>
+            </div>
+          </template>
+          <template #created-header="{ column }">
+            <UButton
+              :label="t('crm.deals.createdOn')"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :trailing-icon="sortIcon(column)"
+              class="-mx-2.5"
+              @click="column.toggleSorting(column.getIsSorted() === 'asc')"
+            />
           </template>
           <template #created-cell="{ row }">
             {{ formatDate(row.original.created_at) }}
+          </template>
+          <template #stageAge-header="{ column }">
+            <UButton
+              :label="t('crm.deals.timeInStage')"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :trailing-icon="sortIcon(column)"
+              class="-mx-2.5"
+              @click="column.toggleSorting(column.getIsSorted() === 'asc')"
+            />
+          </template>
+          <template #stageAge-cell="{ row }">
+            <div class="w-28">
+              <UProgress
+                :model-value="stageAgeDays(row.original)"
+                :max="STAGE_AGE_CAP_DAYS"
+                :color="stageAgeColor(row.original)"
+                size="xs"
+              />
+              <span class="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                {{ stageAgeLabel(row.original) }}
+                <UIcon
+                  v-if="isStageOverdue(row.original)"
+                  name="i-lucide-triangle-alert"
+                  :title="t('crm.deals.stageOverdue')"
+                  class="size-3.5 text-error"
+                />
+              </span>
+            </div>
           </template>
           <template #lastNote-cell="{ row }">
             <span class="line-clamp-2 max-w-64 text-muted">{{ lastNote(row.original.id) ?? "—" }}</span>
           </template>
         </UTable>
+        <div class="flex items-center justify-between border-t border-default pt-3">
+          <span class="text-sm text-muted">
+            {{ t("crm.deals.totalRows", { count: listDeals.length }) }}
+          </span>
+          <UPagination
+            :page="pagination.pageIndex + 1"
+            :items-per-page="pagination.pageSize"
+            :total="listDeals.length"
+            @update:page="(p: number) => (pagination.pageIndex = p - 1)"
+          />
+        </div>
       </template>
     </template>
   </UDashboardPanel>
@@ -953,20 +1258,40 @@ function openDeal(deal: Deal) {
     </template>
   </UModal>
 
-  <UModal v-model:open="bulkReassignOpen" :title="t('crm.deals.bulkReassignTitle', { count: selectedCount })">
+  <UModal v-model:open="reassignOpen" :title="t('crm.deals.bulkReassignTitle', { count: reassignDealIds.length })">
     <template #body>
-      <div class="space-y-3">
-        <USelect
-          v-model="bulkReassignTarget"
-          :items="assigneeOptions"
-          value-key="value"
-          class="w-full"
-        />
+      <div class="space-y-4">
+        <UFormField :label="t('crm.deals.assignedTo')">
+          <USelect v-model="reassignTarget" :items="assigneeOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('crm.deals.stage')" required>
+          <USelect
+            v-model="reassignStageId"
+            :items="activeStages.map((s) => ({ label: s.name, value: s.id }))"
+            value-key="value"
+            class="w-full"
+          />
+        </UFormField>
+        <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
+          <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('crm.deals.historyVisibility')">
+          <URadioGroup
+            v-model="reassignHideHistory"
+            :items="[
+              { label: t('crm.deals.keepHistoryVisible'), value: false },
+              { label: t('crm.deals.hideHistory'), value: true },
+            ]"
+            value-key="value"
+          />
+          <p class="mt-1 text-xs text-muted">{{ t("crm.deals.historyVisibilityHint") }}</p>
+        </UFormField>
         <UButton
           :label="t('crm.deals.bulkReassign')"
           :loading="reassigning"
+          :disabled="!reassignValid"
           block
-          @click="confirmBulkReassign"
+          @click="confirmReassign"
         />
       </div>
     </template>

@@ -86,7 +86,9 @@ const filteredLeads = computed(() => {
     const matchesSearch =
       !search.value ||
       lead.name.toLowerCase().includes(search.value.toLowerCase()) ||
-      (lead.email ?? "").toLowerCase().includes(search.value.toLowerCase());
+      (lead.email ?? "").toLowerCase().includes(search.value.toLowerCase()) ||
+      phoneMatches(lead.phone, search.value) ||
+      phoneMatches(lead.phone2, search.value);
     const matchesStatus = statusFilter.value === "all" || lead.status === statusFilter.value;
     return matchesSearch && matchesStatus;
   });
