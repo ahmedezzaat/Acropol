@@ -926,16 +926,25 @@ function openDeal(deal: Deal) {
             <div
               v-for="deal in dealsForStage(stage.id)"
               :key="deal.id"
-              class="cursor-pointer rounded-lg border border-default bg-default p-3 text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md"
+              class="group cursor-pointer rounded-lg border border-default bg-default p-3 text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md active:translate-y-0 active:shadow-sm"
               @click="openDeal(deal)"
             >
               <div class="flex items-start justify-between gap-2">
                 <span class="truncate font-medium text-highlighted">{{ dealContactName(deal) }}</span>
-                <span v-if="deal.value" class="shrink-0 text-xs font-semibold text-highlighted">
-                  {{ formatCurrency(deal.value) }}
-                </span>
+                <a
+                  v-if="toWhatsAppLink(dealContactPhone(deal))"
+                  :href="toWhatsAppLink(dealContactPhone(deal))!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :aria-label="t('crm.deals.chatOnWhatsApp')"
+                  class="shrink-0 text-[#25D366] opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-80"
+                  @click.stop
+                >
+                  <UIcon name="i-simple-icons-whatsapp" class="size-4" />
+                </a>
               </div>
-              <div v-if="dealCategories(deal).length" class="mt-1.5 flex flex-wrap gap-1">
+              <div v-if="deal.value || dealCategories(deal).length" class="mt-1.5 flex flex-wrap items-center gap-1">
+                <UBadge v-if="deal.value" :label="formatCurrency(deal.value)!" size="sm" variant="subtle" color="success" />
                 <UBadge
                   v-for="cat in dealCategories(deal)"
                   :key="cat"
@@ -957,16 +966,27 @@ function openDeal(deal: Deal) {
                   />
                 </span>
               </div>
-              <div v-if="deal.assigned_to" class="mt-2 flex items-center gap-1.5 text-xs text-muted">
-                <UAvatar :text="assigneeInitial(deal.assigned_to)" size="2xs" />
-                <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
-              </div>
-              <div v-if="dealReasonName(deal)" class="mt-1.5 text-xs text-muted">
-                {{ t("crm.deals.reason") }}: {{ dealReasonName(deal) }}
-              </div>
-              <div v-if="lastNote(deal.id)" class="mt-1.5 flex items-start gap-1 text-xs text-muted">
+              <div v-if="lastNote(deal.id)" class="mt-1.5 flex items-start gap-1 text-xs text-muted italic">
                 <UIcon name="i-lucide-sticky-note" class="mt-0.5 size-3 shrink-0" />
-                <span class="line-clamp-2">{{ lastNote(deal.id) }}</span>
+                <span class="line-clamp-1">{{ lastNote(deal.id) }}</span>
+              </div>
+              <div class="mt-2.5 flex items-center justify-between gap-2 border-t border-default pt-2">
+                <div class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <UAvatar
+                    :text="deal.assigned_to ? assigneeInitial(deal.assigned_to) : undefined"
+                    :icon="deal.assigned_to ? undefined : 'i-lucide-user-round'"
+                    size="2xs"
+                  />
+                  <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
+                </div>
+                <UBadge
+                  v-if="dealReasonName(deal)"
+                  :label="dealReasonName(deal)!"
+                  size="sm"
+                  variant="subtle"
+                  :color="stageAccentColor(stage)"
+                  class="shrink-0"
+                />
               </div>
             </div>
             <div
