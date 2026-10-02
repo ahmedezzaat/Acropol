@@ -95,7 +95,8 @@
     "status": "الحالة",
     "details": "التفاصيل",
     "active": "نشط",
-    "inactive": "غير نشط"
+    "inactive": "غير نشط",
+    "done": "تم"
   },
   "nav": {
     "appName": "أكروبول",
@@ -556,7 +557,9 @@
           "automationActor": "الأتمتة"
         }
       },
-      "reassignTitle": "إعادة إسناد الصفقة"
+      "reassignTitle": "إعادة إسناد الصفقة",
+      "filters": "التصفية",
+      "callContact": "اتصال"
     },
     "quotes": {
       "title": "عروض الأسعار",

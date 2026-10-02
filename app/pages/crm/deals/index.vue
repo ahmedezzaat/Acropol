@@ -828,6 +828,27 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   refreshCustomers();
 }
 
+// --- Mobile filter sheet ---
+const filtersOpen = ref(false);
+const activeFilterCount = computed(
+  () => [assigneeFilter.value !== null, !!stageFilter.value, !!dateFrom.value, !!dateTo.value].filter(Boolean).length,
+);
+function clearFilters() {
+  stageFilter.value = null;
+  dateFrom.value = "";
+  dateTo.value = "";
+  dealSearch.value = "";
+}
+
+// The list view collapses to cards below md (a 9-column table is unusable on
+// a phone); they share the table's pagination state.
+const pagedListDeals = computed(() =>
+  listDeals.value.slice(
+    pagination.value.pageIndex * pagination.value.pageSize,
+    (pagination.value.pageIndex + 1) * pagination.value.pageSize,
+  ),
+);
+
 function openDeal(deal: Deal) {
   navigateTo(`/crm/deals/${deal.id}`, { open: { target: "_blank" } });
 }
@@ -850,20 +871,30 @@ function openDeal(deal: Deal) {
         </template>
       </UDashboardNavbar>
 
-      <UDashboardToolbar>
-        <template #left>
-          <div class="flex flex-wrap items-center gap-2">
-            <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" />
-            <UInput
-              v-model="dealSearch"
-              icon="i-lucide-search"
-              :placeholder="t('crm.deals.searchPlaceholder')"
-              class="w-56"
+      <!-- Mobile-first toolbar: pipeline tabs scroll sideways, search + a
+      Filters button + view toggle share one row; the individual filters live
+      in a bottom sheet until there is room (lg) to show them inline. -->
+      <div class="w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
+        <div class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+          <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" class="w-max min-w-full" />
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <UInput
+            v-model="dealSearch"
+            icon="i-lucide-search"
+            :placeholder="t('crm.deals.searchPlaceholder')"
+            class="min-w-0 flex-1 basis-40 lg:max-w-56 lg:flex-none"
+          />
+          <UChip :show="activeFilterCount > 0" :text="String(activeFilterCount)" size="2xl" class="lg:hidden">
+            <UButton
+              icon="i-lucide-sliders-horizontal"
+              color="neutral"
+              variant="outline"
+              :aria-label="t('crm.deals.filters')"
+              @click="filtersOpen = true"
             />
-          </div>
-        </template>
-        <template #right>
-          <div class="flex flex-wrap items-center gap-2">
+          </UChip>
+          <div class="hidden flex-wrap items-center gap-2 lg:flex">
             <USelectMenu
               v-model="assigneeFilter"
               :items="assigneeFilterOptions"
@@ -890,28 +921,28 @@ function openDeal(deal: Deal) {
               variant="ghost"
               size="sm"
               :label="t('crm.deals.clearFilters')"
-              @click="stageFilter = null; dateFrom = ''; dateTo = ''; dealSearch = '';"
+              @click="clearFilters"
             />
             <USeparator orientation="vertical" class="h-6" />
-            <UButtonGroup>
-              <UButton
-                icon="i-lucide-kanban"
-                :color="viewMode === 'kanban' ? 'primary' : 'neutral'"
-                :variant="viewMode === 'kanban' ? 'solid' : 'outline'"
-                :aria-label="t('crm.deals.kanbanView')"
-                @click="viewMode = 'kanban'"
-              />
-              <UButton
-                icon="i-lucide-list"
-                :color="viewMode === 'list' ? 'primary' : 'neutral'"
-                :variant="viewMode === 'list' ? 'solid' : 'outline'"
-                :aria-label="t('crm.deals.listView')"
-                @click="viewMode = 'list'"
-              />
-            </UButtonGroup>
           </div>
-        </template>
-      </UDashboardToolbar>
+          <UButtonGroup class="ms-auto lg:ms-0">
+            <UButton
+              icon="i-lucide-kanban"
+              :color="viewMode === 'kanban' ? 'primary' : 'neutral'"
+              :variant="viewMode === 'kanban' ? 'solid' : 'outline'"
+              :aria-label="t('crm.deals.kanbanView')"
+              @click="viewMode = 'kanban'"
+            />
+            <UButton
+              icon="i-lucide-list"
+              :color="viewMode === 'list' ? 'primary' : 'neutral'"
+              :variant="viewMode === 'list' ? 'solid' : 'outline'"
+              :aria-label="t('crm.deals.listView')"
+              @click="viewMode = 'list'"
+            />
+          </UButtonGroup>
+        </div>
+      </div>
     </template>
 
     <template #body>
@@ -919,11 +950,14 @@ function openDeal(deal: Deal) {
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
 
-      <div v-else-if="viewMode === 'kanban'" class="flex gap-4 overflow-x-auto pb-4">
+      <div
+        v-else-if="viewMode === 'kanban'"
+        class="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 pb-4 sm:mx-0 sm:snap-none sm:gap-4 sm:px-0"
+      >
         <div
           v-for="stage in visibleStages"
           :key="stage.id"
-          class="flex w-72 shrink-0 flex-col border border-t-4 border-default bg-muted"
+          class="flex w-[85vw] shrink-0 snap-center flex-col border border-t-4 border-default bg-muted sm:w-72 sm:snap-align-none"
           :class="stageAccentBorderClass(stage)"
         >
           <div class="sticky top-0 z-10 border-b border-default bg-[inherit] p-3">
@@ -990,7 +1024,7 @@ function openDeal(deal: Deal) {
                     target="_blank"
                     rel="noopener noreferrer"
                     :aria-label="t('crm.deals.chatOnWhatsApp')"
-                    class="text-[#25D366] opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-80"
+                    class="text-[#25D366] transition-opacity hover:opacity-80 md:opacity-0 md:group-hover:opacity-100"
                     @click.stop
                   >
                     <UIcon name="i-simple-icons-whatsapp" class="size-4" />
@@ -1017,7 +1051,74 @@ function openDeal(deal: Deal) {
       </div>
 
       <template v-else>
-        <div v-if="canAssign && selectedCount > 0" class="mb-3 flex items-center gap-3">
+        <div class="space-y-2 md:hidden">
+          <div
+            v-for="deal in pagedListDeals"
+            :key="deal.id"
+            class="relative cursor-pointer overflow-hidden border border-default bg-default p-3 pb-4 text-sm active:bg-elevated"
+            :class="isStageOverdue(deal) && 'border-s-4 border-s-error'"
+            @click="openDeal(deal)"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <span class="truncate text-[15px] font-semibold text-highlighted">{{ dealContactName(deal) }}</span>
+              <span v-if="deal.value" class="shrink-0 font-semibold text-success">{{ formatCurrency(deal.value) }}</span>
+            </div>
+            <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              <UBadge
+                :label="stageName(deal.stage_id)"
+                :color="stageAccentColor(allStages?.find((s) => s.id === deal.stage_id))"
+                variant="subtle"
+                size="sm"
+                class="cds-tag"
+              />
+              <span class="flex items-center gap-1" :class="stageAgeTextClass(deal)">
+                <UIcon :name="isStageOverdue(deal) ? 'i-lucide-triangle-alert' : 'i-lucide-clock'" class="size-3.5" />
+                {{ stageAgeLabel(deal) }}
+              </span>
+              <span v-if="dealReasonName(deal)" class="text-muted">· {{ dealReasonName(deal) }}</span>
+            </div>
+            <div v-if="dealCategories(deal).length" class="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
+              <UIcon name="i-lucide-tag" class="size-3 shrink-0" />
+              <span class="truncate">{{ dealCategories(deal).join(" · ") }}</span>
+            </div>
+            <p v-if="lastNote(deal.id)" class="mt-2 line-clamp-2 border-s-2 border-default ps-2 text-xs text-toned">
+              {{ lastNote(deal.id) }}
+            </p>
+            <div class="mt-3 flex items-center justify-between gap-2 text-xs">
+              <div class="flex min-w-0 items-center gap-1.5 text-muted">
+                <UAvatar
+                  :text="deal.assigned_to ? assigneeInitial(deal.assigned_to) : undefined"
+                  :icon="deal.assigned_to ? undefined : 'i-lucide-user-round'"
+                  size="2xs"
+                />
+                <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
+              </div>
+              <a
+                v-if="toWhatsAppLink(dealContactPhone(deal))"
+                :href="toWhatsAppLink(dealContactPhone(deal))!"
+                target="_blank"
+                rel="noopener noreferrer"
+                :aria-label="t('crm.deals.chatOnWhatsApp')"
+                class="flex size-9 shrink-0 items-center justify-center text-[#25D366]"
+                @click.stop
+              >
+                <UIcon name="i-simple-icons-whatsapp" class="size-5" />
+              </a>
+            </div>
+            <UProgress
+              :model-value="stageAgeDays(deal)"
+              :max="STAGE_AGE_CAP_DAYS"
+              :color="stageAgeColor(deal)"
+              size="xs"
+              class="absolute inset-x-0 bottom-0"
+            />
+          </div>
+          <p v-if="!pagedListDeals.length" class="py-10 text-center text-sm text-muted">
+            {{ t("crm.deals.noDealsInStage") }}
+          </p>
+        </div>
+
+        <div v-if="canAssign && selectedCount > 0" class="mb-3 hidden items-center gap-3 md:flex">
           <span class="text-sm text-muted">{{ t("crm.deals.selectedCount", { count: selectedCount }) }}</span>
           <UButton
             icon="i-lucide-user-check"
@@ -1029,13 +1130,14 @@ function openDeal(deal: Deal) {
         </div>
         <UTable
           ref="dealsTable"
+          class="hidden md:block"
           v-model:row-selection="rowSelection"
           v-model:sorting="sorting"
           v-model:pagination="pagination"
           :data="listDeals"
           :columns="listColumns"
           :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
-          class="[&_tbody_tr]:cursor-pointer"
+          :ui="{ root: '[&_tbody_tr]:cursor-pointer' }"
           @select="(_e, row) => openDeal(row.original)"
         >
           <template #stage-cell="{ row }">
@@ -1143,7 +1245,7 @@ function openDeal(deal: Deal) {
             <span class="line-clamp-2 max-w-64 text-muted">{{ lastNote(row.original.id) ?? "—" }}</span>
           </template>
         </UTable>
-        <div class="flex items-center justify-between border-t border-default pt-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-default pt-3">
           <span class="text-sm text-muted">
             {{ t("crm.deals.totalRows", { count: listDeals.length }) }}
           </span>
@@ -1151,6 +1253,7 @@ function openDeal(deal: Deal) {
             :page="pagination.pageIndex + 1"
             :items-per-page="pagination.pageSize"
             :total="listDeals.length"
+            :sibling-count="1"
             @update:page="(p: number) => (pagination.pageIndex = p - 1)"
           />
         </div>
@@ -1333,4 +1436,48 @@ function openDeal(deal: Deal) {
       </div>
     </template>
   </UModal>
+
+  <USlideover v-model:open="filtersOpen" side="bottom" :title="t('crm.deals.filters')">
+    <template #body>
+      <div class="space-y-4 pb-[env(safe-area-inset-bottom)]">
+        <UFormField :label="t('crm.deals.assignedTo')">
+          <USelectMenu
+            v-model="assigneeFilter"
+            :items="assigneeFilterOptions"
+            value-key="value"
+            icon="i-lucide-user"
+            searchable
+            class="w-full"
+          />
+        </UFormField>
+        <UFormField :label="t('crm.deals.stage')">
+          <USelectMenu
+            v-model="stageFilter"
+            :items="stageFilterOptions"
+            value-key="value"
+            icon="i-lucide-git-branch"
+            class="w-full"
+          />
+        </UFormField>
+        <div class="grid grid-cols-2 gap-3">
+          <UFormField :label="t('crm.deals.createdFrom')">
+            <UInput v-model="dateFrom" type="date" class="w-full" />
+          </UFormField>
+          <UFormField :label="t('crm.deals.createdTo')">
+            <UInput v-model="dateTo" type="date" class="w-full" />
+          </UFormField>
+        </div>
+        <div class="flex gap-2">
+          <UButton
+            color="neutral"
+            variant="outline"
+            :label="t('crm.deals.clearFilters')"
+            class="flex-1 justify-center"
+            @click="clearFilters"
+          />
+          <UButton :label="t('common.done')" class="flex-1 justify-center" @click="filtersOpen = false" />
+        </div>
+      </div>
+    </template>
+  </USlideover>
 </template>

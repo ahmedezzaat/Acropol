@@ -95,7 +95,8 @@
     "status": "Status",
     "details": "Details",
     "active": "Active",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "done": "Done"
   },
   "nav": {
     "appName": "Acropol",
@@ -556,7 +557,9 @@
           "automationActor": "Automation"
         }
       },
-      "reassignTitle": "Reassign deal"
+      "reassignTitle": "Reassign deal",
+      "filters": "Filters",
+      "callContact": "Call"
     },
     "quotes": {
       "title": "Quotes",

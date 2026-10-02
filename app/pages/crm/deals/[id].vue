@@ -1116,7 +1116,18 @@ function isPastDue(iso: string | null) {
               </div>
             </dl>
 
+            <!-- Big tap targets on a phone: the quick actions share the row
+            equally, and stay compact from sm up. -->
             <div class="mt-4 flex flex-wrap items-center gap-2">
+              <UButton
+                v-if="contactPhone"
+                :to="`tel:${contactPhone}`"
+                icon="i-lucide-phone"
+                :label="t('crm.deals.callContact')"
+                color="neutral"
+                variant="outline"
+                class="min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
+              />
               <UButton
                 v-if="toWhatsAppLink(contactPhone)"
                 :to="toWhatsAppLink(contactPhone)!"
@@ -1126,6 +1137,7 @@ function isPastDue(iso: string | null) {
                 :label="t('crm.deals.chatOnWhatsApp')"
                 color="neutral"
                 variant="outline"
+                class="min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
               />
               <UButton
                 v-if="canEdit"
@@ -1133,6 +1145,7 @@ function isPastDue(iso: string | null) {
                 :label="t('crm.deals.timeline.scheduleActivityButton')"
                 color="neutral"
                 variant="outline"
+                class="min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
                 :disabled="upcomingActivities.length > 0"
                 @click="openScheduleModal"
               />
@@ -1141,13 +1154,13 @@ function isPastDue(iso: string | null) {
 
           <!-- Pipeline stepper -->
           <UPageCard>
-            <div class="flex overflow-x-auto">
+            <div class="grid grid-cols-2 gap-1.5 sm:flex sm:gap-0 sm:overflow-x-auto">
               <button
                 v-for="(stage, index) in openStages"
                 :key="stage.id"
                 type="button"
                 :disabled="!canEdit || changingStage"
-                class="min-w-24 flex-1 border px-3 py-2 text-center text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 [&:not(:first-child)]:-ms-px"
+                class="min-h-11 border px-3 py-2 text-center text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-0 sm:min-w-24 sm:flex-1 sm:[&:not(:first-child)]:-ms-px"
                 :class="stepClass(index)"
                 :aria-current="index === currentOpenIndex ? 'step' : undefined"
                 @click="selectStage(stage.id)"
@@ -1164,7 +1177,7 @@ function isPastDue(iso: string | null) {
                 :color="closeColor(stage)"
                 :variant="stage.id === deal.stage_id ? 'solid' : 'outline'"
                 :disabled="!canEdit || changingStage"
-                size="xs"
+                size="sm"
                 @click="selectStage(stage.id)"
               />
             </div>
@@ -1250,7 +1263,7 @@ function isPastDue(iso: string | null) {
             <UTimeline v-else :items="filteredTimelineItems" size="sm">
               <template #activity-wrapper="{ item }">
                 <div class="space-y-1">
-                  <p class="text-xs text-muted">{{ item.actor }} · {{ item.date }}</p>
+                  <p class="text-xs text-muted"><bdi>{{ item.actor }}</bdi> · <bdi>{{ item.date }}</bdi></p>
                   <p class="font-medium text-highlighted">{{ item.title }}</p>
                   <p v-if="item.description" class="text-sm text-muted">{{ item.description }}</p>
                   <div class="flex items-center gap-2">
@@ -1283,7 +1296,7 @@ function isPastDue(iso: string | null) {
               <p class="font-medium text-highlighted">{{ customer.name }}</p>
               <p v-if="customer.company" class="text-muted">{{ customer.company }}</p>
               <p v-if="customer.phone" class="flex items-center gap-1.5 text-muted">
-                {{ customer.phone }}
+                <a :href="`tel:${customer.phone}`" dir="ltr" class="hover:underline">{{ customer.phone }}</a>
                 <a
                   v-if="toWhatsAppLink(customer.phone)"
                   :href="toWhatsAppLink(customer.phone)!"
@@ -1320,7 +1333,7 @@ function isPastDue(iso: string | null) {
               </p>
               <p v-if="leadContact.lead_type === 'company'" class="text-muted">{{ leadContact.name }}</p>
               <p v-if="leadContact.phone" class="flex items-center gap-1.5 text-muted">
-                {{ leadContact.phone }}
+                <a :href="`tel:${leadContact.phone}`" dir="ltr" class="hover:underline">{{ leadContact.phone }}</a>
                 <a
                   v-if="toWhatsAppLink(leadContact.phone)"
                   :href="toWhatsAppLink(leadContact.phone)!"
