@@ -1,28 +1,74 @@
 {
   "pages": {
-    "index": { "title": "@:home.title" },
-    "login": { "title": "@:auth.login.title" },
-    "403": { "title": "@:forbidden.title" },
-    "crm": { "title": "@:modules.crm.label" },
-    "admin": { "title": "@:nav.settings" },
-    "crm-dashboard": { "title": "@:crm.dashboard.title" },
-    "crm-calendar": { "title": "@:crm.calendar.title" },
-    "crm-leads": { "title": "@:crm.leads.title" },
-    "crm-leads-id": { "title": "@:crm.leads.title" },
-    "crm-deals": { "title": "@:crm.deals.title" },
-    "crm-deals-id": { "title": "@:crm.deals.title" },
-    "crm-quotes": { "title": "@:crm.quotes.title" },
-    "crm-quotes-id": { "title": "@:crm.quotes.title" },
-    "crm-customers": { "title": "@:crm.customers.title" },
-    "crm-customers-id": { "title": "@:crm.customers.title" },
-    "admin-users": { "title": "@:admin.users.title" },
-    "admin-roles": { "title": "@:admin.roles.title" },
-    "admin-roles-id": { "title": "@:admin.roles.title" },
-    "admin-pipelines": { "title": "@:admin.pipelines.title" },
-    "admin-pipelines-id": { "title": "@:admin.pipelines.title" },
-    "admin-activity-types": { "title": "@:admin.activityTypes.title" },
-    "admin-teams": { "title": "@:admin.teams.title" },
-    "admin-teams-id": { "title": "@:admin.teams.title" }
+    "index": {
+      "title": "@:home.title"
+    },
+    "login": {
+      "title": "@:auth.login.title"
+    },
+    "403": {
+      "title": "@:forbidden.title"
+    },
+    "crm": {
+      "title": "@:modules.crm.label"
+    },
+    "admin": {
+      "title": "@:nav.settings"
+    },
+    "crm-dashboard": {
+      "title": "@:crm.dashboard.title"
+    },
+    "crm-calendar": {
+      "title": "@:crm.calendar.title"
+    },
+    "crm-leads": {
+      "title": "@:crm.leads.title"
+    },
+    "crm-leads-id": {
+      "title": "@:crm.leads.title"
+    },
+    "crm-deals": {
+      "title": "@:crm.deals.title"
+    },
+    "crm-deals-id": {
+      "title": "@:crm.deals.title"
+    },
+    "crm-quotes": {
+      "title": "@:crm.quotes.title"
+    },
+    "crm-quotes-id": {
+      "title": "@:crm.quotes.title"
+    },
+    "crm-customers": {
+      "title": "@:crm.customers.title"
+    },
+    "crm-customers-id": {
+      "title": "@:crm.customers.title"
+    },
+    "admin-users": {
+      "title": "@:admin.users.title"
+    },
+    "admin-roles": {
+      "title": "@:admin.roles.title"
+    },
+    "admin-roles-id": {
+      "title": "@:admin.roles.title"
+    },
+    "admin-pipelines": {
+      "title": "@:admin.pipelines.title"
+    },
+    "admin-pipelines-id": {
+      "title": "@:admin.pipelines.title"
+    },
+    "admin-activity-types": {
+      "title": "@:admin.activityTypes.title"
+    },
+    "admin-teams": {
+      "title": "@:admin.teams.title"
+    },
+    "admin-teams-id": {
+      "title": "@:admin.teams.title"
+    }
   },
   "validation": {
     "required": "This field is required",
@@ -75,15 +121,31 @@
     },
     "crm_deals": {
       "label": "Deals",
-      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete", "assign": "Assign deals", "view_all": "View all deals" }
+      "actions": {
+        "create": "Create",
+        "edit": "Edit",
+        "delete": "Delete",
+        "assign": "Assign deals",
+        "view_all": "View all deals"
+      }
     },
     "crm_quotes": {
       "label": "Quotes",
-      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete" }
+      "actions": {
+        "create": "Create",
+        "edit": "Edit",
+        "delete": "Delete"
+      }
     },
     "crm_customers": {
       "label": "Customers",
-      "actions": { "create": "Create", "edit": "Edit", "delete": "Delete", "assign": "Assign customers", "view_all": "View all customers" }
+      "actions": {
+        "create": "Create",
+        "edit": "Edit",
+        "delete": "Delete",
+        "assign": "Assign customers",
+        "view_all": "View all customers"
+      }
     }
   },
   "auth": {
@@ -239,6 +301,50 @@
       "membersSaved": "Members saved",
       "saveMembersFailed": "Failed to save members",
       "memberOfOtherTeam": "Currently a member of another team"
+    },
+    "automation": {
+      "title": "Automation Rules",
+      "description": "Rules that run automatically on deals. Each rule watches one stage of one pipeline and, once a deal has stayed in it for the set number of hours, unassigns the deal so it returns to the pool.",
+      "noRules": "No automation rules yet.",
+      "addRule": "Add rule",
+      "newRuleDefault": "New rule",
+      "unnamedRule": "Unnamed rule",
+      "ruleName": "Rule name",
+      "active": "Active",
+      "when": {
+        "pipeline": "When a deal is in pipeline",
+        "stage": "At stage",
+        "pickStage": "Select a stage",
+        "afterHours": "Stay time (hours)"
+      },
+      "summary": "When a deal stays in {pipeline} › {stage} for {duration}, then:",
+      "actionUnassign": "Unassign deal",
+      "daysShort": "d",
+      "hoursShort": "h",
+      "conflictsTitle": "Conflicts — fix these before saving",
+      "warningsTitle": "Heads up",
+      "conflicts": {
+        "incomplete": "“{rule}” needs a stage and a stay time of at least 1 hour.",
+        "beforeLimit": "“{rule}” unassigns deals after {hours}h, before the stage “{stage}” stay limit of {limit}h — the overdue alert will never appear for that stage.",
+        "unreachable": "“{blocked}” can never run: “{by}” ({hours}h) already acts first on the same deals. Make one rule more specific with an earlier time, or deactivate one."
+      },
+      "saved": "Saved",
+      "saveFailed": "Failed to save",
+      "runNow": "Run now",
+      "runResult": "{count} deal(s) unassigned",
+      "runFailed": "Failed to run the rules",
+      "howItWorks": "Rules are checked automatically every 10 minutes. The clock starts when the deal entered the stage, or when someone last assigned it — whichever is later — so reassigning a deal gives it a fresh window. Deals that are already unassigned are skipped. Unassigning a deal also unassigns its lead, the same as any reassignment. Closed stages (Won, Competitor, Archive) can't have rules. A note counts only if it was written by the currently assigned user after that clock started; the comment written when moving a deal between stages doesn't count.",
+      "noteCondition": "Note condition",
+      "conditions": {
+        "any": "Regardless of notes",
+        "no_note": "Assigned user has NOT written a note",
+        "has_note": "Assigned user HAS written a note"
+      },
+      "noteClause": {
+        "no_note": "the assigned user has not written a note",
+        "has_note": "the assigned user has written a note"
+      },
+      "summaryWithNote": "When a deal stays in {pipeline} › {stage} for {duration} and {note}, then:"
     }
   },
   "crm": {
@@ -394,6 +500,7 @@
       "timeInStage": "Time in stage",
       "stageAgeHours": "{count}h in stage",
       "stageAgeDays": "{count}d in stage",
+      "closeAs": "Close deal as",
       "stageOverdue": "This deal has stayed in this stage longer than expected",
       "totalRows": "{count} deal(s)",
       "clearFilters": "Clear",
@@ -422,6 +529,13 @@
         "scheduledAt": "Scheduled for",
         "scheduledDate": "Date",
         "scheduledTime": "Time",
+        "overdueLabel": "Overdue",
+        "filter": {
+          "all": "All",
+          "notes": "Notes",
+          "activities": "Activities",
+          "system": "System"
+        },
         "upcomingTitle": "Upcoming",
         "noUpcoming": "No scheduled actions.",
         "markComplete": "Mark complete",
@@ -437,9 +551,12 @@
           "created": "Deal created",
           "stageChanged": "Stage moved from {from} to {to}",
           "assignedTo": "Assigned to {to}",
-          "unassigned": "Unassigned"
+          "unassigned": "Unassigned",
+          "unassignedByRule": "Automatically unassigned by rule “{rule}”",
+          "automationActor": "Automation"
         }
-      }
+      },
+      "reassignTitle": "Reassign deal"
     },
     "quotes": {
       "title": "Quotes",

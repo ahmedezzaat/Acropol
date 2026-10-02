@@ -200,10 +200,16 @@ function stageAgeLabel(deal: Deal) {
   }
   return t("crm.deals.stageAgeDays", { count: Math.round(days) });
 }
+function stageAgeTextClass(deal: Deal) {
+  return { success: "text-success", warning: "text-warning", error: "text-error" }[stageAgeColor(deal)];
+}
 function stageAgeRatio(deal: Deal) {
   return Math.min(stageAgeDays(deal) / STAGE_AGE_CAP_DAYS, 1) * 100;
 }
 function stageAgeColor(deal: Deal): "success" | "warning" | "error" {
+  // Past the stage's configured limit always reads as an error, whatever
+  // the raw age — the bar, the label and the alert icon should agree.
+  if (isStageOverdue(deal)) return "error";
   const days = stageAgeDays(deal);
   if (days < 3) return "success";
   if (days < 7) return "warning";
@@ -306,8 +312,11 @@ const filterableProfiles = computed(() => {
   return (profiles.value ?? []).filter((p) => p.id === currentUserId.value);
 });
 
+// Sentinel for the "Unassigned" choice — null already means "no filter".
+const UNASSIGNED = "__unassigned__";
 const assigneeFilterOptions = computed(() => [
   { label: t("common.all"), value: null },
+  { label: t("common.unassigned"), value: UNASSIGNED },
   ...filterableProfiles.value.map((p) => ({ label: p.full_name || p.email, value: p.id })),
 ]);
 // Defaults to the logged-in user, but user.value can still be hydrating
@@ -359,7 +368,9 @@ const visibleStages = computed(() =>
 );
 
 function matchesFilters(deal: Deal) {
-  if (assigneeFilter.value !== null && deal.assigned_to !== assigneeFilter.value) return false;
+  if (assigneeFilter.value === UNASSIGNED) {
+    if (deal.assigned_to !== null) return false;
+  } else if (assigneeFilter.value !== null && deal.assigned_to !== assigneeFilter.value) return false;
   if (stageFilter.value !== null && deal.stage_id !== stageFilter.value) return false;
   if (dateFrom.value && deal.created_at < dateFrom.value) return false;
   if (dateTo.value && deal.created_at.slice(0, 10) > dateTo.value) return false;
@@ -928,53 +939,35 @@ function openDeal(deal: Deal) {
             <div
               v-for="deal in dealsForStage(stage.id)"
               :key="deal.id"
-              class="group cursor-pointer border border-default bg-default p-3 text-sm transition-colors hover:border-primary hover:bg-elevated"
+              class="group relative cursor-pointer overflow-hidden border border-default bg-default p-3 pb-4 text-sm transition-colors hover:border-primary hover:bg-elevated"
+              :class="isStageOverdue(deal) && 'border-s-4 border-s-error'"
               @click="openDeal(deal)"
             >
               <div class="flex items-start justify-between gap-2">
-                <span class="truncate font-medium text-highlighted">{{ dealContactName(deal) }}</span>
-                <a
-                  v-if="toWhatsAppLink(dealContactPhone(deal))"
-                  :href="toWhatsAppLink(dealContactPhone(deal))!"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  :aria-label="t('crm.deals.chatOnWhatsApp')"
-                  class="shrink-0 text-[#25D366] opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-80"
-                  @click.stop
-                >
-                  <UIcon name="i-simple-icons-whatsapp" class="size-4" />
-                </a>
-              </div>
-              <div v-if="deal.value || dealCategories(deal).length" class="mt-1.5 flex flex-wrap items-center gap-1">
-                <UBadge v-if="deal.value" :label="formatCurrency(deal.value)!" size="sm" variant="subtle" color="success" class="cds-tag" />
-                <UBadge
-                  v-for="cat in dealCategories(deal)"
-                  :key="cat"
-                  :label="cat"
-                  size="sm"
-                  variant="subtle"
-                  color="neutral"
-                  class="cds-tag"
-                />
-              </div>
-              <div class="mt-2">
-                <UProgress :model-value="stageAgeDays(deal)" :max="STAGE_AGE_CAP_DAYS" :color="stageAgeColor(deal)" size="xs" />
-                <span class="mt-0.5 flex items-center gap-1 text-xs text-muted">
-                  {{ stageAgeLabel(deal) }}
-                  <UIcon
-                    v-if="isStageOverdue(deal)"
-                    name="i-lucide-triangle-alert"
-                    :title="t('crm.deals.stageOverdue')"
-                    class="size-3.5 text-error"
-                  />
+                <span class="truncate text-[15px] font-semibold text-highlighted">{{ dealContactName(deal) }}</span>
+                <span v-if="deal.value" class="shrink-0 font-semibold text-success">
+                  {{ formatCurrency(deal.value) }}
                 </span>
               </div>
-              <div v-if="lastNote(deal.id)" class="mt-1.5 flex items-start gap-1 text-xs text-muted italic">
-                <UIcon name="i-lucide-sticky-note" class="mt-0.5 size-3 shrink-0" />
-                <span class="line-clamp-1">{{ lastNote(deal.id) }}</span>
+              <div class="mt-1 flex items-center justify-between gap-2 text-xs">
+                <div v-if="dealCategories(deal).length" class="flex min-w-0 items-center gap-1.5 text-muted">
+                  <UIcon name="i-lucide-tag" class="size-3 shrink-0" />
+                  <span class="truncate">{{ dealCategories(deal).join(" · ") }}</span>
+                </div>
+                <span
+                  class="ms-auto flex shrink-0 items-center gap-1"
+                  :class="stageAgeTextClass(deal)"
+                  :title="isStageOverdue(deal) ? t('crm.deals.stageOverdue') : undefined"
+                >
+                  <UIcon :name="isStageOverdue(deal) ? 'i-lucide-triangle-alert' : 'i-lucide-clock'" class="size-3.5" />
+                  {{ stageAgeLabel(deal) }}
+                </span>
               </div>
-              <div class="mt-2.5 flex items-center justify-between gap-2 border-t border-default pt-2">
-                <div class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+              <p v-if="lastNote(deal.id)" class="mt-2 line-clamp-2 border-s-2 border-default ps-2 text-xs text-toned">
+                {{ lastNote(deal.id) }}
+              </p>
+              <div class="mt-3 flex items-center justify-between gap-2 text-xs">
+                <div class="flex min-w-0 items-center gap-1.5 text-muted">
                   <UAvatar
                     :text="deal.assigned_to ? assigneeInitial(deal.assigned_to) : undefined"
                     :icon="deal.assigned_to ? undefined : 'i-lucide-user-round'"
@@ -982,15 +975,35 @@ function openDeal(deal: Deal) {
                   />
                   <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
                 </div>
-                <UBadge
-                  v-if="dealReasonName(deal)"
-                  :label="dealReasonName(deal)!"
-                  size="sm"
-                  variant="subtle"
-                  :color="stageAccentColor(stage)"
-                  class="cds-tag shrink-0"
-                />
+                <div class="flex shrink-0 items-center gap-2">
+                  <UBadge
+                    v-if="dealReasonName(deal)"
+                    :label="dealReasonName(deal)!"
+                    size="sm"
+                    variant="subtle"
+                    :color="stageAccentColor(stage)"
+                    class="cds-tag"
+                  />
+                  <a
+                    v-if="toWhatsAppLink(dealContactPhone(deal))"
+                    :href="toWhatsAppLink(dealContactPhone(deal))!"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :aria-label="t('crm.deals.chatOnWhatsApp')"
+                    class="text-[#25D366] opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-80"
+                    @click.stop
+                  >
+                    <UIcon name="i-simple-icons-whatsapp" class="size-4" />
+                  </a>
+                </div>
               </div>
+              <UProgress
+                :model-value="stageAgeDays(deal)"
+                :max="STAGE_AGE_CAP_DAYS"
+                :color="stageAgeColor(deal)"
+                size="xs"
+                class="absolute inset-x-0 bottom-0"
+              />
             </div>
             <div
               v-if="dealsForStage(stage.id).length === 0"

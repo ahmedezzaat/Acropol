@@ -3,7 +3,7 @@ import type { NavigationMenuItem } from "@nuxt/ui";
 
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
-const { isAdmin, hasAnyModulePermission } = usePermissions();
+const { isAdmin, hasAnyModulePermission, loaded } = usePermissions();
 const { t } = useI18n();
 
 const resourceRoutes: Record<string, string> = {
@@ -13,71 +13,57 @@ const resourceRoutes: Record<string, string> = {
   crm_customers: "/crm/customers",
 };
 
-const items = computed<NavigationMenuItem[][]>(() => {
-  const moduleItems: NavigationMenuItem[] = MODULES.filter((m) =>
-    m.resources.some((r) => hasAnyModulePermission(r.key)),
-  ).map((m) => {
-    // Quotes is temporarily hidden from navigation — see crm/deals/[id].vue
-    // for the matching hide on the deal page.
-    const accessibleResources = m.resources.filter(
-      (r) => hasAnyModulePermission(r.key) && r.key !== "crm_quotes",
-    );
-    // The CRM dashboard is always offered alongside whatever resources the
-    // user has, so it always has at least one sibling — never collapse it
-    // into a single direct link the way a lone resource otherwise would.
-    const isCrm = m.key === "crm";
-    const hasChildren = isCrm || accessibleResources.length > 1;
-    const resourceChildren = accessibleResources.map((r) => ({
-      label: t(r.labelKey),
-      to: resourceRoutes[r.key],
-    }));
-    return {
-      label: t(m.labelKey),
-      icon: m.icon,
-      to: hasChildren ? undefined : m.route,
-      // CRM's children stay permanently expanded (no collapse toggle) — a
-      // "label" item type renders its children without an accordion
-      // trigger at all, unlike "trigger" which the user could click closed.
-      type: hasChildren ? (isCrm ? "label" : "trigger") : "link",
-      defaultOpen: true,
-      children: hasChildren
-        ? isCrm
-          ? [
-              { label: t("crm.dashboard.title"), to: "/crm/dashboard" },
-              ...resourceChildren,
-              ...(hasAnyModulePermission("crm_deals")
-                ? [{ label: t("crm.calendar.title"), to: "/crm/calendar" }]
-                : []),
-            ]
-          : resourceChildren
-        : undefined,
-    };
-  });
+const route = useRoute();
 
-  const groups: NavigationMenuItem[][] = [
-    [{ label: t("nav.home"), icon: "i-lucide-house", to: "/" }, ...moduleItems],
+// The sidebar is contextual: inside /crm it lists only CRM's pages, inside
+// /admin only the settings pages, and on the home hub one link per area.
+// The way back to Home is the app name in the sidebar header.
+const accessibleModules = computed(() =>
+  MODULES.filter((m) => m.resources.some((r) => hasAnyModulePermission(r.key))),
+);
+
+function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
+  // Quotes is temporarily hidden from navigation — see crm/deals/[id].vue
+  // for the matching hide on the deal page.
+  const resourceLinks = m.resources
+    .filter((r) => hasAnyModulePermission(r.key) && r.key !== "crm_quotes")
+    .map((r) => ({ label: t(r.labelKey), to: resourceRoutes[r.key] }));
+  if (m.key !== "crm") return resourceLinks;
+  return [
+    { label: t("crm.dashboard.title"), to: "/crm/dashboard" },
+    ...resourceLinks,
+    ...(hasAnyModulePermission("crm_deals") ? [{ label: t("crm.calendar.title"), to: "/crm/calendar" }] : []),
   ];
+}
 
-  if (isAdmin.value) {
-    groups.push([
-      {
-        label: t("nav.settings"),
-        icon: "i-lucide-settings",
-        type: "trigger",
-        defaultOpen: true,
-        children: [
-          { label: t("admin.users.title"), icon: "i-lucide-users", to: "/admin/users" },
-          { label: t("admin.roles.title"), icon: "i-lucide-shield", to: "/admin/roles" },
-          { label: t("admin.pipelines.title"), icon: "i-lucide-git-branch", to: "/admin/pipelines" },
-          { label: t("admin.activityTypes.title"), icon: "i-lucide-list-checks", to: "/admin/activity-types" },
-          { label: t("admin.productCategories.title"), icon: "i-lucide-tags", to: "/admin/product-categories" },
-          { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
-        ],
-      },
-    ]);
-  }
+const settingsLinks = computed<NavigationMenuItem[]>(() => [
+  { label: t("admin.users.title"), icon: "i-lucide-users", to: "/admin/users" },
+  { label: t("admin.roles.title"), icon: "i-lucide-shield", to: "/admin/roles" },
+  { label: t("admin.pipelines.title"), icon: "i-lucide-git-branch", to: "/admin/pipelines" },
+  { label: t("admin.activityTypes.title"), icon: "i-lucide-list-checks", to: "/admin/activity-types" },
+  { label: t("admin.productCategories.title"), icon: "i-lucide-tags", to: "/admin/product-categories" },
+  { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
+  { label: t("admin.automation.title"), icon: "i-lucide-zap", to: "/admin/automation" },
+]);
 
-  return groups;
+const items = computed<NavigationMenuItem[][]>(() => {
+  // Permissions load asynchronously — render nothing until they have, so the
+  // home-hub fallback below doesn't flash on a hard load of a CRM page.
+  if (!loaded.value) return [[]];
+  const path = route.path;
+
+  if (path === "/admin" || path.startsWith("/admin/")) return [settingsLinks.value];
+
+  const activeModule = accessibleModules.value.find((m) => path === m.route || path.startsWith(`${m.route}/`));
+  if (activeModule) return [moduleLinks(activeModule)];
+
+  return [
+    [
+      { label: t("nav.home"), icon: "i-lucide-house", to: "/" },
+      ...accessibleModules.value.map((m) => ({ label: t(m.labelKey), icon: m.icon, to: m.route })),
+      ...(isAdmin.value ? [{ label: t("nav.settings"), icon: "i-lucide-settings", to: "/admin" }] : []),
+    ],
+  ];
 });
 
 async function signOut() {
@@ -91,9 +77,9 @@ async function signOut() {
     <UDashboardSidebar collapsible resizable>
       <template #header="{ collapsed }">
         <div class="flex w-full items-center justify-between gap-2">
-          <span class="truncate font-semibold text-highlighted">
+          <NuxtLink to="/" class="truncate font-semibold text-highlighted">
             {{ collapsed ? t("nav.appName").charAt(0) : t("nav.appName") }}
-          </span>
+          </NuxtLink>
           <UButton
             v-if="!collapsed && hasAnyModulePermission('crm_deals')"
             icon="i-lucide-calendar"

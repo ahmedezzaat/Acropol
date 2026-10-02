@@ -1,28 +1,74 @@
 {
   "pages": {
-    "index": { "title": "@:home.title" },
-    "login": { "title": "@:auth.login.title" },
-    "403": { "title": "@:forbidden.title" },
-    "crm": { "title": "@:modules.crm.label" },
-    "admin": { "title": "@:nav.settings" },
-    "crm-dashboard": { "title": "@:crm.dashboard.title" },
-    "crm-calendar": { "title": "@:crm.calendar.title" },
-    "crm-leads": { "title": "@:crm.leads.title" },
-    "crm-leads-id": { "title": "@:crm.leads.title" },
-    "crm-deals": { "title": "@:crm.deals.title" },
-    "crm-deals-id": { "title": "@:crm.deals.title" },
-    "crm-quotes": { "title": "@:crm.quotes.title" },
-    "crm-quotes-id": { "title": "@:crm.quotes.title" },
-    "crm-customers": { "title": "@:crm.customers.title" },
-    "crm-customers-id": { "title": "@:crm.customers.title" },
-    "admin-users": { "title": "@:admin.users.title" },
-    "admin-roles": { "title": "@:admin.roles.title" },
-    "admin-roles-id": { "title": "@:admin.roles.title" },
-    "admin-pipelines": { "title": "@:admin.pipelines.title" },
-    "admin-pipelines-id": { "title": "@:admin.pipelines.title" },
-    "admin-activity-types": { "title": "@:admin.activityTypes.title" },
-    "admin-teams": { "title": "@:admin.teams.title" },
-    "admin-teams-id": { "title": "@:admin.teams.title" }
+    "index": {
+      "title": "@:home.title"
+    },
+    "login": {
+      "title": "@:auth.login.title"
+    },
+    "403": {
+      "title": "@:forbidden.title"
+    },
+    "crm": {
+      "title": "@:modules.crm.label"
+    },
+    "admin": {
+      "title": "@:nav.settings"
+    },
+    "crm-dashboard": {
+      "title": "@:crm.dashboard.title"
+    },
+    "crm-calendar": {
+      "title": "@:crm.calendar.title"
+    },
+    "crm-leads": {
+      "title": "@:crm.leads.title"
+    },
+    "crm-leads-id": {
+      "title": "@:crm.leads.title"
+    },
+    "crm-deals": {
+      "title": "@:crm.deals.title"
+    },
+    "crm-deals-id": {
+      "title": "@:crm.deals.title"
+    },
+    "crm-quotes": {
+      "title": "@:crm.quotes.title"
+    },
+    "crm-quotes-id": {
+      "title": "@:crm.quotes.title"
+    },
+    "crm-customers": {
+      "title": "@:crm.customers.title"
+    },
+    "crm-customers-id": {
+      "title": "@:crm.customers.title"
+    },
+    "admin-users": {
+      "title": "@:admin.users.title"
+    },
+    "admin-roles": {
+      "title": "@:admin.roles.title"
+    },
+    "admin-roles-id": {
+      "title": "@:admin.roles.title"
+    },
+    "admin-pipelines": {
+      "title": "@:admin.pipelines.title"
+    },
+    "admin-pipelines-id": {
+      "title": "@:admin.pipelines.title"
+    },
+    "admin-activity-types": {
+      "title": "@:admin.activityTypes.title"
+    },
+    "admin-teams": {
+      "title": "@:admin.teams.title"
+    },
+    "admin-teams-id": {
+      "title": "@:admin.teams.title"
+    }
   },
   "validation": {
     "required": "هذا الحقل مطلوب",
@@ -75,15 +121,31 @@
     },
     "crm_deals": {
       "label": "الصفقات",
-      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف", "assign": "إسناد الصفقات", "view_all": "عرض جميع الصفقات" }
+      "actions": {
+        "create": "إنشاء",
+        "edit": "تعديل",
+        "delete": "حذف",
+        "assign": "إسناد الصفقات",
+        "view_all": "عرض جميع الصفقات"
+      }
     },
     "crm_quotes": {
       "label": "عروض الأسعار",
-      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف" }
+      "actions": {
+        "create": "إنشاء",
+        "edit": "تعديل",
+        "delete": "حذف"
+      }
     },
     "crm_customers": {
       "label": "العملاء",
-      "actions": { "create": "إنشاء", "edit": "تعديل", "delete": "حذف", "assign": "إسناد العملاء", "view_all": "عرض جميع العملاء" }
+      "actions": {
+        "create": "إنشاء",
+        "edit": "تعديل",
+        "delete": "حذف",
+        "assign": "إسناد العملاء",
+        "view_all": "عرض جميع العملاء"
+      }
     }
   },
   "auth": {
@@ -239,6 +301,50 @@
       "membersSaved": "تم حفظ الأعضاء",
       "saveMembersFailed": "فشل حفظ الأعضاء",
       "memberOfOtherTeam": "عضو حاليًا في فريق آخر"
+    },
+    "automation": {
+      "title": "قواعد الأتمتة",
+      "description": "قواعد تعمل تلقائيًا على الصفقات. كل قاعدة تراقب مرحلة واحدة في مسار واحد، وعندما تبقى الصفقة فيها للعدد المحدد من الساعات يتم إلغاء إسنادها لتعود إلى المجموعة العامة.",
+      "noRules": "لا توجد قواعد أتمتة بعد.",
+      "addRule": "إضافة قاعدة",
+      "newRuleDefault": "قاعدة جديدة",
+      "unnamedRule": "قاعدة بدون اسم",
+      "ruleName": "اسم القاعدة",
+      "active": "مفعّلة",
+      "when": {
+        "pipeline": "عندما تكون الصفقة في المسار",
+        "stage": "في المرحلة",
+        "pickStage": "اختر مرحلة",
+        "afterHours": "مدة البقاء (ساعات)"
+      },
+      "summary": "عندما تبقى الصفقة في {pipeline} ‹ {stage} لمدة {duration}، فإنه:",
+      "actionUnassign": "إلغاء إسناد الصفقة",
+      "daysShort": "ي",
+      "hoursShort": "س",
+      "conflictsTitle": "تعارضات — يجب حلها قبل الحفظ",
+      "warningsTitle": "تنبيه",
+      "conflicts": {
+        "incomplete": "القاعدة «{rule}» تحتاج إلى مرحلة ومدة بقاء لا تقل عن ساعة واحدة.",
+        "beforeLimit": "القاعدة «{rule}» تلغي الإسناد بعد {hours} ساعة، أي قبل حد البقاء للمرحلة «{stage}» ({limit} ساعة) — لن يظهر تنبيه التأخير لهذه المرحلة أبدًا.",
+        "unreachable": "القاعدة «{blocked}» لن تعمل أبدًا: القاعدة «{by}» ({hours} ساعة) تعمل أولًا على نفس الصفقات. اجعل إحداهما أكثر تحديدًا بوقت أبكر، أو عطّل إحداهما."
+      },
+      "saved": "تم الحفظ",
+      "saveFailed": "فشل الحفظ",
+      "runNow": "تشغيل الآن",
+      "runResult": "تم إلغاء إسناد {count} صفقة",
+      "runFailed": "فشل تشغيل القواعد",
+      "howItWorks": "تُفحص القواعد تلقائيًا كل 10 دقائق. يبدأ العدّ من لحظة دخول الصفقة المرحلة أو آخر إسناد لها — أيهما أحدث — لذلك يمنح إعادة الإسناد الصفقة مهلة جديدة. الصفقات غير المسندة أصلًا يتم تجاهلها. إلغاء إسناد الصفقة يلغي أيضًا إسناد العميل المحتمل المرتبط بها كأي إعادة إسناد. لا يمكن إضافة قواعد على المراحل المغلقة (فوز، منافس، أرشيف). تُحتسب الملاحظة فقط إذا كتبها المستخدم المُسند حاليًا بعد بدء العدّ، ولا تُحتسب الملاحظة المكتوبة عند نقل الصفقة بين المراحل.",
+      "noteCondition": "شرط الملاحظات",
+      "conditions": {
+        "any": "بغض النظر عن الملاحظات",
+        "no_note": "المستخدم المُسند لم يكتب ملاحظة",
+        "has_note": "المستخدم المُسند كتب ملاحظة"
+      },
+      "noteClause": {
+        "no_note": "المستخدم المُسند لم يكتب ملاحظة",
+        "has_note": "المستخدم المُسند كتب ملاحظة"
+      },
+      "summaryWithNote": "عندما تبقى الصفقة في {pipeline} ‹ {stage} لمدة {duration} و{note}، فإنه:"
     }
   },
   "crm": {
@@ -394,6 +500,7 @@
       "timeInStage": "المدة في المرحلة",
       "stageAgeHours": "{count} ساعة في المرحلة",
       "stageAgeDays": "{count} يوم في المرحلة",
+      "closeAs": "إغلاق الصفقة كـ",
       "stageOverdue": "بقيت هذه الصفقة في هذه المرحلة أطول من المدة المحددة",
       "totalRows": "{count} صفقة",
       "clearFilters": "مسح",
@@ -422,6 +529,13 @@
         "scheduledAt": "موعد التنفيذ",
         "scheduledDate": "التاريخ",
         "scheduledTime": "الوقت",
+        "overdueLabel": "متأخر",
+        "filter": {
+          "all": "الكل",
+          "notes": "الملاحظات",
+          "activities": "الأنشطة",
+          "system": "النظام"
+        },
         "upcomingTitle": "المجدولة",
         "noUpcoming": "لا توجد إجراءات مجدولة.",
         "markComplete": "تحديد كمكتمل",
@@ -437,9 +551,12 @@
           "created": "تم إنشاء الصفقة",
           "stageChanged": "تم نقل المرحلة من {from} إلى {to}",
           "assignedTo": "تم الإسناد إلى {to}",
-          "unassigned": "تم إلغاء الإسناد"
+          "unassigned": "تم إلغاء الإسناد",
+          "unassignedByRule": "تم إلغاء الإسناد تلقائيًا بواسطة القاعدة «{rule}»",
+          "automationActor": "الأتمتة"
         }
-      }
+      },
+      "reassignTitle": "إعادة إسناد الصفقة"
     },
     "quotes": {
       "title": "عروض الأسعار",

@@ -13,7 +13,11 @@ const routeByResource: Record<string, string> = {
 };
 
 const crmModule = findModule("crm")!;
-const firstAccessible = crmModule.resources.find((r) => hasAnyModulePermission(r.key));
+// Deals is the CRM landing page; anyone without access to it lands on the
+// first CRM section they can open.
+const firstAccessible =
+  crmModule.resources.find((r) => r.key === "crm_deals" && hasAnyModulePermission(r.key)) ??
+  crmModule.resources.find((r) => hasAnyModulePermission(r.key));
 
 if (firstAccessible) {
   await navigateTo(routeByResource[firstAccessible.key], { replace: true });

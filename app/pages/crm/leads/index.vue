@@ -33,6 +33,9 @@ interface Profile {
 
 const search = ref("");
 const statusFilter = ref("all");
+// Sentinel for "Unassigned" — null means "no assignee filter".
+const UNASSIGNED = "__unassigned__";
+const assigneeFilter = ref<string | null>(null);
 
 const { data: leads, refresh, status: leadsStatus } = await useAsyncData<Lead[]>(
   "crm-leads",
@@ -70,6 +73,12 @@ function profileLabel(id: string | null) {
   return p?.full_name || p?.email || "?";
 }
 
+const assigneeFilterOptions = computed(() => [
+  { label: t("common.all"), value: null },
+  { label: t("common.unassigned"), value: UNASSIGNED },
+  ...(profiles.value ?? []).map((p) => ({ label: p.full_name || p.email, value: p.id })),
+]);
+
 const statusKeys = ["new", "contacted", "qualified", "converted", "lost"] as const;
 const statusOptions = computed(() => [
   { label: t("common.all"), value: "all" },
@@ -92,7 +101,10 @@ const filteredLeads = computed(() => {
       phoneMatches(lead.phone, search.value) ||
       phoneMatches(lead.phone2, search.value);
     const matchesStatus = statusFilter.value === "all" || lead.status === statusFilter.value;
-    return matchesSearch && matchesStatus;
+    const matchesAssignee =
+      assigneeFilter.value === null ||
+      (assigneeFilter.value === UNASSIGNED ? lead.assigned_to === null : lead.assigned_to === assigneeFilter.value);
+    return matchesSearch && matchesStatus && matchesAssignee;
   });
 });
 
@@ -248,7 +260,18 @@ function openLead(lead: Lead) {
           <UInput v-model="search" icon="i-lucide-search" :placeholder="t('crm.leads.searchPlaceholder')" />
         </template>
         <template #right>
-          <USelect v-model="statusFilter" :items="statusOptions" value-key="value" />
+          <div class="flex flex-wrap items-center gap-2">
+            <USelectMenu
+              v-model="assigneeFilter"
+              :items="assigneeFilterOptions"
+              value-key="value"
+              icon="i-lucide-user"
+              :placeholder="t('crm.leads.assignedTo')"
+              searchable
+              class="w-48"
+            />
+            <USelect v-model="statusFilter" :items="statusOptions" value-key="value" />
+          </div>
         </template>
       </UDashboardToolbar>
     </template>

@@ -10,7 +10,9 @@ const sections = [
   { titleKey: "admin.roles.title", icon: "i-lucide-shield", to: "/admin/roles" },
   { titleKey: "admin.pipelines.title", icon: "i-lucide-git-branch", to: "/admin/pipelines" },
   { titleKey: "admin.activityTypes.title", icon: "i-lucide-list-checks", to: "/admin/activity-types" },
+  { titleKey: "admin.productCategories.title", icon: "i-lucide-tags", to: "/admin/product-categories" },
   { titleKey: "admin.teams.title", icon: "i-lucide-users-round", to: "/admin/teams" },
+  { titleKey: "admin.automation.title", icon: "i-lucide-zap", to: "/admin/automation" },
 ];
 </script>
 

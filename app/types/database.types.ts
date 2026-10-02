@@ -592,6 +592,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      automation_rules: {
+        Row: {
+          id: string;
+          name: string;
+          stage_id: string;
+          after_hours: number;
+          action: "unassign";
+          note_condition: "any" | "no_note" | "has_note";
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          stage_id: string;
+          after_hours: number;
+          action?: "unassign";
+          note_condition?: "any" | "no_note" | "has_note";
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          stage_id?: string;
+          after_hours?: number;
+          action?: "unassign";
+          note_condition?: "any" | "no_note" | "has_note";
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       product_categories: {
         Row: {
           id: string;
@@ -719,6 +752,10 @@ export type Database = {
       has_any_module_permission: {
         Args: { p_module: string };
         Returns: boolean;
+      };
+      run_automation_rules: {
+        Args: Record<string, never>;
+        Returns: number;
       };
       leads_my_team: {
         Args: { p_profile_id: string };

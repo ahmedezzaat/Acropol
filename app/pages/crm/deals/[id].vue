@@ -77,6 +77,8 @@ interface Stage {
   is_closed: boolean;
   reason_category: "archive" | "competitor" | null;
   system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
+  max_stay_days: number | null;
+  max_stay_hours: number | null;
 }
 
 interface Reason {
@@ -121,7 +123,7 @@ const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deal-pipelines",
 const { data: allStages } = await useAsyncData<Stage[]>("crm-deal-stages", async () => {
   const { data, error } = await supabase
     .from("pipeline_stages")
-    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key")
+    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key, max_stay_days, max_stay_hours")
     .order("sort_order");
   if (error) throw error;
   return data ?? [];
@@ -343,7 +345,8 @@ async function save() {
     value: deal.value.value,
     expected_close_date: deal.value.expected_close_date,
   };
-  if (canAssign.value) payload.assigned_to = deal.value.assigned_to;
+  // The assignee is changed only through the reassign modal below, which
+  // also asks for the stage and history visibility.
 
   const { error } = await supabase.from("deals").update(payload).eq("id", dealId);
   saving.value = false;
@@ -391,6 +394,89 @@ async function createQuote() {
 // note (why the stage is moving) — except Won, Bought from competitor, and
 // Archive, which already require enough context of their own (value+date,
 // or a reason) — plus a reason select when the target stage demands one.
+// --- Reassign ---
+// Picking a different assignee opens this modal instead of saving straight
+// away (same flow as reassigning from the deals table): it also asks for the
+// deal's stage — the current one or a new one — and whether the past history
+// stays visible. "Hide" stamps history_hidden_before so everything up to now
+// drops out of the timeline for anyone without crm_deals view_all (enforced
+// by RLS); view_all always sees the full history and nothing is deleted.
+const reassignOpen = ref(false);
+const reassigning = ref(false);
+const reassignTarget = ref<string | null>(null);
+const reassignStageId = ref<string | null>(null);
+const reassignReasonId = ref<string | null>(null);
+const reassignHideHistory = ref(false);
+
+const reassignStage = computed(() => allStages.value?.find((s) => s.id === reassignStageId.value));
+const reassignReasonOptions = computed(() =>
+  (allReasons.value ?? [])
+    .filter((r) => r.pipeline_id === deal.value?.pipeline_id && r.category === reassignStage.value?.reason_category)
+    .map((r) => ({ label: r.name, value: r.id })),
+);
+const reassignValid = computed(
+  () => !!reassignStageId.value && (!reassignStage.value?.reason_category || !!reassignReasonId.value),
+);
+
+// Moving to another stage invalidates the reason picked for the old one;
+// going back to the current stage restores the deal's own reason.
+watch(reassignStageId, (stageId) => {
+  if (!reassignOpen.value) return;
+  reassignReasonId.value = stageId === deal.value?.stage_id ? (deal.value?.stage_reason_id ?? null) : null;
+});
+
+function openReassign(assigneeId: string | null) {
+  if (!deal.value || !canAssign.value || assigneeId === deal.value.assigned_to) return;
+  reassignTarget.value = assigneeId;
+  reassignStageId.value = deal.value.stage_id;
+  reassignReasonId.value = deal.value.stage_reason_id;
+  reassignHideHistory.value = false;
+  reassignOpen.value = true;
+}
+
+async function confirmReassign() {
+  if (!deal.value || !reassignValid.value) return;
+  reassigning.value = true;
+
+  const reasonId = reassignStage.value?.reason_category ? reassignReasonId.value : null;
+  const updates: Record<string, unknown> = {
+    assigned_to: reassignTarget.value,
+    stage_id: reassignStageId.value,
+    stage_reason_id: reasonId,
+  };
+  if (reassignHideHistory.value) updates.history_hidden_before = new Date().toISOString();
+
+  if (reassignStage.value?.system_key === "won" && !deal.value.customer_id) {
+    const { customerId, error: conversionError } = await resolveWonCustomerId(supabase, deal.value.lead_id);
+    if (conversionError || !customerId) {
+      reassigning.value = false;
+      const description = conversionError === "no_lead" ? t("crm.deals.noLeadForConversion") : conversionError;
+      toast.add({ title: t("crm.deals.reassignFailed"), description: description ?? undefined, color: "error" });
+      return;
+    }
+    updates.customer_id = customerId;
+  }
+
+  const { error } = await supabase.from("deals").update(updates).eq("id", dealId);
+  reassigning.value = false;
+
+  if (error) {
+    toast.add({ title: t("crm.deals.reassignFailed"), description: error.message, color: "error" });
+    return;
+  }
+
+  deal.value.assigned_to = reassignTarget.value;
+  deal.value.stage_id = reassignStageId.value!;
+  deal.value.stage_reason_id = reasonId;
+  if (updates.customer_id) {
+    deal.value.customer_id = updates.customer_id as string;
+    refreshCustomer();
+  }
+  toast.add({ title: t("crm.deals.reassigned"), color: "success" });
+  reassignOpen.value = false;
+  refreshActivities();
+}
+
 const stageChangeModalOpen = ref(false);
 const pendingStageId = ref<string | null>(null);
 const pendingReasonId = ref<string | null>(null);
@@ -494,10 +580,13 @@ async function confirmStageChange() {
   // competitor/archive (see noteRequired), but still recorded whenever one
   // is provided on those too.
   if (pendingNote.value.trim()) {
+    // Tagged so automation rules ("assignee wrote a note") don't count this
+    // hand-over comment as follow-up work.
     await supabase.from("deal_activities").insert({
       deal_id: dealId,
       type: "note",
       content: pendingNote.value.trim(),
+      metadata: { stage_change: true },
     });
   }
   changingStage.value = false;
@@ -847,6 +936,11 @@ function activityTitle(activity: Activity) {
         to: stageName(activity.metadata.to_stage_id as string),
       });
     case "assigned":
+      if (activity.metadata.automation_rule_id) {
+        return t("crm.deals.timeline.events.unassignedByRule", {
+          rule: (activity.metadata.automation_rule_name as string) ?? "",
+        });
+      }
       return activity.metadata.to
         ? t("crm.deals.timeline.events.assignedTo", { to: profileLabel(activity.metadata.to as string) })
         : t("crm.deals.timeline.events.unassigned");
@@ -861,11 +955,86 @@ const timelineItems = computed<TimelineItem[]>(() =>
     title: activityTitle(a),
     description: manualTypeKeys.value.has(a.type) ? (a.content ?? undefined) : undefined,
     icon: activityIcon(a.type),
-    actor: profileLabel(a.created_by),
+    actor: a.metadata?.automation_rule_id ? t("crm.deals.timeline.events.automationActor") : profileLabel(a.created_by),
     slot: "activity",
     _raw: a,
   })),
 );
+
+// --- Header summary, pipeline stepper and timeline filter -----------------
+const contactName = computed(() => {
+  if (customer.value) return customer.value.name;
+  const l = leadContact.value;
+  if (!l) return "—";
+  return l.lead_type === "company" && l.company_name ? l.company_name : l.name;
+});
+const contactPhone = computed(() => customer.value?.phone ?? leadContact.value?.phone ?? null);
+const dealCategoryList = computed(() => (deal.value?.title ? deal.value.title.split(/[،,]\s*/).filter(Boolean) : []));
+
+function formatMoney(value: number | null | undefined) {
+  if (!value) return null;
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 0 })} ${t("common.currency")}`;
+}
+
+const allActivities = computed(() => (activities.value ?? []) as Activity[]);
+
+// A deal entered its current stage at its most recent stage_changed event, or
+// when it was created if it has never moved.
+const stageEnteredAt = computed(() => {
+  const changes = allActivities.value.filter((a) => a.type === "stage_changed");
+  const latest = changes.map((a) => a.created_at).sort().at(-1);
+  return latest ?? deal.value?.created_at ?? null;
+});
+const daysInStage = computed(() =>
+  stageEnteredAt.value ? Math.max(0, Date.now() - new Date(stageEnteredAt.value).getTime()) / 86400000 : 0,
+);
+const daysInStageLabel = computed(() =>
+  daysInStage.value < 1
+    ? t("crm.deals.stageAgeHours", { count: Math.max(1, Math.round(daysInStage.value * 24)) })
+    : t("crm.deals.stageAgeDays", { count: Math.round(daysInStage.value) }),
+);
+const stageOverdue = computed(() => {
+  const s = currentStage.value;
+  if (!s || (s.max_stay_days == null && s.max_stay_hours == null)) return false;
+  return daysInStage.value > (s.max_stay_days ?? 0) + (s.max_stay_hours ?? 0) / 24;
+});
+
+// Open stages form the stepper; closed ones (won / lost / archive) are
+// offered separately as ways to close the deal.
+const openStages = computed(() => pipelineStages.value.filter((s) => !s.is_closed));
+const closedStages = computed(() => pipelineStages.value.filter((s) => s.is_closed));
+const currentOpenIndex = computed(() => openStages.value.findIndex((s) => s.id === deal.value?.stage_id));
+function stepClass(index: number) {
+  if (index === currentOpenIndex.value) return "border-primary bg-primary font-semibold text-inverted";
+  // A closed deal has been through every open stage.
+  if (currentOpenIndex.value === -1 || index < currentOpenIndex.value)
+    return "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20";
+  return "border-default bg-default text-muted hover:bg-elevated";
+}
+function closeColor(stage: Stage): "success" | "error" | "neutral" {
+  if (stage.system_key === "won") return "success";
+  if (stage.reason_category === "competitor") return "error";
+  return "neutral";
+}
+
+type TimelineFilter = "all" | "notes" | "activities" | "system";
+const timelineFilter = ref<TimelineFilter>("all");
+function filterMatches(type: Activity["type"], filter: TimelineFilter) {
+  if (filter === "all") return true;
+  if (filter === "notes") return type === "note";
+  if (filter === "system") return ["created", "stage_changed", "assigned"].includes(type);
+  return type !== "note" && manualTypeKeys.value.has(type);
+}
+const timelineTabs = computed(() =>
+  (["all", "notes", "activities", "system"] as const).map((value) => ({
+    value,
+    label: `${t(`crm.deals.timeline.filter.${value}`)} (${allActivities.value.filter((a) => filterMatches(a.type, value)).length})`,
+  })),
+);
+const filteredTimelineItems = computed(() => timelineItems.value.filter((i) => filterMatches(i._raw.type, timelineFilter.value)));
+function isPastDue(iso: string | null) {
+  return !!iso && new Date(iso).getTime() < Date.now();
+}
 </script>
 
 <template>
@@ -889,17 +1058,113 @@ const timelineItems = computed<TimelineItem[]>(() =>
       <div v-else-if="deal" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <!-- Main column -->
         <div class="space-y-6 lg:col-span-2">
-          <!-- Stage stepper -->
+          <!-- Deal summary -->
           <UPageCard>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0">
+                <h2 class="truncate text-xl font-semibold text-highlighted">{{ contactName }}</h2>
+                <div v-if="dealCategoryList.length" class="mt-1.5 flex flex-wrap gap-1.5">
+                  <UBadge
+                    v-for="cat in dealCategoryList"
+                    :key="cat"
+                    :label="cat"
+                    color="neutral"
+                    variant="subtle"
+                    size="sm"
+                    class="cds-tag"
+                  />
+                </div>
+              </div>
+              <div class="text-end">
+                <div class="text-2xl font-semibold" :class="deal.value ? 'text-success' : 'text-dimmed'">
+                  {{ formatMoney(deal.value) ?? "—" }}
+                </div>
+                <div class="text-xs text-muted">{{ t("crm.deals.value") }}</div>
+              </div>
+            </div>
+
+            <dl class="mt-4 grid grid-cols-2 gap-4 border-t border-default pt-4 sm:grid-cols-4">
+              <div>
+                <dt class="text-xs text-muted">{{ t("crm.deals.assignedTo") }}</dt>
+                <dd class="mt-1 flex items-center gap-1.5 text-sm font-medium text-highlighted">
+                  <UAvatar
+                    :text="deal.assigned_to ? profileLabel(deal.assigned_to).charAt(0).toUpperCase() : undefined"
+                    :icon="deal.assigned_to ? undefined : 'i-lucide-user-round'"
+                    size="2xs"
+                  />
+                  <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
+                </dd>
+              </div>
+              <div>
+                <dt class="text-xs text-muted">{{ t("crm.deals.timeInStage") }}</dt>
+                <dd
+                  class="mt-1 flex items-center gap-1 text-sm font-medium"
+                  :class="stageOverdue ? 'text-error' : 'text-highlighted'"
+                  :title="stageOverdue ? t('crm.deals.stageOverdue') : undefined"
+                >
+                  <UIcon :name="stageOverdue ? 'i-lucide-triangle-alert' : 'i-lucide-clock'" class="size-4" />
+                  {{ daysInStageLabel }}
+                </dd>
+              </div>
+              <div>
+                <dt class="text-xs text-muted">{{ t("crm.deals.expectedCloseDate") }}</dt>
+                <dd class="mt-1 text-sm font-medium text-highlighted">{{ formatDate(deal.expected_close_date) || "—" }}</dd>
+              </div>
+              <div>
+                <dt class="text-xs text-muted">{{ t("crm.deals.createdOn") }}</dt>
+                <dd class="mt-1 text-sm font-medium text-highlighted">{{ formatDate(deal.created_at) }}</dd>
+              </div>
+            </dl>
+
+            <div class="mt-4 flex flex-wrap items-center gap-2">
               <UButton
-                v-for="stage in pipelineStages"
+                v-if="toWhatsAppLink(contactPhone)"
+                :to="toWhatsAppLink(contactPhone)!"
+                target="_blank"
+                rel="noopener noreferrer"
+                icon="i-simple-icons-whatsapp"
+                :label="t('crm.deals.chatOnWhatsApp')"
+                color="neutral"
+                variant="outline"
+              />
+              <UButton
+                v-if="canEdit"
+                icon="i-lucide-calendar-plus"
+                :label="t('crm.deals.timeline.scheduleActivityButton')"
+                color="neutral"
+                variant="outline"
+                :disabled="upcomingActivities.length > 0"
+                @click="openScheduleModal"
+              />
+            </div>
+          </UPageCard>
+
+          <!-- Pipeline stepper -->
+          <UPageCard>
+            <div class="flex overflow-x-auto">
+              <button
+                v-for="(stage, index) in openStages"
+                :key="stage.id"
+                type="button"
+                :disabled="!canEdit || changingStage"
+                class="min-w-24 flex-1 border px-3 py-2 text-center text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 [&:not(:first-child)]:-ms-px"
+                :class="stepClass(index)"
+                :aria-current="index === currentOpenIndex ? 'step' : undefined"
+                @click="selectStage(stage.id)"
+              >
+                {{ stage.name }}
+              </button>
+            </div>
+            <div v-if="closedStages.length" class="mt-3 flex flex-wrap items-center gap-2">
+              <span class="text-xs text-muted">{{ t("crm.deals.closeAs") }}</span>
+              <UButton
+                v-for="stage in closedStages"
                 :key="stage.id"
                 :label="stage.name"
-                :color="stage.id === deal.stage_id ? 'primary' : stage.is_closed ? 'neutral' : 'neutral'"
-                :variant="stage.id === deal.stage_id ? 'solid' : 'soft'"
+                :color="closeColor(stage)"
+                :variant="stage.id === deal.stage_id ? 'solid' : 'outline'"
                 :disabled="!canEdit || changingStage"
-                size="sm"
+                size="xs"
                 @click="selectStage(stage.id)"
               />
             </div>
@@ -914,12 +1179,23 @@ const timelineItems = computed<TimelineItem[]>(() =>
               <div
                 v-for="activity in upcomingActivities"
                 :key="activity.id"
-                class="flex items-center justify-between gap-2 rounded-lg border border-default p-3"
+                class="flex items-center justify-between gap-2 border border-s-4 border-default p-3"
+                :class="isPastDue(activity.scheduled_at) ? 'border-s-error' : 'border-s-primary'"
               >
                 <div class="flex items-center gap-2">
                   <UIcon :name="activityIcon(activity.type)" class="size-4 text-muted" />
                   <div>
-                    <div class="text-sm font-medium text-highlighted">{{ activityTypeName(activity.type) }}</div>
+                    <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+                      {{ activityTypeName(activity.type) }}
+                      <UBadge
+                        v-if="isPastDue(activity.scheduled_at)"
+                        :label="t('crm.deals.timeline.overdueLabel')"
+                        color="error"
+                        variant="subtle"
+                        size="sm"
+                        class="cds-tag"
+                      />
+                    </div>
                     <div v-if="activity.content" class="text-xs text-muted">{{ activity.content }}</div>
                     <div class="text-xs text-muted">
                       {{ formatDate(activity.scheduled_at, true) }} · {{ profileLabel(activity.created_by) }}
@@ -941,16 +1217,7 @@ const timelineItems = computed<TimelineItem[]>(() =>
           <!-- Timeline -->
           <UPageCard>
             <template #header>
-              <div class="flex items-center justify-between gap-2">
-                <h2 class="font-semibold text-highlighted">{{ t("crm.deals.timeline.title") }}</h2>
-                <UButton
-                  v-if="canEdit"
-                  icon="i-lucide-calendar-plus"
-                  :label="t('crm.deals.timeline.scheduleActivityButton')"
-                  :disabled="upcomingActivities.length > 0"
-                  @click="openScheduleModal"
-                />
-              </div>
+              <h2 class="font-semibold text-highlighted">{{ t("crm.deals.timeline.title") }}</h2>
             </template>
             <div v-if="canEdit" class="mb-4 flex gap-2">
               <UInput
@@ -968,10 +1235,19 @@ const timelineItems = computed<TimelineItem[]>(() =>
                 @click="logNote"
               />
             </div>
-            <div v-if="!timelineItems.length" class="py-8 text-center text-sm text-muted">
+            <UTabs
+              v-model="timelineFilter"
+              :items="timelineTabs"
+              value-key="value"
+              variant="link"
+              :content="false"
+              size="sm"
+              class="mb-4"
+            />
+            <div v-if="!filteredTimelineItems.length" class="py-8 text-center text-sm text-muted">
               {{ t("crm.deals.timeline.noActivity") }}
             </div>
-            <UTimeline v-else :items="timelineItems" size="sm">
+            <UTimeline v-else :items="filteredTimelineItems" size="sm">
               <template #activity-wrapper="{ item }">
                 <div class="space-y-1">
                   <p class="text-xs text-muted">{{ item.actor }} · {{ item.date }}</p>
@@ -1100,11 +1376,12 @@ const timelineItems = computed<TimelineItem[]>(() =>
               </UFormField>
               <UFormField :label="t('crm.deals.assignedTo')">
                 <USelect
-                  v-model="deal.assigned_to"
+                  :model-value="deal.assigned_to"
                   :items="assigneeOptions"
                   value-key="value"
                   :disabled="!canAssign"
                   class="w-full"
+                  @update:model-value="(value: string | null) => openReassign(value)"
                 />
                 <p v-if="!canAssign" class="mt-1 text-xs text-muted">{{ t("crm.deals.assignPermissionHint") }}</p>
               </UFormField>
@@ -1134,6 +1411,45 @@ const timelineItems = computed<TimelineItem[]>(() =>
       </div>
     </template>
   </UDashboardPanel>
+
+  <UModal v-model:open="reassignOpen" :title="t('crm.deals.reassignTitle')">
+    <template #body>
+      <div class="space-y-4">
+        <UFormField :label="t('crm.deals.assignedTo')">
+          <USelect v-model="reassignTarget" :items="assigneeOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('crm.deals.stage')" required>
+          <USelect
+            v-model="reassignStageId"
+            :items="pipelineStages.map((s) => ({ label: s.name, value: s.id }))"
+            value-key="value"
+            class="w-full"
+          />
+        </UFormField>
+        <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
+          <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('crm.deals.historyVisibility')">
+          <URadioGroup
+            v-model="reassignHideHistory"
+            :items="[
+              { label: t('crm.deals.keepHistoryVisible'), value: false },
+              { label: t('crm.deals.hideHistory'), value: true },
+            ]"
+            value-key="value"
+          />
+          <p class="mt-1 text-xs text-muted">{{ t("crm.deals.historyVisibilityHint") }}</p>
+        </UFormField>
+        <UButton
+          :label="t('crm.deals.bulkReassign')"
+          :loading="reassigning"
+          :disabled="!reassignValid"
+          block
+          @click="confirmReassign"
+        />
+      </div>
+    </template>
+  </UModal>
 
   <UModal v-model:open="stageChangeModalOpen" :title="t('crm.deals.changeStage', { stage: pendingStage?.name })">
     <template #body>
