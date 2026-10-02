@@ -5,6 +5,15 @@ export default defineNuxtConfig({
 
   css: ["~/assets/css/main.css"],
 
+  // Night mode is disabled: the app is always light, regardless of the
+  // device's dark-mode setting. There is no toggle in the UI, and the storage
+  // key is changed so a "dark" value saved by an earlier version can't win.
+  colorMode: {
+    preference: "light",
+    fallback: "light",
+    storageKey: "acropol-color-mode",
+  },
+
   ui: {
     theme: {
       colors: [
@@ -46,7 +55,8 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      meta: [],
+      // Tells the browser not to render form controls/scrollbars in dark.
+      meta: [{ name: "color-scheme", content: "light" }],
       link: [
         {
           rel: "preload",
