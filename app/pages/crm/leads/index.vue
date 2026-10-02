@@ -7,6 +7,8 @@ definePageMeta({
   crmPermission: { module: "crm_leads" },
 });
 
+useHead({ htmlAttrs: { class: "carbon" } });
+
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
@@ -267,6 +269,7 @@ function openLead(lead: Lead) {
               color="warning"
               variant="subtle"
               size="sm"
+              class="cds-tag"
             />
           </div>
         </template>
@@ -292,6 +295,7 @@ function openLead(lead: Lead) {
             :label="t(`crm.leads.status.${row.original.status}`)"
             :color="statusColors[row.original.status]"
             variant="subtle"
+            class="cds-tag"
           />
         </template>
         <template #assigned-cell="{ row }">

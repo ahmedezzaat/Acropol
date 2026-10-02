@@ -8,6 +8,8 @@ definePageMeta({
   crmPermission: { module: "crm_deals" },
 });
 
+useHead({ htmlAttrs: { class: "carbon" } });
+
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const toast = useToast();
@@ -840,7 +842,7 @@ function openDeal(deal: Deal) {
       <UDashboardToolbar>
         <template #left>
           <div class="flex flex-wrap items-center gap-2">
-            <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" />
+            <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" />
             <UInput
               v-model="dealSearch"
               icon="i-lucide-search"
@@ -910,13 +912,13 @@ function openDeal(deal: Deal) {
         <div
           v-for="stage in visibleStages"
           :key="stage.id"
-          class="flex w-72 shrink-0 flex-col rounded-lg border border-t-4 border-default"
-          :class="[stage.is_closed ? 'bg-elevated' : 'bg-default', stageAccentBorderClass(stage)]"
+          class="flex w-72 shrink-0 flex-col border border-t-4 border-default bg-muted"
+          :class="stageAccentBorderClass(stage)"
         >
-          <div class="sticky top-0 z-10 rounded-t-[5px] border-b border-default bg-[inherit] p-3">
+          <div class="sticky top-0 z-10 border-b border-default bg-[inherit] p-3">
             <div class="flex items-center justify-between gap-2">
               <span class="truncate font-medium text-highlighted">{{ stage.name }}</span>
-              <UBadge :label="String(dealsForStage(stage.id).length)" color="neutral" variant="subtle" />
+              <UBadge :label="String(dealsForStage(stage.id).length)" color="neutral" variant="subtle" class="cds-tag" />
             </div>
             <div v-if="stageTotalValue(stage.id)" class="mt-0.5 text-xs text-muted">
               {{ formatCurrency(stageTotalValue(stage.id)) }}
@@ -926,7 +928,7 @@ function openDeal(deal: Deal) {
             <div
               v-for="deal in dealsForStage(stage.id)"
               :key="deal.id"
-              class="group cursor-pointer rounded-lg border border-default bg-default p-3 text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md active:translate-y-0 active:shadow-sm"
+              class="group cursor-pointer border border-default bg-default p-3 text-sm transition-colors hover:border-primary hover:bg-elevated"
               @click="openDeal(deal)"
             >
               <div class="flex items-start justify-between gap-2">
@@ -944,7 +946,7 @@ function openDeal(deal: Deal) {
                 </a>
               </div>
               <div v-if="deal.value || dealCategories(deal).length" class="mt-1.5 flex flex-wrap items-center gap-1">
-                <UBadge v-if="deal.value" :label="formatCurrency(deal.value)!" size="sm" variant="subtle" color="success" />
+                <UBadge v-if="deal.value" :label="formatCurrency(deal.value)!" size="sm" variant="subtle" color="success" class="cds-tag" />
                 <UBadge
                   v-for="cat in dealCategories(deal)"
                   :key="cat"
@@ -952,6 +954,7 @@ function openDeal(deal: Deal) {
                   size="sm"
                   variant="subtle"
                   color="neutral"
+                  class="cds-tag"
                 />
               </div>
               <div class="mt-2">
@@ -985,13 +988,13 @@ function openDeal(deal: Deal) {
                   size="sm"
                   variant="subtle"
                   :color="stageAccentColor(stage)"
-                  class="shrink-0"
+                  class="cds-tag shrink-0"
                 />
               </div>
             </div>
             <div
               v-if="dealsForStage(stage.id).length === 0"
-              class="flex flex-col items-center gap-1 rounded-lg border border-dashed border-default py-6 text-center text-xs text-muted"
+              class="flex flex-col items-center gap-1 border border-dashed border-default py-6 text-center text-xs text-muted"
             >
               <UIcon name="i-lucide-inbox" class="size-5" />
               {{ t("crm.deals.noDealsInStage") }}
@@ -1027,6 +1030,7 @@ function openDeal(deal: Deal) {
               :label="stageName(row.original.stage_id)"
               :color="stageAccentColor(allStages?.find((s) => s.id === row.original.stage_id))"
               variant="subtle"
+              class="cds-tag"
             />
           </template>
           <template #reason-cell="{ row }">

@@ -7,6 +7,8 @@ definePageMeta({
   crmPermission: { module: "crm_customers" },
 });
 
+useHead({ htmlAttrs: { class: "carbon" } });
+
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission } = usePermissions();

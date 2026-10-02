@@ -9,6 +9,8 @@ definePageMeta({
 
 const route = useRoute();
 const dealId = route.params.id as string;
+useHead({ htmlAttrs: { class: "carbon" } });
+
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission } = usePermissions();
