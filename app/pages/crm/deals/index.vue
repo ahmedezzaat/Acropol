@@ -863,7 +863,10 @@ function openDeal(deal: Deal) {
 </script>
 
 <template>
-  <UDashboardPanel>
+  <!-- In Kanban mode the panel is exactly one screen tall, so the board gets a
+  definite height and every stage column scrolls on its own (the panel's
+  default is only a minimum height, which lets the page grow instead). -->
+  <UDashboardPanel :ui="{ root: viewMode === 'kanban' ? 'h-svh' : '' }">
     <template #header>
       <UDashboardNavbar :title="t('crm.deals.title')">
         <template #leading>
@@ -960,15 +963,15 @@ function openDeal(deal: Deal) {
 
       <div
         v-else-if="viewMode === 'kanban'"
-        class="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 pb-4 sm:mx-0 sm:snap-none sm:gap-4 sm:px-0"
+        class="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 pb-2 sm:mx-0 sm:snap-none sm:gap-4 sm:px-0"
       >
         <div
           v-for="stage in visibleStages"
           :key="stage.id"
-          class="flex w-[85vw] shrink-0 snap-center flex-col border border-t-4 border-default bg-muted sm:w-72 sm:snap-align-none"
+          class="flex min-h-0 w-[85vw] shrink-0 snap-center flex-col border border-t-4 border-default bg-muted sm:w-72 sm:snap-align-none"
           :class="stageAccentBorderClass(stage)"
         >
-          <div class="sticky top-0 z-10 border-b border-default bg-[inherit] p-3">
+          <div class="shrink-0 border-b border-default bg-[inherit] p-3">
             <div class="flex items-center justify-between gap-2">
               <span class="truncate font-medium text-highlighted">{{ stage.name }}</span>
               <UBadge :label="String(dealsForStage(stage.id).length)" color="neutral" variant="subtle" class="cds-tag" />
@@ -977,7 +980,8 @@ function openDeal(deal: Deal) {
               {{ formatCurrency(stageTotalValue(stage.id)) }}
             </div>
           </div>
-          <div class="space-y-2 p-2">
+          <!-- Only the cards scroll; the stage header above stays put. -->
+          <div class="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2">
             <div
               v-for="deal in dealsForStage(stage.id)"
               :key="deal.id"

@@ -11,6 +11,7 @@ const resourceRoutes: Record<string, string> = {
   crm_deals: "/crm/deals",
   crm_quotes: "/crm/quotes",
   crm_customers: "/crm/customers",
+  crm_visits: "/crm/visits",
 };
 
 const route = useRoute();

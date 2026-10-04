@@ -147,6 +147,15 @@
         "assign": "إسناد العملاء",
         "view_all": "عرض جميع العملاء"
       }
+    },
+    "crm_visits": {
+      "label": "مأموريات ومعاينات",
+      "actions": {
+        "create": "طلب",
+        "edit": "تعديل طلباته",
+        "approve": "الموافقة النهائية",
+        "view_all": "عرض الكل"
+      }
     }
   },
   "auth": {
@@ -655,6 +664,85 @@
       "assignedTo": "مُسند إلى",
       "assignPermissionHint": "لا تملك صلاحية إسناد العملاء.",
       "assignCreateHint": "سيتم إسناد هذا العميل إليك تلقائيًا. لا تملك صلاحية إسناده لشخص آخر."
+    },
+    "visits": {
+      "title": "مأموريات ومعاينات",
+      "new": "طلب جديد",
+      "edit": "تعديل الطلب",
+      "request": "طلب",
+      "requestFromDeal": "طلب مأمورية / معاينة",
+      "kind": {
+        "field_trip": "مأمورية",
+        "inspection": "معاينة"
+      },
+      "kindLabel": "النوع",
+      "deal": "الصفقة",
+      "pickDeal": "اختر صفقة",
+      "date": "التاريخ",
+      "timeFrom": "من",
+      "timeTo": "إلى",
+      "address": "العنوان",
+      "notes": "ملاحظات",
+      "timeOrder": "يجب أن يكون وقت النهاية بعد وقت البداية.",
+      "submit": "إرسال الطلب",
+      "save": "حفظ التعديلات",
+      "submitted": "تم إرسال الطلب",
+      "saved": "تم تحديث الطلب",
+      "saveFailed": "تعذّر حفظ الطلب",
+      "status": {
+        "pending_leader": "بانتظار قائد الفريق",
+        "pending_final": "بانتظار الموافقة النهائية",
+        "approved": "تمت الموافقة",
+        "rejected": "مرفوض",
+        "done": "تم",
+        "cancelled": "ملغي"
+      },
+      "filters": {
+        "all": "الكل",
+        "mine": "تحتاج إجراءً مني",
+        "pending": "قيد الانتظار",
+        "approved": "موافق عليها",
+        "done": "منتهية",
+        "closed": "مرفوضة / ملغاة"
+      },
+      "allTypes": "كل الأنواع",
+      "search": "ابحث بالصفقة أو الشخص أو العنوان…",
+      "empty": "لا توجد طلبات هنا.",
+      "requestedBy": "مقدّم الطلب",
+      "noteRequired": "الملاحظة مطلوبة.",
+      "actions": {
+        "approve": "موافقة",
+        "reject": "رفض",
+        "done": "تم التنفيذ",
+        "cancel": "إلغاء الطلب"
+      },
+      "actionNote": {
+        "approve": "ملاحظة (اختيارية)",
+        "reject": "سبب الرفض",
+        "done": "ماذا تم؟ (مطلوب)",
+        "cancel": "سبب الإلغاء"
+      },
+      "confirm": "تأكيد",
+      "back": "رجوع",
+      "actionDone": "تم تحديث الطلب",
+      "actionFailed": "تعذّر تحديث الطلب",
+      "history": "السجل",
+      "events": {
+        "submitted": "تم الإرسال",
+        "leader_approved": "وافق قائد الفريق",
+        "approved": "تمت الموافقة",
+        "rejected": "تم الرفض",
+        "done": "تم التنفيذ",
+        "cancelled": "تم الإلغاء"
+      },
+      "step": {
+        "leader": "موافقة قائد الفريق",
+        "final": "الموافقة النهائية"
+      },
+      "openDeal": "فتح الصفقة",
+      "dealCardTitle": "مأموريات ومعاينات",
+      "dealCardEmpty": "لا توجد طلبات لهذه الصفقة.",
+      "unknownDeal": "صفقة"
     }
   },
   "notifications": {
@@ -682,6 +770,16 @@
       "blockedTitle": "الإشعارات محظورة في هذا المتصفح",
       "blockedSteps": "اضغط على أيقونة القفل أو الإعدادات بجانب شريط العنوان، واضبط «الإشعارات» على «السماح» لهذا الموقع، ثم ارجع واضغط الزر أدناه.",
       "checkAgain": "سمحت بها — تحقق مجددًا"
+    },
+    "visitPending": "طلب {by} {kind} للصفقة {name} بتاريخ {date}. تحتاج موافقتك.",
+    "visitPendingNoBy": "طلب {kind} للصفقة {name} بتاريخ {date} يحتاج موافقتك.",
+    "visitPendingFinal": "وافق قائد الفريق على طلب {kind} من {by} للصفقة {name} بتاريخ {date}. يحتاج موافقة نهائية.",
+    "visitUpdate": {
+      "pending_final": "وافق قائد فريقك على طلب {kind} للصفقة {name} وهو الآن بانتظار الموافقة النهائية.",
+      "approved": "تمت الموافقة على طلب {kind} للصفقة {name} بتاريخ {date}.",
+      "rejected": "تم رفض طلب {kind} للصفقة {name} بتاريخ {date}.",
+      "done": "تم تنفيذ {kind} للصفقة {name}.",
+      "cancelled": "تم إلغاء طلب {kind} للصفقة {name}."
     }
   }
 }

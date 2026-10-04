@@ -634,6 +634,78 @@ export type Database = {
         };
         Relationships: [];
       };
+      field_visits: {
+        Row: {
+          id: string;
+          kind: "field_trip" | "inspection";
+          deal_id: string;
+          requested_by: string;
+          visit_date: string;
+          time_from: string;
+          time_to: string;
+          address: string;
+          notes: string | null;
+          status: "pending_leader" | "pending_final" | "approved" | "rejected" | "done" | "cancelled";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          kind: "field_trip" | "inspection";
+          deal_id: string;
+          requested_by: string;
+          visit_date: string;
+          time_from: string;
+          time_to: string;
+          address: string;
+          notes?: string | null;
+          status?: "pending_leader" | "pending_final" | "approved" | "rejected" | "done" | "cancelled";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          kind?: "field_trip" | "inspection";
+          deal_id?: string;
+          requested_by?: string;
+          visit_date?: string;
+          time_from?: string;
+          time_to?: string;
+          address?: string;
+          notes?: string | null;
+          status?: "pending_leader" | "pending_final" | "approved" | "rejected" | "done" | "cancelled";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      field_visit_events: {
+        Row: {
+          id: string;
+          visit_id: string;
+          action: "submitted" | "leader_approved" | "approved" | "rejected" | "done" | "cancelled";
+          actor_id: string | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          visit_id: string;
+          action: "submitted" | "leader_approved" | "approved" | "rejected" | "done" | "cancelled";
+          actor_id?: string | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          visit_id?: string;
+          action?: "submitted" | "leader_approved" | "approved" | "rejected" | "done" | "cancelled";
+          actor_id?: string | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       notifications: {
         Row: {
           id: string;
@@ -644,7 +716,9 @@ export type Database = {
             | "activity_scheduled"
             | "activity_reminder"
             | "deal_unassigned"
-            | "deals_unassigned";
+            | "deals_unassigned"
+            | "visit_pending"
+            | "visit_update";
           params: Json;
           is_read: boolean;
           created_at: string;
@@ -658,7 +732,9 @@ export type Database = {
             | "activity_scheduled"
             | "activity_reminder"
             | "deal_unassigned"
-            | "deals_unassigned";
+            | "deals_unassigned"
+            | "visit_pending"
+            | "visit_update";
           params?: Json;
           is_read?: boolean;
           created_at?: string;
@@ -672,7 +748,9 @@ export type Database = {
             | "activity_scheduled"
             | "activity_reminder"
             | "deal_unassigned"
-            | "deals_unassigned";
+            | "deals_unassigned"
+            | "visit_pending"
+            | "visit_update";
           params?: Json;
           is_read?: boolean;
           created_at?: string;
@@ -857,6 +935,10 @@ export type Database = {
       phone_digits: {
         Args: { p: string };
         Returns: string | null;
+      };
+      field_visit_action: {
+        Args: { p_visit: string; p_action: string; p_note: string | null };
+        Returns: string;
       };
       run_automation_rules: {
         Args: Record<string, never>;

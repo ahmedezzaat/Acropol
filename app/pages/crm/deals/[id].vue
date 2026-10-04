@@ -13,7 +13,7 @@ useHead({ htmlAttrs: { class: "carbon" } });
 
 const supabase = useSupabaseClient();
 const toast = useToast();
-const { hasPermission } = usePermissions();
+const { hasPermission, hasAnyModulePermission } = usePermissions();
 const { t, locale } = useI18n();
 
 interface Deal {
@@ -112,6 +112,25 @@ const deleting = ref(false);
 const canEdit = computed(() => hasPermission("crm_deals", "edit"));
 const canDelete = computed(() => hasPermission("crm_deals", "delete"));
 const canAssign = computed(() => hasPermission("crm_deals", "assign"));
+
+// --- Field trips (مأمورية) and inspections (معاينة) on this deal ---
+const canSeeVisits = computed(() => hasAnyModulePermission("crm_visits"));
+const canRequestVisit = computed(() => hasPermission("crm_visits", "create"));
+const visitModalOpen = ref(false);
+function openVisitModal() {
+  visitModalOpen.value = true;
+}
+const { statusColors: visitStatusColors, statusLabel: visitStatusLabel, kindLabel: visitKindLabel, kindIcon: visitKindIcon, formatDate: visitFormatDate, timeRange: visitTimeRange } = useVisits();
+const { data: dealVisits, refresh: refreshVisits } = await useAsyncData<Visit[]>(`crm-deal-${dealId}-visits`, async () => {
+  if (!canSeeVisits.value) return [];
+  const { data, error } = await supabase
+    .from("field_visits")
+    .select("*")
+    .eq("deal_id", dealId)
+    .order("visit_date", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Visit[];
+});
 const canCreateQuote = computed(() => hasPermission("crm_quotes", "create"));
 const canEditLead = computed(() => hasPermission("crm_leads", "edit"));
 
@@ -1186,6 +1205,35 @@ function isPastDue(iso: string | null) {
             </p>
           </UPageCard>
 
+          <!-- Trips & inspections -->
+          <UPageCard v-if="canSeeVisits" :title="t('crm.visits.dealCardTitle')">
+            <div class="space-y-2">
+              <NuxtLink
+                v-for="v in dealVisits"
+                :key="v.id"
+                :to="`/crm/visits?open=${v.id}`"
+                class="flex flex-wrap items-center justify-between gap-2 border border-default p-3 transition-colors hover:border-primary hover:bg-elevated"
+              >
+                <span class="flex min-w-0 items-center gap-2 text-sm">
+                  <UIcon :name="visitKindIcon(v.kind)" class="size-4 shrink-0 text-primary" />
+                  <span class="font-medium text-highlighted">{{ visitKindLabel(v.kind) }}</span>
+                  <span class="text-muted">· {{ visitFormatDate(v.visit_date) }} · <bdi dir="ltr">{{ visitTimeRange(v) }}</bdi></span>
+                </span>
+                <UBadge :label="visitStatusLabel(v.status)" :color="visitStatusColors[v.status]" variant="subtle" size="sm" class="cds-tag" />
+              </NuxtLink>
+              <p v-if="!dealVisits?.length" class="text-sm text-muted">{{ t("crm.visits.dealCardEmpty") }}</p>
+              <UButton
+                v-if="canRequestVisit"
+                icon="i-lucide-map-pin-plus"
+                :label="t('crm.visits.requestFromDeal')"
+                color="neutral"
+                variant="outline"
+                class="min-h-11 w-full justify-center sm:min-h-0 sm:w-auto"
+                @click="openVisitModal"
+              />
+            </div>
+          </UPageCard>
+
           <!-- Upcoming -->
           <UPageCard v-if="upcomingActivities.length" :title="t('crm.deals.timeline.upcomingTitle')">
             <div class="space-y-2">
@@ -1424,6 +1472,8 @@ function isPastDue(iso: string | null) {
       </div>
     </template>
   </UDashboardPanel>
+
+  <VisitRequestModal v-model:open="visitModalOpen" :deal-id="dealId" @saved="refreshVisits" />
 
   <UModal v-model:open="reassignOpen" :title="t('crm.deals.reassignTitle')">
     <template #body>

@@ -62,6 +62,19 @@ export const MODULES: ModuleDef[] = [
       },
       { key: "crm_quotes", labelKey: "resources.crm_quotes.label", actions: crud("crm_quotes") },
       {
+        // Field trips (مأمورية) and inspections (معاينة): requested on a deal,
+        // approved by the requester's team leader and then by anyone with
+        // "approve" or "view all" here.
+        key: "crm_visits",
+        labelKey: "resources.crm_visits.label",
+        actions: [
+          { key: "create", labelKey: "resources.crm_visits.actions.create" },
+          { key: "edit", labelKey: "resources.crm_visits.actions.edit" },
+          { key: "approve", labelKey: "resources.crm_visits.actions.approve" },
+          { key: "view_all", labelKey: "resources.crm_visits.actions.view_all" },
+        ],
+      },
+      {
         key: "crm_customers",
         labelKey: "resources.crm_customers.label",
         actions: [

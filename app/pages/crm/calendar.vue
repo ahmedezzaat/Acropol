@@ -76,6 +76,19 @@ const { data: activities, refresh: refreshActivities, status } = await useAsyncD
   },
 );
 
+// Approved (and finished) field trips / inspections sit in the same calendar
+// as calls and meetings. field_visits RLS scopes them: your own, your team's
+// if you lead one, everyone's for approvers / view-all.
+const { data: visits } = await useAsyncData<Visit[]>("crm-calendar-visits", async () => {
+  const { data, error } = await supabase
+    .from("field_visits")
+    .select("*")
+    .in("status", ["approved", "done"])
+    .order("visit_date", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Visit[];
+});
+
 const { data: deals } = await useAsyncData<DealRow[]>("crm-calendar-deals", async () => {
   const { data, error } = await supabase.from("deals").select("id, title, customer_id, lead_id, assigned_to, stage_id");
   if (error) throw error;
@@ -151,45 +164,74 @@ function formatDate(value: string | null, withTime = true) {
 const todayStart = computed(() => today(getLocalTimeZone()).toDate(getLocalTimeZone()));
 const tomorrowStart = computed(() => today(getLocalTimeZone()).add({ days: 1 }).toDate(getLocalTimeZone()));
 
-const openActivities = computed(() => (activities.value ?? []).filter((a) => !a.completed_at));
+// Calls, meetings... and approved trips/inspections, merged into one timeline.
+interface CalendarEntry {
+  key: string;
+  at: Date;
+  closed: boolean;
+  activity?: ActivityRow;
+  visit?: Visit;
+}
 
-// The base query is already ordered by scheduled_at ascending, so each
-// filter below inherits the right order for free — soonest first for
-// today/upcoming, oldest-overdue-first for overdue.
-const todayActivities = computed(() =>
-  openActivities.value.filter((a) => {
-    const d = new Date(a.scheduled_at!);
-    return d >= todayStart.value && d < tomorrowStart.value;
-  }),
-);
-const overdueActivities = computed(() =>
-  openActivities.value.filter((a) => new Date(a.scheduled_at!) < todayStart.value),
-);
-const upcomingActivities = computed(() =>
-  openActivities.value.filter((a) => new Date(a.scheduled_at!) >= tomorrowStart.value),
-);
-const closedActivities = computed(() =>
-  (activities.value ?? [])
-    .filter((a) => !!a.completed_at)
-    .sort((a, b) => new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime()),
+function visitStart(v: Visit) {
+  return new Date(`${v.visit_date}T${v.time_from}`);
+}
+
+const entries = computed<CalendarEntry[]>(() => [
+  ...(activities.value ?? []).map((a) => ({
+    key: `a-${a.id}`,
+    at: new Date(a.scheduled_at!),
+    closed: !!a.completed_at,
+    activity: a,
+  })),
+  ...(visits.value ?? []).map((v) => ({
+    key: `v-${v.id}`,
+    at: visitStart(v),
+    closed: v.status === "done",
+    visit: v,
+  })),
+]);
+
+// Soonest first for today/upcoming, oldest-overdue-first for overdue. An
+// approved trip whose day has passed without being marked done lands in
+// Overdue — it still needs closing (done/cancelled, with a note).
+const byTime = (a: CalendarEntry, b: CalendarEntry) => a.at.getTime() - b.at.getTime();
+const openEntries = computed(() => entries.value.filter((e) => !e.closed).sort(byTime));
+
+const todayEntries = computed(() => openEntries.value.filter((e) => e.at >= todayStart.value && e.at < tomorrowStart.value));
+const overdueEntries = computed(() => openEntries.value.filter((e) => e.at < todayStart.value));
+const upcomingEntries = computed(() => openEntries.value.filter((e) => e.at >= tomorrowStart.value));
+const closedEntries = computed(() =>
+  entries.value
+    .filter((e) => e.closed)
+    .sort((a, b) => {
+      const when = (e: CalendarEntry) =>
+        e.activity ? new Date(e.activity.completed_at!).getTime() : new Date(e.visit!.updated_at).getTime();
+      return when(b) - when(a);
+    }),
 );
 
 const activeTab = ref<"today" | "upcoming" | "overdue" | "closed">("today");
 const tabItems = computed(() => [
-  { label: `${t("crm.calendar.today")} (${todayActivities.value.length})`, value: "today" },
-  { label: `${t("crm.calendar.upcoming")} (${upcomingActivities.value.length})`, value: "upcoming" },
-  { label: `${t("crm.calendar.overdue")} (${overdueActivities.value.length})`, value: "overdue" },
-  { label: `${t("crm.calendar.closed")} (${closedActivities.value.length})`, value: "closed" },
+  { label: `${t("crm.calendar.today")} (${todayEntries.value.length})`, value: "today" },
+  { label: `${t("crm.calendar.upcoming")} (${upcomingEntries.value.length})`, value: "upcoming" },
+  { label: `${t("crm.calendar.overdue")} (${overdueEntries.value.length})`, value: "overdue" },
+  { label: `${t("crm.calendar.closed")} (${closedEntries.value.length})`, value: "closed" },
 ]);
-const visibleActivities = computed(() => {
-  if (activeTab.value === "today") return todayActivities.value;
-  if (activeTab.value === "upcoming") return upcomingActivities.value;
-  if (activeTab.value === "overdue") return overdueActivities.value;
-  return closedActivities.value;
+const visibleEntries = computed(() => {
+  if (activeTab.value === "today") return todayEntries.value;
+  if (activeTab.value === "upcoming") return upcomingEntries.value;
+  if (activeTab.value === "overdue") return overdueEntries.value;
+  return closedEntries.value;
 });
 
 function openDeal(dealId: string) {
   navigateTo(`/crm/deals/${dealId}`);
+}
+
+const { statusColors: visitStatusColors, statusLabel: visitStatusLabel, kindLabel: visitKindLabel, kindIcon: visitKindIcon, formatDate: visitFormatDate, timeRange: visitTimeRange } = useVisits();
+function openVisit(v: Visit) {
+  navigateTo(`/crm/visits?open=${v.id}`);
 }
 
 // --- Complete an activity right from the list — same rule as the deal
@@ -283,46 +325,80 @@ async function submitComplete() {
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
 
-      <div v-else-if="!visibleActivities.length" class="py-16 text-center text-sm text-muted">
+      <div v-else-if="!visibleEntries.length" class="py-16 text-center text-sm text-muted">
         {{ t("crm.calendar.noActivities") }}
       </div>
 
       <div v-else class="space-y-2">
-        <div
-          v-for="activity in visibleActivities"
-          :key="activity.id"
-          class="flex cursor-pointer items-start gap-3 rounded-lg border border-default p-3 hover:border-primary"
-          @click="openDeal(activity.deal_id)"
-        >
-          <UIcon :name="activityIcon(activity.type)" class="mt-0.5 size-5 shrink-0 text-muted" />
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-baseline justify-between gap-x-2">
-              <span class="font-medium text-highlighted">{{ activityTypeName(activity.type) }}</span>
-              <span
-                class="text-xs"
-                :class="activeTab === 'overdue' ? 'text-error' : 'text-muted'"
-              >
-                {{ formatDate(activeTab === "closed" ? activity.completed_at : activity.scheduled_at) }}
-              </span>
-            </div>
-            <div class="text-sm text-highlighted">{{ dealTitle(activity.deal_id) }}</div>
-            <div class="text-sm text-muted">{{ dealContactName(activity.deal_id) }}</div>
-            <div class="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-              <span v-if="activity.content">{{ activity.content }}</span>
-              <span>· {{ profileLabel(dealById(activity.deal_id)?.assigned_to ?? null) }}</span>
+        <template v-for="entry in visibleEntries" :key="entry.key">
+          <!-- Approved / finished field trip or inspection -->
+          <div
+            v-if="entry.visit"
+            class="flex cursor-pointer items-start gap-3 rounded-lg border border-s-4 border-default border-s-info p-3 hover:border-primary"
+            @click="openVisit(entry.visit)"
+          >
+            <UIcon :name="visitKindIcon(entry.visit.kind)" class="mt-0.5 size-5 shrink-0 text-info" />
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-2">
+                <span class="flex items-center gap-2 font-medium text-highlighted">
+                  {{ visitKindLabel(entry.visit.kind) }}
+                  <UBadge
+                    :label="visitStatusLabel(entry.visit.status)"
+                    :color="visitStatusColors[entry.visit.status]"
+                    variant="subtle"
+                    size="sm"
+                    class="cds-tag"
+                  />
+                </span>
+                <span class="text-xs" :class="activeTab === 'overdue' ? 'text-error' : 'text-muted'">
+                  {{ visitFormatDate(entry.visit.visit_date) }} · <bdi dir="ltr">{{ visitTimeRange(entry.visit) }}</bdi>
+                </span>
+              </div>
+              <div class="text-sm text-highlighted">{{ dealTitle(entry.visit.deal_id) }}</div>
+              <div class="text-sm text-muted">{{ dealContactName(entry.visit.deal_id) }}</div>
+              <div class="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                <span class="flex items-center gap-1"><UIcon name="i-lucide-map-pin" class="size-3.5" />{{ entry.visit.address }}</span>
+                <span>· {{ profileLabel(entry.visit.requested_by) }}</span>
+              </div>
             </div>
           </div>
-          <UButton
-            v-if="activeTab !== 'closed'"
-            :label="t('crm.deals.timeline.markComplete')"
-            icon="i-lucide-check"
-            size="xs"
-            color="neutral"
-            variant="soft"
-            class="shrink-0"
-            @click.stop="openCompleteModal(activity)"
-          />
-        </div>
+
+          <!-- Call, meeting, site visit... -->
+          <div
+            v-else-if="entry.activity"
+            class="flex cursor-pointer items-start gap-3 rounded-lg border border-default p-3 hover:border-primary"
+            @click="openDeal(entry.activity.deal_id)"
+          >
+            <UIcon :name="activityIcon(entry.activity.type)" class="mt-0.5 size-5 shrink-0 text-muted" />
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-2">
+                <span class="font-medium text-highlighted">{{ activityTypeName(entry.activity.type) }}</span>
+                <span
+                  class="text-xs"
+                  :class="activeTab === 'overdue' ? 'text-error' : 'text-muted'"
+                >
+                  {{ formatDate(activeTab === "closed" ? entry.activity.completed_at : entry.activity.scheduled_at) }}
+                </span>
+              </div>
+              <div class="text-sm text-highlighted">{{ dealTitle(entry.activity.deal_id) }}</div>
+              <div class="text-sm text-muted">{{ dealContactName(entry.activity.deal_id) }}</div>
+              <div class="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                <span v-if="entry.activity.content">{{ entry.activity.content }}</span>
+                <span>· {{ profileLabel(dealById(entry.activity.deal_id)?.assigned_to ?? null) }}</span>
+              </div>
+            </div>
+            <UButton
+              v-if="activeTab !== 'closed'"
+              :label="t('crm.deals.timeline.markComplete')"
+              icon="i-lucide-check"
+              size="xs"
+              color="neutral"
+              variant="soft"
+              class="shrink-0"
+              @click.stop="openCompleteModal(entry.activity)"
+            />
+          </div>
+        </template>
       </div>
     </template>
   </UDashboardPanel>

@@ -9,7 +9,9 @@ export interface AppNotification {
     | "activity_scheduled"
     | "activity_reminder"
     | "deal_unassigned"
-    | "deals_unassigned";
+    | "deals_unassigned"
+    | "visit_pending"
+    | "visit_update";
   params: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -47,6 +49,14 @@ export function useNotifications() {
     return new Date(value).toLocaleString(locale.value === "ar" ? "ar" : "en", {
       dateStyle: "medium",
       timeStyle: "short",
+    });
+  }
+
+  function formatDay(value: unknown) {
+    if (typeof value !== "string") return "";
+    return new Date(`${value}T12:00:00`).toLocaleDateString(locale.value === "ar" ? "ar" : "en", {
+      day: "numeric",
+      month: "short",
     });
   }
 
@@ -109,6 +119,38 @@ export function useNotifications() {
             stage: String(p.stage_name ?? ""),
           }),
           link: `/crm/deals?${query.toString()}`,
+        };
+      }
+      case "visit_pending": {
+        const vp = {
+          ...base,
+          kind: t(`crm.visits.kind.${p.kind}`),
+          date: formatDay(p.visit_date),
+          by: personName(p.requested_by) ?? "",
+        };
+        return {
+          icon: "i-lucide-map-pin-check",
+          color: "warning" as const,
+          text:
+            p.step === "final" && vp.by
+              ? t("notifications.visitPendingFinal", vp)
+              : vp.by
+                ? t("notifications.visitPending", vp)
+                : t("notifications.visitPendingNoBy", vp),
+          link: `/crm/visits?open=${p.visit_id}`,
+        };
+      }
+      case "visit_update": {
+        const status = String(p.status ?? "approved");
+        return {
+          icon: status === "rejected" || status === "cancelled" ? "i-lucide-map-pin-x" : "i-lucide-map-pin-check",
+          color: status === "rejected" ? ("error" as const) : ("primary" as const),
+          text: t(`notifications.visitUpdate.${status}`, {
+            ...base,
+            kind: t(`crm.visits.kind.${p.kind}`),
+            date: formatDay(p.visit_date),
+          }),
+          link: `/crm/visits?open=${p.visit_id}`,
         };
       }
       default:

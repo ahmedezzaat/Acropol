@@ -147,6 +147,15 @@
         "assign": "Assign customers",
         "view_all": "View all customers"
       }
+    },
+    "crm_visits": {
+      "label": "Trips & inspections",
+      "actions": {
+        "create": "Request",
+        "edit": "Edit own requests",
+        "approve": "Final approval",
+        "view_all": "View all"
+      }
     }
   },
   "auth": {
@@ -655,6 +664,85 @@
       "assignedTo": "Assigned to",
       "assignPermissionHint": "You don't have permission to assign customers.",
       "assignCreateHint": "This customer will be assigned to you automatically. You don't have permission to assign them to someone else."
+    },
+    "visits": {
+      "title": "Trips & inspections",
+      "new": "New request",
+      "edit": "Edit request",
+      "request": "Request",
+      "requestFromDeal": "Request trip / inspection",
+      "kind": {
+        "field_trip": "Field trip",
+        "inspection": "Inspection"
+      },
+      "kindLabel": "Type",
+      "deal": "Deal",
+      "pickDeal": "Select a deal",
+      "date": "Date",
+      "timeFrom": "From",
+      "timeTo": "To",
+      "address": "Address",
+      "notes": "Notes",
+      "timeOrder": "The end time must be after the start time.",
+      "submit": "Submit request",
+      "save": "Save changes",
+      "submitted": "Request submitted",
+      "saved": "Request updated",
+      "saveFailed": "Couldn't save the request",
+      "status": {
+        "pending_leader": "Awaiting team leader",
+        "pending_final": "Awaiting final approval",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "done": "Done",
+        "cancelled": "Cancelled"
+      },
+      "filters": {
+        "all": "All",
+        "mine": "Needs my action",
+        "pending": "Pending",
+        "approved": "Approved",
+        "done": "Done",
+        "closed": "Rejected / cancelled"
+      },
+      "allTypes": "All types",
+      "search": "Search deal, person or address…",
+      "empty": "No requests here.",
+      "requestedBy": "Requested by",
+      "noteRequired": "A note is required.",
+      "actions": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "done": "Mark done",
+        "cancel": "Cancel request"
+      },
+      "actionNote": {
+        "approve": "Note (optional)",
+        "reject": "Reason for rejecting",
+        "done": "What was done? (required)",
+        "cancel": "Reason for cancelling"
+      },
+      "confirm": "Confirm",
+      "back": "Back",
+      "actionDone": "Request updated",
+      "actionFailed": "Couldn't update the request",
+      "history": "History",
+      "events": {
+        "submitted": "Submitted",
+        "leader_approved": "Approved by team leader",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "done": "Marked done",
+        "cancelled": "Cancelled"
+      },
+      "step": {
+        "leader": "Team leader approval",
+        "final": "Final approval"
+      },
+      "openDeal": "Open deal",
+      "dealCardTitle": "Trips & inspections",
+      "dealCardEmpty": "None requested for this deal.",
+      "unknownDeal": "Deal"
     }
   },
   "notifications": {
@@ -682,6 +770,16 @@
       "blockedTitle": "Notifications are blocked in this browser",
       "blockedSteps": "Click the lock or settings icon next to the address bar, set Notifications to Allow for this site, then come back and press the button below.",
       "checkAgain": "I've allowed it — check again"
+    },
+    "visitPending": "{by} requested a {kind} for {name} on {date}. It needs your approval.",
+    "visitPendingNoBy": "A {kind} request for {name} on {date} needs your approval.",
+    "visitPendingFinal": "Team leader approved a {kind} request by {by} for {name} on {date}. It needs final approval.",
+    "visitUpdate": {
+      "pending_final": "Your {kind} request for {name} was approved by your team leader and now awaits final approval.",
+      "approved": "Your {kind} request for {name} on {date} was approved.",
+      "rejected": "Your {kind} request for {name} on {date} was rejected.",
+      "done": "Your {kind} for {name} was marked done.",
+      "cancelled": "Your {kind} request for {name} was cancelled."
     }
   }
 }
