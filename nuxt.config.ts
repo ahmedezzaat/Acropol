@@ -93,6 +93,18 @@ export default defineNuxtConfig({
     pages: {},
   },
 
+  // Private (server-only) settings, filled from NUXT_WHATSAPP_* env vars.
+  runtimeConfig: {
+    whatsapp: {
+      // Any string you choose; paste the same one into Meta's webhook setup.
+      verifyToken: "",
+      // The WhatsApp app's "App secret" — used to verify Meta's signature.
+      appSecret: "",
+      // Optional: user id that WhatsApp leads are assigned to on arrival.
+      defaultAssigneeId: "",
+    },
+  },
+
   supabase: {
     // Own redirect handling in app/middleware/auth.global.ts instead, since
     // the module's built-in path-based redirect matching doesn't account

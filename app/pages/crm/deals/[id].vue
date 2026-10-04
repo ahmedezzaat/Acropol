@@ -260,7 +260,7 @@ const editLeadTypeOptions = computed(() => [
   { label: t("crm.leads.type.individual"), value: "individual" },
   { label: t("crm.leads.type.company"), value: "company" },
 ]);
-const editSourceKeys = ["facebook", "instagram", "meta", "google", "website", "event", "referral"] as const;
+const editSourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api"] as const;
 const editSourceOptions = computed(() =>
   editSourceKeys.map((s) => ({ label: t(`crm.leads.sourceValues.${s}`), value: s })),
 );

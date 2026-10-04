@@ -316,7 +316,7 @@
         "pipeline": "When a deal is in pipeline",
         "stage": "At stage",
         "pickStage": "Select a stage",
-        "afterHours": "Stay time (hours)"
+        "afterHours": "Stay time (working hours)"
       },
       "summary": "When a deal stays in {pipeline} › {stage} for {duration}, then:",
       "actionUnassign": "Unassign deal",
@@ -334,7 +334,7 @@
       "runNow": "Run now",
       "runResult": "{count} deal(s) unassigned",
       "runFailed": "Failed to run the rules",
-      "howItWorks": "Rules are checked automatically every 10 minutes. The clock starts when the deal entered the stage, or when someone last assigned it — whichever is later — so reassigning a deal gives it a fresh window. Deals that are already unassigned are skipped. Unassigning a deal also unassigns its lead, the same as any reassignment. Closed stages (Won, Competitor, Archive) can't have rules. A note counts only if it was written by the currently assigned user after that clock started; the comment written when moving a deal between stages doesn't count.",
+      "howItWorks": "Rules are checked automatically every 10 minutes. The clock starts when the deal entered the stage, or when someone last assigned it — whichever is later — so reassigning a deal gives it a fresh window. Deals that are already unassigned are skipped. Unassigning a deal also unassigns its lead, the same as any reassignment. Closed stages (Won, Competitor, Archive) can't have rules. A note counts only if it was written by the currently assigned user after that clock started; the comment written when moving a deal between stages doesn't count. Stay time counts working hours only: Fridays and Saturdays (Cairo time) are not counted, so a deal that entered a stage on Thursday morning has stayed about 24 hours by Sunday morning, not 72.",
       "noteCondition": "Note condition",
       "conditions": {
         "any": "Regardless of notes",
@@ -346,6 +346,45 @@
         "has_note": "the assigned user has written a note"
       },
       "summaryWithNote": "When a deal stays in {pipeline} › {stage} for {duration} and {note}, then:"
+    },
+    "integrations": {
+      "title": "Integrations & API",
+      "keysTitle": "API keys",
+      "keysDescription": "Keys let other software create leads in Acropol. Each key is shown only once, when it is created.",
+      "noKeys": "No API keys yet.",
+      "newKey": "New API key",
+      "createKey": "Create key",
+      "keyName": "Name",
+      "keyNameHint": "What will use this key, e.g. \"Website form\".",
+      "assignTo": "Assign new leads to",
+      "assignToHint": "Optional. Leads created with this key go to this person; otherwise they arrive unassigned.",
+      "noAssignee": "Unassigned",
+      "active": "Active",
+      "lastUsed": "Last used",
+      "neverUsed": "Never",
+      "keyCreated": "API key created",
+      "keyOnce": "Copy this key now — for security it is stored hashed and cannot be shown again.",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "Couldn't copy",
+      "createFailed": "Failed to create the key",
+      "saveFailed": "Failed to save",
+      "deleteTitle": "Delete API key",
+      "deleteConfirm": "Delete \"{name}\"? Anything still using this key will stop working immediately.",
+      "apiTitle": "Leads API",
+      "apiDescription": "Send a request for each new lead. Authenticate with an API key.",
+      "apiAuth": "Send the key as \"Authorization: Bearer YOUR_API_KEY\" (or an \"X-API-Key\" header).",
+      "fieldName": "required",
+      "fieldContact": "at least one is required",
+      "fieldSource": "defaults to api",
+      "apiResponses": "Responses: 201 = lead created; 200 with status \"duplicate\" = that phone number already belongs to a lead or customer (nothing is created, the existing record is returned); 400 = invalid data; 401 = missing or invalid key.",
+      "whatsappTitle": "WhatsApp Cloud API",
+      "whatsappDescription": "Every WhatsApp message sent to your business number creates a lead for the sender.",
+      "waStep1": "In Meta for Developers → your app → WhatsApp → Configuration, set the Callback URL above and a Verify token of your choice.",
+      "waStep2": "Subscribe to the \"messages\" webhook field.",
+      "waStep3": "Put the same verify token and the app secret (App settings → Basic) in the server environment, then restart:",
+      "optional": "optional",
+      "waBehaviour": "The sender's WhatsApp name and first message become the lead's name and notes, with source WhatsApp. If the number already belongs to a lead or customer, no new lead is created. Requests are verified with Meta's signature, so only Meta can post here. The URL must be public HTTPS."
     }
   },
   "crm": {
@@ -400,13 +439,16 @@
       },
       "source": "Lead source",
       "sourceValues": {
+        "external_client": "External client",
         "facebook": "Facebook",
         "instagram": "Instagram",
         "meta": "Meta",
         "google": "Google",
         "website": "Website",
         "event": "Event",
-        "referral": "Referral"
+        "referral": "Referral",
+        "whatsapp": "WhatsApp",
+        "api": "API"
       },
       "notes": "Notes",
       "assignHint": "This lead will be assigned to you automatically. You don't have permission to assign it to someone else.",
@@ -614,5 +656,23 @@
       "assignPermissionHint": "You don't have permission to assign customers.",
       "assignCreateHint": "This customer will be assigned to you automatically. You don't have permission to assign them to someone else."
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet.",
+    "markAllRead": "Mark all as read",
+    "enableDesktop": "Enable desktop alerts",
+    "open": "Open",
+    "dealAssigned": "A deal was assigned to you: {name}",
+    "dealAssignedBy": "{by} assigned you the deal: {name}",
+    "leadAssigned": "A lead was assigned to you: {name}",
+    "leadAssignedBy": "{by} assigned you the lead: {name}",
+    "activityScheduled": "{type} scheduled on {name} for {when}",
+    "activityScheduledBy": "{by} scheduled {type} on {name} for {when}",
+    "activityReminder": "Reminder {attempt} of {max}: {type} on {name} was due {when} and is still open. Please update it.",
+    "dealUnassigned": "A deal is now unassigned: {name}. Reassign it.",
+    "dealUnassignedBy": "{by} unassigned the deal: {name}. Reassign it.",
+    "dealUnassignedRule": "The rule \"{rule}\" unassigned the deal: {name}. Reassign it.",
+    "dealsUnassigned": "The rule \"{rule}\" unassigned {count} deals in {stage}. Reassign them."
   }
 }

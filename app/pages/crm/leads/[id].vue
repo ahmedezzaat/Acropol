@@ -54,7 +54,7 @@ const leadTypeOptions = computed(() => [
   { label: t("crm.leads.type.company"), value: "company" },
 ]);
 
-const sourceKeys = ["facebook", "instagram", "meta", "google", "website", "event", "referral"] as const;
+const sourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api"] as const;
 const sourceOptions = computed(() =>
   sourceKeys.map((s) => ({ label: t(`crm.leads.sourceValues.${s}`), value: s })),
 );

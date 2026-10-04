@@ -226,7 +226,7 @@ export type Database = {
           status: Database["public"]["Enums"]["lead_status"];
           notes: string | null;
           assigned_to: string | null;
-          created_by: string;
+          created_by: string | null;
           customer_id: string | null;
           created_at: string;
           updated_at: string;
@@ -483,6 +483,8 @@ export type Database = {
           metadata: Json;
           created_by: string | null;
           created_at: string;
+          reminder_count: number;
+          last_reminded_at: string | null;
         };
         Insert: {
           id?: string;
@@ -494,6 +496,8 @@ export type Database = {
           metadata?: Json;
           created_by?: string | null;
           created_at?: string;
+          reminder_count?: number;
+          last_reminded_at?: string | null;
         };
         Update: {
           id?: string;
@@ -505,6 +509,8 @@ export type Database = {
           metadata?: Json;
           created_by?: string | null;
           created_at?: string;
+          reminder_count?: number;
+          last_reminded_at?: string | null;
         };
         Relationships: [
           {
@@ -588,6 +594,87 @@ export type Database = {
           name?: string;
           icon?: string;
           sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      api_keys: {
+        Row: {
+          id: string;
+          name: string;
+          key_prefix: string;
+          key_hash: string;
+          default_assignee_id: string | null;
+          is_active: boolean;
+          last_used_at: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          key_prefix: string;
+          key_hash: string;
+          default_assignee_id?: string | null;
+          is_active?: boolean;
+          last_used_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          key_prefix?: string;
+          key_hash?: string;
+          default_assignee_id?: string | null;
+          is_active?: boolean;
+          last_used_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          type:
+            | "deal_assigned"
+            | "lead_assigned"
+            | "activity_scheduled"
+            | "activity_reminder"
+            | "deal_unassigned"
+            | "deals_unassigned";
+          params: Json;
+          is_read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type:
+            | "deal_assigned"
+            | "lead_assigned"
+            | "activity_scheduled"
+            | "activity_reminder"
+            | "deal_unassigned"
+            | "deals_unassigned";
+          params?: Json;
+          is_read?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?:
+            | "deal_assigned"
+            | "lead_assigned"
+            | "activity_scheduled"
+            | "activity_reminder"
+            | "deal_unassigned"
+            | "deals_unassigned";
+          params?: Json;
+          is_read?: boolean;
           created_at?: string;
         };
         Relationships: [];
@@ -753,6 +840,24 @@ export type Database = {
         Args: { p_module: string };
         Returns: boolean;
       };
+      api_create_lead: {
+        Args: {
+          p_name: string;
+          p_phone: string | null;
+          p_phone2: string | null;
+          p_email: string | null;
+          p_source: string;
+          p_notes: string | null;
+          p_lead_type: string | null;
+          p_company_name: string | null;
+          p_assigned_to: string | null;
+        };
+        Returns: Json;
+      };
+      phone_digits: {
+        Args: { p: string };
+        Returns: string | null;
+      };
       run_automation_rules: {
         Args: Record<string, never>;
         Returns: number;
@@ -778,7 +883,7 @@ export type Database = {
     Enums: {
       lead_status: "new" | "contacted" | "qualified" | "converted" | "lost";
       lead_type: "individual" | "company";
-      lead_source: "facebook" | "instagram" | "meta" | "google" | "website" | "event" | "referral";
+      lead_source: "external_client" | "facebook" | "instagram" | "meta" | "google" | "website" | "event" | "referral" | "whatsapp" | "api";
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "expired";
     };
     CompositeTypes: Record<string, never>;

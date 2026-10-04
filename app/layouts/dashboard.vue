@@ -15,6 +15,9 @@ const resourceRoutes: Record<string, string> = {
 
 const route = useRoute();
 
+// Loads this user's notifications and listens for new ones (toasts + panel).
+useNotificationsRealtime();
+
 // The sidebar is contextual: inside /crm it lists only CRM's pages, inside
 // /admin only the settings pages, and on the home hub one link per area.
 // The way back to Home is the app name in the sidebar header.
@@ -44,6 +47,7 @@ const settingsLinks = computed<NavigationMenuItem[]>(() => [
   { label: t("admin.productCategories.title"), icon: "i-lucide-tags", to: "/admin/product-categories" },
   { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
   { label: t("admin.automation.title"), icon: "i-lucide-zap", to: "/admin/automation" },
+  { label: t("admin.integrations.title"), icon: "i-lucide-plug", to: "/admin/integrations" },
 ]);
 
 const items = computed<NavigationMenuItem[][]>(() => {
@@ -80,15 +84,17 @@ async function signOut() {
           <NuxtLink to="/" class="truncate font-semibold text-highlighted">
             {{ collapsed ? t("nav.appName").charAt(0) : t("nav.appName") }}
           </NuxtLink>
-          <UButton
-            v-if="!collapsed && hasAnyModulePermission('crm_deals')"
-            icon="i-lucide-calendar"
-            :aria-label="t('crm.calendar.title')"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            to="/crm/calendar"
-          />
+          <div v-if="!collapsed" class="flex items-center">
+            <NotificationBell />
+            <UButton
+              v-if="hasAnyModulePermission('crm_deals')"
+              icon="i-lucide-calendar"
+              :aria-label="t('crm.calendar.title')"
+              color="neutral"
+              variant="ghost"
+              to="/crm/calendar"
+            />
+          </div>
         </div>
       </template>
 
@@ -118,5 +124,12 @@ async function signOut() {
     </UDashboardSidebar>
 
     <slot />
+
+    <!-- On phones the sidebar is tucked behind the menu button, so the bell
+    also floats in the corner. -->
+    <div class="fixed bottom-4 end-4 z-40 border border-default bg-default shadow-md lg:hidden">
+      <NotificationBell />
+    </div>
+    <NotificationPanel />
   </UDashboardGroup>
 </template>

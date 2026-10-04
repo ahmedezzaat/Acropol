@@ -323,8 +323,13 @@ const assigneeFilterOptions = computed(() => [
 // when this ref is created (Supabase's session fetch is async even after
 // route middleware has already let the page through) — so set it
 // reactively the first time it's available, rather than only once at setup.
-const assigneeFilter = ref<string | null>(null);
-const assigneeFilterInitialized = ref(false);
+// A notification can open this page pre-filtered to unassigned deals
+// (?assignee=unassigned, optionally &pipeline=<id>&stage=<id>) so a manager can
+// reassign them straight away.
+const route = useRoute();
+const openedAsUnassigned = route.query.assignee === "unassigned";
+const assigneeFilter = ref<string | null>(openedAsUnassigned ? UNASSIGNED : null);
+const assigneeFilterInitialized = ref(openedAsUnassigned);
 watchEffect(() => {
   if (!assigneeFilterInitialized.value && currentUserId.value) {
     assigneeFilter.value = currentUserId.value;
@@ -335,7 +340,8 @@ watchEffect(() => {
 const activePipelineId = ref<string | null>(null);
 watchEffect(() => {
   if (!activePipelineId.value && pipelines.value?.length) {
-    activePipelineId.value = pipelines.value[0].id;
+    const requested = typeof route.query.pipeline === "string" ? route.query.pipeline : null;
+    activePipelineId.value = pipelines.value.find((p) => p.id === requested)?.id ?? pipelines.value[0].id;
   }
 });
 
@@ -349,13 +355,15 @@ const activeStages = computed(() =>
 
 // --- Filter by stage and creation date — shared by both the kanban board
 // and the list view below, alongside the existing assignee filter.
-const stageFilter = ref<string | null>(null);
+const stageFilter = ref<string | null>(typeof route.query.stage === "string" ? route.query.stage : null);
 const stageFilterOptions = computed(() => [
   { label: t("common.all"), value: null },
   ...activeStages.value.map((s) => ({ label: s.name, value: s.id })),
 ]);
-watch(activePipelineId, () => {
-  stageFilter.value = null;
+watch(activePipelineId, (_next, previous) => {
+  // The first assignment (null -> initial pipeline) must keep a stage that
+  // arrived via the URL; only a real pipeline switch clears it.
+  if (previous !== null) stageFilter.value = null;
 });
 const dateFrom = ref("");
 const dateTo = ref("");
@@ -607,7 +615,7 @@ const leadTypeOptions = computed(() => [
   { label: t("crm.leads.type.individual"), value: "individual" },
   { label: t("crm.leads.type.company"), value: "company" },
 ]);
-const sourceKeys = ["facebook", "instagram", "meta", "google", "website", "event", "referral"] as const;
+const sourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api"] as const;
 const sourceOptions = computed(() => sourceKeys.map((s) => ({ label: t(`crm.leads.sourceValues.${s}`), value: s })));
 const leadModeOptions = computed(() => {
   const opts = [{ label: t("crm.deals.existingLead"), value: "existing" as const }];

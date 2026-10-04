@@ -13,6 +13,7 @@ const sections = [
   { titleKey: "admin.productCategories.title", icon: "i-lucide-tags", to: "/admin/product-categories" },
   { titleKey: "admin.teams.title", icon: "i-lucide-users-round", to: "/admin/teams" },
   { titleKey: "admin.automation.title", icon: "i-lucide-zap", to: "/admin/automation" },
+  { titleKey: "admin.integrations.title", icon: "i-lucide-plug", to: "/admin/integrations" },
 ];
 </script>
 
