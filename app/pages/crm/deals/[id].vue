@@ -729,7 +729,18 @@ async function scheduleActivity() {
   scheduling.value = false;
 
   if (error) {
-    toast.add({ title: t("crm.deals.timeline.activityLogFailed"), description: error.message, color: "error" });
+    // A deal can hold only one open scheduled activity (unique index) — say
+    // so in plain words instead of surfacing the raw constraint name.
+    const alreadyOpen = error.message.includes("deal_activities_one_open_per_deal");
+    toast.add({
+      title: t("crm.deals.timeline.activityLogFailed"),
+      description: alreadyOpen ? t("crm.deals.timeline.openActivityExists") : error.message,
+      color: "error",
+    });
+    if (alreadyOpen) {
+      scheduleModalOpen.value = false;
+      refreshActivities();
+    }
     return;
   }
   toast.add({ title: t("crm.deals.timeline.followUpScheduled"), color: "success" });
@@ -944,6 +955,13 @@ function formatDate(value: string | null | undefined, withTime = false) {
 
 function stageName(id: string | null | undefined) {
   return allStages.value?.find((s) => s.id === id)?.name ?? "—";
+}
+
+// Open activities are cancelled when the deal's assignee changes (see
+// cancel_open_activities_on_reassign); they carry a metadata flag so the
+// timeline can tell that apart from a real completion.
+function wasCancelledOnReassign(activity: Activity) {
+  return !!activity.metadata?.cancelled_on_reassign;
 }
 
 function activityTitle(activity: Activity) {
@@ -1317,7 +1335,14 @@ function isPastDue(iso: string | null) {
                   <p v-if="item.description" class="text-sm text-muted">{{ item.description }}</p>
                   <div class="flex items-center gap-2">
                     <UBadge
-                      v-if="item._raw.completed_at"
+                      v-if="wasCancelledOnReassign(item._raw)"
+                      :label="t('crm.deals.timeline.cancelledOnReassign')"
+                      color="warning"
+                      variant="subtle"
+                      size="sm"
+                    />
+                    <UBadge
+                      v-else-if="item._raw.completed_at"
                       :label="t('crm.deals.timeline.completedLabel')"
                       color="success"
                       variant="subtle"

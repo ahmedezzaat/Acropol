@@ -619,7 +619,9 @@
           "unassigned": "Unassigned",
           "unassignedByRule": "Automatically unassigned by rule “{rule}”",
           "automationActor": "Automation"
-        }
+        },
+        "openActivityExists": "This deal already has an open scheduled activity. Complete it first, then schedule the next one.",
+        "cancelledOnReassign": "Cancelled on reassignment"
       },
       "reassignTitle": "Reassign deal",
       "filters": "Filters",

@@ -619,7 +619,9 @@
           "unassigned": "تم إلغاء الإسناد",
           "unassignedByRule": "تم إلغاء الإسناد تلقائيًا بواسطة القاعدة «{rule}»",
           "automationActor": "الأتمتة"
-        }
+        },
+        "openActivityExists": "هذه الصفقة لديها نشاط مجدول مفتوح بالفعل. أكمله أولًا ثم جدول النشاط التالي.",
+        "cancelledOnReassign": "أُلغي عند إعادة الإسناد"
       },
       "reassignTitle": "إعادة إسناد الصفقة",
       "filters": "التصفية",

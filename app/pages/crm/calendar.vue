@@ -18,6 +18,7 @@ interface ActivityRow {
   scheduled_at: string | null;
   completed_at: string | null;
   created_by: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 interface DealRow {
@@ -67,12 +68,12 @@ const { data: activities, refresh: refreshActivities, status } = await useAsyncD
   async () => {
     const { data, error } = await supabase
       .from("deal_activities")
-      .select("id, deal_id, type, content, scheduled_at, completed_at, created_by")
+      .select("id, deal_id, type, content, scheduled_at, completed_at, created_by, metadata")
       .not("scheduled_at", "is", null)
       .neq("type", "note")
       .order("scheduled_at", { ascending: true });
     if (error) throw error;
-    return data ?? [];
+    return (data ?? []) as unknown as ActivityRow[];
   },
 );
 
@@ -390,6 +391,13 @@ async function submitComplete() {
               <div class="text-sm text-highlighted">{{ dealTitle(entry.activity.deal_id) }}</div>
               <div class="text-sm text-muted">{{ dealContactName(entry.activity.deal_id) }}</div>
               <div class="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                <UBadge
+                  v-if="entry.activity.metadata?.cancelled_on_reassign"
+                  :label="t('crm.deals.timeline.cancelledOnReassign')"
+                  color="warning"
+                  variant="subtle"
+                  size="sm"
+                />
                 <span v-if="entry.activity.content">{{ entry.activity.content }}</span>
                 <span>· {{ profileLabel(dealById(entry.activity.deal_id)?.assigned_to ?? null) }}</span>
               </div>
