@@ -189,6 +189,7 @@ export function useNotificationsRealtime() {
           items.value = [n, ...items.value].slice(0, 100);
 
           const d = describe(n);
+          playNotificationSound();
           toast.add({
             title: d.text,
             icon: d.icon,
@@ -209,7 +210,7 @@ export function useNotificationsRealtime() {
           });
 
           if (import.meta.client && document.hidden && "Notification" in window && Notification.permission === "granted") {
-            new Notification(t("nav.appName"), { body: d.text });
+            new Notification(t("nav.appName"), { body: d.text, tag: n.id, silent: false });
           }
         },
       )

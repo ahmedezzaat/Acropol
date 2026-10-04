@@ -673,6 +673,15 @@
     "dealUnassigned": "A deal is now unassigned: {name}. Reassign it.",
     "dealUnassignedBy": "{by} unassigned the deal: {name}. Reassign it.",
     "dealUnassignedRule": "The rule \"{rule}\" unassigned the deal: {name}. Reassign it.",
-    "dealsUnassigned": "The rule \"{rule}\" unassigned {count} deals in {stage}. Reassign them."
+    "dealsUnassigned": "The rule \"{rule}\" unassigned {count} deals in {stage}. Reassign them.",
+    "gate": {
+      "title": "Turn on notifications to continue",
+      "description": "Acropol alerts you the moment a deal or lead is assigned to you, when an activity is scheduled, and when one is overdue and still open. These alerts only reach you if browser notifications are on.",
+      "enable": "Enable notifications",
+      "promptHint": "Your browser will ask for permission — choose Allow. Alerts come with a sound, so keep your volume on.",
+      "blockedTitle": "Notifications are blocked in this browser",
+      "blockedSteps": "Click the lock or settings icon next to the address bar, set Notifications to Allow for this site, then come back and press the button below.",
+      "checkAgain": "I've allowed it — check again"
+    }
   }
 }

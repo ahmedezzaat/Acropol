@@ -131,5 +131,6 @@ async function signOut() {
       <NotificationBell />
     </div>
     <NotificationPanel />
+    <NotificationGate />
   </UDashboardGroup>
 </template>
