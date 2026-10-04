@@ -12,7 +12,7 @@ const toast = useToast();
 const route = useRoute();
 const { t } = useI18n();
 const { hasPermission, isAdmin } = usePermissions();
-const { statusColors, statusLabel, kindLabel, kindIcon, formatDate, timeRange, dealLabel, loadDeals } = useVisits();
+const { statusColors, statusLabel, kindLabel, kindIcon, formatDate, timeRange, dealLabel, visitSubject, visitTypes, loadDeals, loadTypes } = useVisits();
 
 interface Profile {
   id: string;
@@ -45,7 +45,7 @@ const { data: people } = await useAsyncData<{ profiles: Profile[]; teams: Team[]
   return { profiles: profiles ?? [], teams: teams ?? [] };
 });
 await useAsyncData("crm-visits-deals", async () => {
-  await loadDeals(true);
+  await Promise.all([loadDeals(true), loadTypes(true)]);
   return true;
 });
 
@@ -103,8 +103,7 @@ const filterTabs = computed(() =>
 );
 const kindOptions = computed(() => [
   { label: t("crm.visits.allTypes"), value: "all" },
-  { label: kindLabel("field_trip"), value: "field_trip" },
-  { label: kindLabel("inspection"), value: "inspection" },
+  ...visitTypes.value.map((x) => ({ label: x.name, value: x.key })),
 ]);
 
 const filtered = computed(() =>
@@ -117,7 +116,7 @@ const filtered = computed(() =>
     if (filter.value === "closed" && !["rejected", "cancelled"].includes(v.status)) return false;
     if (search.value) {
       const q = search.value.toLowerCase();
-      const hay = `${dealLabel(v.deal_id)} ${personName(v.requested_by)} ${v.address}`.toLowerCase();
+      const hay = `${dealLabel(v.deal_id)} ${personName(v.requested_by)} ${v.address} ${kindLabel(v.kind)}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -279,7 +278,7 @@ function actionColor(a: VisitAction) {
           <div class="flex items-start justify-between gap-2">
             <span class="flex min-w-0 items-center gap-2 font-semibold text-highlighted">
               <UIcon :name="kindIcon(v.kind)" class="size-4 shrink-0 text-primary" />
-              <span class="truncate">{{ kindLabel(v.kind) }} · {{ dealLabel(v.deal_id) }}</span>
+              <span class="truncate">{{ kindLabel(v.kind) }} · {{ visitSubject(v) }}</span>
             </span>
             <UBadge :label="statusLabel(v.status)" :color="statusColors[v.status]" variant="subtle" size="sm" class="cds-tag shrink-0" />
           </div>
@@ -303,12 +302,12 @@ function actionColor(a: VisitAction) {
   <VisitRequestModal v-model:open="createOpen" @saved="refresh" />
   <VisitRequestModal v-model:open="editOpen" :visit="selected" @saved="afterSaved" />
 
-  <UModal v-model:open="detailOpen" :title="selected ? `${kindLabel(selected.kind)} · ${dealLabel(selected.deal_id)}` : ''">
+  <UModal v-model:open="detailOpen" :title="selected ? `${kindLabel(selected.kind)} · ${visitSubject(selected)}` : ''">
     <template #body>
       <div v-if="selected" class="space-y-5">
         <div class="flex flex-wrap items-center gap-2">
           <UBadge :label="statusLabel(selected.status)" :color="statusColors[selected.status]" variant="subtle" class="cds-tag" />
-          <NuxtLink :to="`/crm/deals/${selected.deal_id}`" class="text-sm text-primary hover:underline">
+          <NuxtLink v-if="selected.deal_id" :to="`/crm/deals/${selected.deal_id}`" class="text-sm text-primary hover:underline">
             {{ t("crm.visits.openDeal") }}
           </NuxtLink>
           <UButton

@@ -394,6 +394,19 @@
       "waStep3": "Put the same verify token and the app secret (App settings → Basic) in the server environment, then restart:",
       "optional": "optional",
       "waBehaviour": "The sender's WhatsApp name and first message become the lead's name and notes, with source WhatsApp. If the number already belongs to a lead or customer, no new lead is created. Requests are verified with Meta's signature, so only Meta can post here. The URL must be public HTTPS."
+    },
+    "visitTypes": {
+      "title": "Trip & inspection types",
+      "description": "The types people can choose when requesting a trip or inspection (e.g. Field trip, Inspection, Outdoor round). A type can be tied to a deal or stand alone — an outdoor round to scan an area for prospects doesn't belong to any deal.",
+      "name": "Name",
+      "addType": "Add type",
+      "newTypeDefault": "New type",
+      "requiresDeal": "Tied to a deal (the request must select one)",
+      "usedBy": "{count} request(s) use this type",
+      "inUseTitle": "This type is in use",
+      "inUseHint": "{count} request(s) use it, so it can't be deleted. You can still rename it.",
+      "saved": "Saved",
+      "saveFailed": "Failed to save"
     }
   },
   "crm": {
@@ -681,7 +694,7 @@
       "date": "Date",
       "timeFrom": "From",
       "timeTo": "To",
-      "address": "Address",
+      "address": "Address / area",
       "notes": "Notes",
       "timeOrder": "The end time must be after the start time.",
       "submit": "Submit request",

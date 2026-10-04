@@ -229,7 +229,11 @@ function openDeal(dealId: string) {
   navigateTo(`/crm/deals/${dealId}`);
 }
 
-const { statusColors: visitStatusColors, statusLabel: visitStatusLabel, kindLabel: visitKindLabel, kindIcon: visitKindIcon, formatDate: visitFormatDate, timeRange: visitTimeRange } = useVisits();
+const { statusColors: visitStatusColors, statusLabel: visitStatusLabel, kindLabel: visitKindLabel, kindIcon: visitKindIcon, formatDate: visitFormatDate, timeRange: visitTimeRange, loadTypes: loadVisitTypes } = useVisits();
+await useAsyncData("crm-calendar-visit-types", async () => {
+  await loadVisitTypes();
+  return true;
+});
 function openVisit(v: Visit) {
   navigateTo(`/crm/visits?open=${v.id}`);
 }
@@ -354,8 +358,11 @@ async function submitComplete() {
                   {{ visitFormatDate(entry.visit.visit_date) }} · <bdi dir="ltr">{{ visitTimeRange(entry.visit) }}</bdi>
                 </span>
               </div>
-              <div class="text-sm text-highlighted">{{ dealTitle(entry.visit.deal_id) }}</div>
-              <div class="text-sm text-muted">{{ dealContactName(entry.visit.deal_id) }}</div>
+              <!-- Types like جولة خارجية aren't tied to a deal: just the address below. -->
+              <template v-if="entry.visit.deal_id">
+                <div class="text-sm text-highlighted">{{ dealTitle(entry.visit.deal_id) }}</div>
+                <div class="text-sm text-muted">{{ dealContactName(entry.visit.deal_id) }}</div>
+              </template>
               <div class="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted">
                 <span class="flex items-center gap-1"><UIcon name="i-lucide-map-pin" class="size-3.5" />{{ entry.visit.address }}</span>
                 <span>· {{ profileLabel(entry.visit.requested_by) }}</span>

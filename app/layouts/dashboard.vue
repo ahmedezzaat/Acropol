@@ -48,6 +48,7 @@ const settingsLinks = computed<NavigationMenuItem[]>(() => [
   { label: t("admin.productCategories.title"), icon: "i-lucide-tags", to: "/admin/product-categories" },
   { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
   { label: t("admin.automation.title"), icon: "i-lucide-zap", to: "/admin/automation" },
+  { label: t("admin.visitTypes.title"), icon: "i-lucide-map-pinned", to: "/admin/visit-types" },
   { label: t("admin.integrations.title"), icon: "i-lucide-plug", to: "/admin/integrations" },
 ]);
 

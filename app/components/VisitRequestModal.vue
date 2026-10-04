@@ -9,12 +9,12 @@ const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const toast = useToast();
 const { t } = useI18n();
-const { dealLabels, kindLabel, loadDeals } = useVisits();
+const { dealLabels, visitTypes, kindRequiresDeal, loadDeals, loadTypes } = useVisits();
 
 const editing = computed(() => !!props.visit);
 const saving = ref(false);
 
-const kind = ref<VisitKind>("field_trip");
+const kind = ref<VisitKind>("");
 const selectedDeal = ref<string | undefined>(undefined);
 const visitDate = ref("");
 const timeFrom = ref("");
@@ -26,9 +26,10 @@ const today = new Date().toISOString().slice(0, 10);
 
 watch(open, async (isOpen) => {
   if (!isOpen) return;
-  await loadDeals();
+  await Promise.all([loadDeals(), loadTypes()]);
   const v = props.visit;
-  kind.value = v?.kind ?? "field_trip";
+  // Opened from a deal: only types that belong to a deal make sense.
+  kind.value = v?.kind ?? kindOptions.value[0]?.value ?? "";
   selectedDeal.value = v?.deal_id ?? props.dealId;
   visitDate.value = v?.visit_date ?? "";
   timeFrom.value = v?.time_from.slice(0, 5) ?? "";
@@ -41,13 +42,18 @@ const dealOptions = computed(() =>
   dealLabels.value.map((d) => ({ label: d.contact === d.title ? d.contact : `${d.contact} — ${d.title}`, value: d.id })),
 );
 const kindOptions = computed(() =>
-  (["field_trip", "inspection"] as const).map((k) => ({ label: kindLabel(k), value: k })),
+  visitTypes.value
+    .filter((x) => !props.dealId || x.requires_deal)
+    .map((x) => ({ label: x.name, value: x.key })),
 );
+// A type like جولة خارجية is not tied to any deal, so the deal field goes away.
+const needsDeal = computed(() => !kind.value || kindRequiresDeal(kind.value));
 
 const timeOrderOk = computed(() => !timeFrom.value || !timeTo.value || timeTo.value > timeFrom.value);
 const valid = computed(
   () =>
-    !!selectedDeal.value &&
+    !!kind.value &&
+    (!needsDeal.value || !!selectedDeal.value) &&
     !!visitDate.value &&
     !!timeFrom.value &&
     !!timeTo.value &&
@@ -71,7 +77,11 @@ async function submit() {
     ? await supabase.from("field_visits").update(details).eq("id", props.visit.id)
     : await supabase
         .from("field_visits")
-        .insert({ ...details, deal_id: selectedDeal.value!, requested_by: user.value.sub as string });
+        .insert({
+          ...details,
+          deal_id: needsDeal.value ? selectedDeal.value! : null,
+          requested_by: user.value.sub as string,
+        });
   saving.value = false;
 
   if (error) {
@@ -89,10 +99,16 @@ async function submit() {
     <template #body>
       <div class="space-y-4">
         <UFormField :label="t('crm.visits.kindLabel')">
-          <URadioGroup v-model="kind" orientation="horizontal" :items="kindOptions" value-key="value" />
+          <URadioGroup
+            v-model="kind"
+            orientation="horizontal"
+            :items="kindOptions"
+            value-key="value"
+            :disabled="editing"
+          />
         </UFormField>
 
-        <UFormField :label="t('crm.visits.deal')" required>
+        <UFormField v-if="needsDeal" :label="t('crm.visits.deal')" required>
           <USelectMenu
             v-model="selectedDeal"
             :items="dealOptions"

@@ -634,11 +634,41 @@ export type Database = {
         };
         Relationships: [];
       };
+      visit_types: {
+        Row: {
+          id: string;
+          key: string;
+          name: string;
+          requires_deal: boolean;
+          icon: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          key: string;
+          name: string;
+          requires_deal?: boolean;
+          icon?: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          key?: string;
+          name?: string;
+          requires_deal?: boolean;
+          icon?: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       field_visits: {
         Row: {
           id: string;
-          kind: "field_trip" | "inspection";
-          deal_id: string;
+          kind: string;
+          deal_id: string | null;
           requested_by: string;
           visit_date: string;
           time_from: string;
@@ -651,8 +681,8 @@ export type Database = {
         };
         Insert: {
           id?: string;
-          kind: "field_trip" | "inspection";
-          deal_id: string;
+          kind: string;
+          deal_id: string | null;
           requested_by: string;
           visit_date: string;
           time_from: string;
@@ -665,8 +695,8 @@ export type Database = {
         };
         Update: {
           id?: string;
-          kind?: "field_trip" | "inspection";
-          deal_id?: string;
+          kind?: string;
+          deal_id?: string | null;
           requested_by?: string;
           visit_date?: string;
           time_from?: string;

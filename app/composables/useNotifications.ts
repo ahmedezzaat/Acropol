@@ -31,6 +31,7 @@ const PAGE_SIZE = 50;
 export function useNotifications() {
   const supabase = useSupabaseClient();
   const { t, locale } = useI18n();
+  const { kindLabel, loadTypes } = useVisits();
 
   const items = useState<AppNotification[]>("notifications", () => []);
   const open = useState<boolean>("notifications-open", () => false);
@@ -124,7 +125,7 @@ export function useNotifications() {
       case "visit_pending": {
         const vp = {
           ...base,
-          kind: t(`crm.visits.kind.${p.kind}`),
+          kind: kindLabel(String(p.kind ?? "")),
           date: formatDay(p.visit_date),
           by: personName(p.requested_by) ?? "",
         };
@@ -147,7 +148,7 @@ export function useNotifications() {
           color: status === "rejected" ? ("error" as const) : ("primary" as const),
           text: t(`notifications.visitUpdate.${status}`, {
             ...base,
-            kind: t(`crm.visits.kind.${p.kind}`),
+            kind: kindLabel(String(p.kind ?? "")),
             date: formatDay(p.visit_date),
           }),
           link: `/crm/visits?open=${p.visit_id}`,
@@ -170,6 +171,7 @@ export function useNotifications() {
     ]);
     items.value = (rows ?? []) as AppNotification[];
     profiles.value = people ?? [];
+    await loadTypes();
   }
 
   async function markRead(n: AppNotification) {

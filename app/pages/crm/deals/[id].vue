@@ -120,9 +120,10 @@ const visitModalOpen = ref(false);
 function openVisitModal() {
   visitModalOpen.value = true;
 }
-const { statusColors: visitStatusColors, statusLabel: visitStatusLabel, kindLabel: visitKindLabel, kindIcon: visitKindIcon, formatDate: visitFormatDate, timeRange: visitTimeRange } = useVisits();
+const { statusColors: visitStatusColors, statusLabel: visitStatusLabel, kindLabel: visitKindLabel, kindIcon: visitKindIcon, formatDate: visitFormatDate, timeRange: visitTimeRange, loadTypes: loadVisitTypes } = useVisits();
 const { data: dealVisits, refresh: refreshVisits } = await useAsyncData<Visit[]>(`crm-deal-${dealId}-visits`, async () => {
   if (!canSeeVisits.value) return [];
+  await loadVisitTypes();
   const { data, error } = await supabase
     .from("field_visits")
     .select("*")
