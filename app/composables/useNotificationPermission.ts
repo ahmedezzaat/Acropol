@@ -6,6 +6,11 @@ export type NotificationPermissionState = NotificationPermission | "unsupported"
 export function useNotificationPermission() {
   const permission = useState<NotificationPermissionState>("notification-permission", () => "default");
   const ready = useState<boolean>("notification-permission-ready", () => false);
+  // True once the user pressed "Enable" and the browser still has not granted
+  // it: either they dismissed the prompt, or the browser never showed one
+  // (Chrome stops showing it after a few dismissals and only puts a small icon
+  // in the address bar; in-app browsers often never show it at all).
+  const attempted = useState<boolean>("notification-permission-attempted", () => false);
 
   function read() {
     permission.value = "Notification" in window ? Notification.permission : "unsupported";
@@ -17,10 +22,23 @@ export function useNotificationPermission() {
     // The click that got us here also unlocks sound for later notifications.
     unlockAudio();
     try {
-      await Notification.requestPermission();
-    } finally {
-      read();
-      if (permission.value === "granted") playNotificationSound();
+      // Older Safari only supports the callback form and returns undefined, so
+      // support both; either way the real answer is read back from
+      // Notification.permission afterwards.
+      await new Promise<void>((resolve) => {
+        const maybePromise = Notification.requestPermission(() => resolve()) as Promise<NotificationPermission> | undefined;
+        if (maybePromise && typeof maybePromise.then === "function") maybePromise.then(() => resolve(), () => resolve());
+        else setTimeout(resolve, 0);
+      });
+    } catch {
+      /* fall through — we read the state below */
+    }
+    read();
+    if (permission.value === "granted") {
+      attempted.value = false;
+      playNotificationSound();
+    } else {
+      attempted.value = true;
     }
   }
 
@@ -36,5 +54,5 @@ export function useNotificationPermission() {
     }
   }
 
-  return { permission, ready, request, recheck: read, watchChanges };
+  return { permission, ready, attempted, request, recheck: read, watchChanges };
 }

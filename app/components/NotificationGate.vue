@@ -5,10 +5,14 @@
 // browsers) can't be asked, so they are let through rather than locked out.
 const { t } = useI18n();
 const supabase = useSupabaseClient();
-const { permission, ready, request, recheck, watchChanges } = useNotificationPermission();
+const { permission, ready, attempted, request, recheck, watchChanges } = useNotificationPermission();
 
 const needed = computed(() => ready.value && permission.value !== "unsupported" && permission.value !== "granted");
 const denied = computed(() => permission.value === "denied");
+// The prompt was shown (or should have been) and the answer is still "not
+// granted": point the user at the browser's own controls instead of leaving
+// them clicking a button that appears to do nothing.
+const needsManualAllow = computed(() => denied.value || attempted.value);
 
 onMounted(() => {
   watchChanges();
@@ -18,9 +22,15 @@ onMounted(() => {
   // Re-read when the tab regains focus — the user may have just changed the
   // permission in browser settings.
   window.addEventListener("focus", recheck);
+  // Not every browser reports a permission change made from the address-bar
+  // icon, so also poll while the dialog is up: it closes by itself as soon as
+  // notifications are allowed, no extra click needed.
+  poll = setInterval(recheck, 1500);
 });
+let poll: ReturnType<typeof setInterval> | undefined;
 onBeforeUnmount(() => {
   window.removeEventListener("focus", recheck);
+  if (poll) clearInterval(poll);
 });
 
 async function signOut() {
@@ -40,33 +50,33 @@ async function signOut() {
           <p class="text-sm text-toned">{{ t("notifications.gate.description") }}</p>
         </div>
 
-        <template v-if="!denied">
-          <UButton
-            icon="i-lucide-bell-ring"
-            :label="t('notifications.gate.enable')"
-            size="lg"
-            block
-            @click="request"
-          />
-          <p class="text-xs text-muted">{{ t("notifications.gate.promptHint") }}</p>
-        </template>
+        <UButton
+          icon="i-lucide-bell-ring"
+          :label="t(needsManualAllow ? 'notifications.gate.tryAgain' : 'notifications.gate.enable')"
+          size="lg"
+          block
+          @click="request"
+        />
+        <p v-if="!needsManualAllow" class="text-xs text-muted">{{ t("notifications.gate.promptHint") }}</p>
 
-        <template v-else>
-          <UAlert
-            color="warning"
-            variant="subtle"
-            icon="i-lucide-triangle-alert"
-            :title="t('notifications.gate.blockedTitle')"
-            :description="t('notifications.gate.blockedSteps')"
-          />
-          <UButton
-            icon="i-lucide-refresh-cw"
-            :label="t('notifications.gate.checkAgain')"
-            size="lg"
-            block
-            @click="recheck"
-          />
-        </template>
+        <UAlert
+          v-else
+          color="warning"
+          variant="subtle"
+          icon="i-lucide-triangle-alert"
+          :title="t(denied ? 'notifications.gate.blockedTitle' : 'notifications.gate.noPromptTitle')"
+          :description="t(denied ? 'notifications.gate.blockedSteps' : 'notifications.gate.noPromptSteps')"
+        />
+        <p v-if="needsManualAllow" class="text-xs text-muted">{{ t("notifications.gate.inAppBrowser") }}</p>
+        <UButton
+          v-if="needsManualAllow"
+          icon="i-lucide-refresh-cw"
+          :label="t('notifications.gate.checkAgain')"
+          color="neutral"
+          variant="outline"
+          block
+          @click="recheck"
+        />
 
         <UButton
           color="neutral"
