@@ -353,15 +353,15 @@ const dealsByTeam = computed<TeamCount[]>(() => {
 
       <div v-else class="space-y-6">
         <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <UPageCard v-if="canLeads">
+          <UPageCard v-if="canLeads" to="/crm/leads">
             <div class="text-2xl font-bold text-highlighted">{{ leadsData?.length ?? 0 }}</div>
             <div class="text-sm text-muted">{{ t("crm.dashboard.totalLeads") }}</div>
           </UPageCard>
-          <UPageCard v-if="canDeals">
+          <UPageCard v-if="canDeals" to="/crm/deals?assignee=all">
             <div class="text-2xl font-bold text-highlighted">{{ dealsData?.length ?? 0 }}</div>
             <div class="text-sm text-muted">{{ t("crm.dashboard.totalDeals") }}</div>
           </UPageCard>
-          <UPageCard v-if="canCustomers">
+          <UPageCard v-if="canCustomers" to="/crm/customers">
             <div class="text-2xl font-bold text-highlighted">{{ customersCount ?? 0 }}</div>
             <div class="text-sm text-muted">{{ t("crm.dashboard.totalCustomers") }}</div>
           </UPageCard>

@@ -496,7 +496,18 @@
         "qualified": "مؤهل",
         "converted": "تم التحويل",
         "lost": "خاسر"
-      }
+      },
+      "noResults": "لا توجد نتائج مطابقة.",
+      "selectLead": "اختر عميلًا محتملًا لعرض تفاصيله",
+      "backToList": "العودة إلى القائمة",
+      "openProfile": "تعديل",
+      "createdAt": "تاريخ الإضافة",
+      "noNotes": "لا توجد ملاحظات",
+      "dealsTitle": "الصفقات",
+      "createDeal": "إنشاء صفقة",
+      "noDealsYet": "لا توجد صفقات لهذا العميل المحتمل بعد.",
+      "createDealFor": "صفقة جديدة لـ {name}",
+      "createDealSubmit": "إنشاء الصفقة"
     },
     "deals": {
       "title": "الصفقات",

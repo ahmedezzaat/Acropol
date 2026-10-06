@@ -327,9 +327,12 @@ const assigneeFilterOptions = computed(() => [
 // (?assignee=unassigned, optionally &pipeline=<id>&stage=<id>) so a manager can
 // reassign them straight away.
 const route = useRoute();
+// ?assignee=all opens the full list (the dashboard's "total deals" card uses
+// it) instead of the usual default of "my deals".
 const openedAsUnassigned = route.query.assignee === "unassigned";
+const openedAsAll = route.query.assignee === "all";
 const assigneeFilter = ref<string | null>(openedAsUnassigned ? UNASSIGNED : null);
-const assigneeFilterInitialized = ref(openedAsUnassigned);
+const assigneeFilterInitialized = ref(openedAsUnassigned || openedAsAll);
 watchEffect(() => {
   if (!assigneeFilterInitialized.value && currentUserId.value) {
     assigneeFilter.value = currentUserId.value;

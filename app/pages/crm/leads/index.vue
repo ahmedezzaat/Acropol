@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import * as z from "zod";
-import type { FormSubmitEvent, TableColumn } from "@nuxt/ui";
+import type { FormSubmitEvent } from "@nuxt/ui";
 
 definePageMeta({
   layout: "dashboard",
@@ -23,6 +23,11 @@ interface Lead {
   status: string;
   assigned_to: string | null;
   created_at: string;
+  lead_type: "individual" | "company";
+  company_name: string | null;
+  source: string | null;
+  notes: string | null;
+  customer_id: string | null;
 }
 
 interface Profile {
@@ -33,6 +38,8 @@ interface Profile {
 
 const search = ref("");
 const statusFilter = ref("all");
+// Quick filter above the list: everyone, individuals, or companies.
+const typeFilter = ref<"all" | "individual" | "company">("all");
 // Sentinel for "Unassigned" — null means "no assignee filter".
 const UNASSIGNED = "__unassigned__";
 const assigneeFilter = ref<string | null>(null);
@@ -42,7 +49,7 @@ const { data: leads, refresh, status: leadsStatus } = await useAsyncData<Lead[]>
   async () => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, name, phone, phone2, email, status, assigned_to, created_at")
+      .select("id, name, phone, phone2, email, status, assigned_to, created_at, lead_type, company_name, source, notes, customer_id")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -53,7 +60,7 @@ const { data: leads, refresh, status: leadsStatus } = await useAsyncData<Lead[]>
 // RLS would return zero rows and every lead would falsely show as
 // deal-less.
 const canSeeDeals = computed(() => hasAnyModulePermission("crm_deals"));
-const { data: leadIdsWithDeals } = await useAsyncData<string[]>("crm-leads-deal-flags", async () => {
+const { data: leadIdsWithDeals, refresh: refreshDealFlags } = await useAsyncData<string[]>("crm-leads-deal-flags", async () => {
   if (!canSeeDeals.value) return [];
   const { data, error } = await supabase.from("deals").select("lead_id").not("lead_id", "is", null);
   if (error) throw error;
@@ -104,16 +111,25 @@ const filteredLeads = computed(() => {
     const matchesAssignee =
       assigneeFilter.value === null ||
       (assigneeFilter.value === UNASSIGNED ? lead.assigned_to === null : lead.assigned_to === assigneeFilter.value);
-    return matchesSearch && matchesStatus && matchesAssignee;
+    const matchesType = typeFilter.value === "all" || lead.lead_type === typeFilter.value;
+    return matchesSearch && matchesStatus && matchesAssignee && matchesType;
   });
 });
 
-const columns = computed<TableColumn<Lead>[]>(() => [
-  { id: "name", header: t("common.name") },
-  { id: "contact", header: t("crm.leads.contact") },
-  { accessorKey: "status", header: t("common.status") },
-  { id: "assigned", header: t("crm.leads.assignedTo") },
-]);
+const typeCounts = computed(() => {
+  const all = leads.value ?? [];
+  return {
+    all: all.length,
+    individual: all.filter((l) => l.lead_type === "individual").length,
+    company: all.filter((l) => l.lead_type === "company").length,
+  };
+});
+const typeTabs = computed(() =>
+  (["all", "individual", "company"] as const).map((k) => ({
+    value: k,
+    label: `${k === "all" ? t("common.all") : t(`crm.leads.type.${k}`)} (${typeCounts.value[k]})`,
+  })),
+);
 
 // --- Create lead ---
 const createOpen = ref(false);
@@ -233,17 +249,150 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   refresh();
 }
 
-function openLead(lead: Lead) {
-  navigateTo(`/crm/leads/${lead.id}`);
+// --- Master / detail ---------------------------------------------------
+// The list sits on one side and the selected lead's details on the other (on
+// a phone they take turns full-screen). The selection lives in ?id= so it
+// survives a refresh and notifications can open straight to a lead.
+const route = useRoute();
+const router = useRouter();
+const selectedId = ref<string | null>(typeof route.query.id === "string" ? route.query.id : null);
+
+function selectLead(id: string | null) {
+  selectedId.value = id;
+  const query = { ...route.query };
+  if (id) query.id = id;
+  else delete query.id;
+  router.replace({ query });
+}
+watch(
+  () => route.query.id,
+  (id) => {
+    selectedId.value = typeof id === "string" ? id : null;
+  },
+);
+
+const selectedLead = computed(() => leads.value?.find((l) => l.id === selectedId.value) ?? null);
+
+// On a wide screen there is room for both panes, so open the first lead
+// instead of an empty details pane.
+onMounted(() => {
+  if (!selectedId.value && window.innerWidth >= 1024 && filteredLeads.value[0]) {
+    selectedId.value = filteredLeads.value[0].id;
+  }
+});
+
+function primaryName(lead: Lead) {
+  return lead.lead_type === "company" && lead.company_name ? lead.company_name : lead.name;
+}
+function secondaryName(lead: Lead) {
+  return lead.lead_type === "company" && lead.company_name ? lead.name : null;
+}
+function initial(lead: Lead) {
+  return primaryName(lead).trim().charAt(0).toUpperCase() || "?";
+}
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+function ago(value: string) {
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  const days = Math.round((new Date(value).getTime() - Date.now()) / 86_400_000);
+  if (Math.abs(days) >= 30) return rtf.format(Math.round(days / 30), "month");
+  if (Math.abs(days) >= 1) return rtf.format(days, "day");
+  const hours = Math.round((new Date(value).getTime() - Date.now()) / 3_600_000);
+  return rtf.format(hours, "hour");
+}
+
+// --- The selected lead's deals ---
+interface PipelineStageInfo {
+  id: string;
+  name: string;
+  pipeline_id: string;
+  system_key: string | null;
+}
+interface LeadDeal {
+  id: string;
+  title: string;
+  value: number | null;
+  pipeline_id: string;
+  stage_id: string;
+  assigned_to: string | null;
+  created_at: string;
+}
+
+const { data: stageInfo } = await useAsyncData<PipelineStageInfo[]>("crm-leads-stages", async () => {
+  if (!canSeeDeals.value) return [];
+  const { data, error } = await supabase.from("pipeline_stages").select("id, name, pipeline_id, system_key");
+  if (error) throw error;
+  return data ?? [];
+});
+const { data: pipelineInfo } = await useAsyncData<{ id: string; name: string }[]>("crm-leads-pipelines", async () => {
+  if (!canSeeDeals.value) return [];
+  const { data, error } = await supabase.from("pipelines").select("id, name");
+  if (error) throw error;
+  return data ?? [];
+});
+
+const { data: leadDeals, refresh: refreshLeadDeals, status: leadDealsStatus } = await useAsyncData<LeadDeal[]>(
+  "crm-lead-deals",
+  async () => {
+    if (!canSeeDeals.value || !selectedId.value) return [];
+    const { data, error } = await supabase
+      .from("deals")
+      .select("id, title, value, pipeline_id, stage_id, assigned_to, created_at")
+      .eq("lead_id", selectedId.value)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  },
+  { watch: [selectedId] },
+);
+
+function stageOf(id: string) {
+  return stageInfo.value?.find((s) => s.id === id);
+}
+function stageColor(id: string): "success" | "error" | "neutral" | "primary" {
+  const key = stageOf(id)?.system_key;
+  if (key === "won") return "success";
+  if (key === "competitor") return "error";
+  if (key === "archive") return "neutral";
+  return "primary";
+}
+function pipelineName(id: string) {
+  return pipelineInfo.value?.find((p) => p.id === id)?.name ?? "";
+}
+function formatMoney(value: number | null) {
+  return value ? `${value.toLocaleString("en-US")} ${t("common.currency")}` : null;
+}
+
+const dealModalOpen = ref(false);
+function openDealModal() {
+  dealModalOpen.value = true;
+}
+async function onDealCreated() {
+  await Promise.all([refreshLeadDeals(), refreshDealFlags()]);
+}
+function openDeal(id: string) {
+  navigateTo(`/crm/deals/${id}`);
+}
+function backToList() {
+  selectLead(null);
 }
 </script>
 
 <template>
-  <UDashboardPanel>
+  <!-- One screen tall with its body padding removed, so the list and the
+  details each scroll on their own instead of the whole page. -->
+  <UDashboardPanel :ui="{ root: 'h-svh', body: 'gap-0 overflow-hidden p-0 sm:p-0' }">
     <template #header>
-      <UDashboardNavbar :title="t('crm.leads.title')">
+      <UDashboardNavbar>
         <template #leading>
           <UDashboardSidebarCollapse />
+        </template>
+        <template #title>
+          <span class="flex items-center gap-2">
+            {{ t("crm.leads.title") }}
+            <UBadge :label="String(leads?.length ?? 0)" color="neutral" variant="subtle" class="cds-tag" />
+          </span>
         </template>
         <template #right>
           <UButton
@@ -254,79 +403,272 @@ function openLead(lead: Lead) {
           />
         </template>
       </UDashboardNavbar>
-
-      <UDashboardToolbar>
-        <template #left>
-          <UInput v-model="search" icon="i-lucide-search" :placeholder="t('crm.leads.searchPlaceholder')" />
-        </template>
-        <template #right>
-          <div class="flex flex-wrap items-center gap-2">
-            <USelectMenu
-              v-model="assigneeFilter"
-              :items="assigneeFilterOptions"
-              value-key="value"
-              icon="i-lucide-user"
-              :placeholder="t('crm.leads.assignedTo')"
-              searchable
-              class="w-48"
-            />
-            <USelect v-model="statusFilter" :items="statusOptions" value-key="value" />
-          </div>
-        </template>
-      </UDashboardToolbar>
     </template>
 
     <template #body>
-      <UTable
-        :data="filteredLeads"
-        :columns="columns"
-        :loading="leadsStatus === 'pending' || leadsStatus === 'idle'"
-        @select="(_e, row) => openLead(row.original)"
-      >
-        <template #name-cell="{ row }">
-          <div class="flex items-center gap-2">
-            <span>{{ row.original.name }}</span>
-            <UBadge
-              v-if="canSeeDeals && !leadIdsWithDealsSet.has(row.original.id)"
-              :label="t('crm.leads.noDeal')"
-              color="warning"
-              variant="subtle"
-              size="sm"
-              class="cds-tag"
-            />
+      <div class="flex min-h-0 flex-1">
+        <!-- ===== Contact list ===== -->
+        <aside
+          class="min-h-0 w-full flex-col border-default lg:w-96 lg:shrink-0 lg:border-e"
+          :class="selectedLead ? 'hidden lg:flex' : 'flex'"
+        >
+          <div class="shrink-0 space-y-3 border-b border-default p-3">
+            <UInput v-model="search" icon="i-lucide-search" :placeholder="t('crm.leads.searchPlaceholder')" class="w-full" />
+            <UTabs v-model="typeFilter" :items="typeTabs" value-key="value" variant="pill" size="sm" :content="false" class="w-full" />
+            <div class="grid grid-cols-2 gap-2">
+              <USelectMenu
+                v-model="assigneeFilter"
+                :items="assigneeFilterOptions"
+                value-key="value"
+                icon="i-lucide-user"
+                :placeholder="t('crm.leads.assignedTo')"
+                searchable
+                class="w-full"
+              />
+              <USelect v-model="statusFilter" :items="statusOptions" value-key="value" class="w-full" />
+            </div>
           </div>
-        </template>
-        <template #contact-cell="{ row }">
-          <div class="text-sm">
-            <a
-              v-if="toWhatsAppLink(row.original.phone)"
-              :href="toWhatsAppLink(row.original.phone)!"
-              target="_blank"
-              rel="noopener noreferrer"
-              :aria-label="t('crm.deals.chatOnWhatsApp')"
-              class="inline-flex text-[#25D366] hover:opacity-80"
-              @click.stop
-            >
-              <UIcon name="i-simple-icons-whatsapp" class="size-4" />
-            </a>
-            <span v-else>—</span>
-            <div class="text-muted">{{ row.original.email }}</div>
+
+          <div v-if="leadsStatus === 'pending' || leadsStatus === 'idle'" class="flex justify-center py-10">
+            <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-muted" />
           </div>
-        </template>
-        <template #status-cell="{ row }">
-          <UBadge
-            :label="t(`crm.leads.status.${row.original.status}`)"
-            :color="statusColors[row.original.status]"
-            variant="subtle"
-            class="cds-tag"
-          />
-        </template>
-        <template #assigned-cell="{ row }">
-          {{ profileLabel(row.original.assigned_to) }}
-        </template>
-      </UTable>
+          <p v-else-if="!filteredLeads.length" class="p-8 text-center text-sm text-muted">{{ t("crm.leads.noResults") }}</p>
+
+          <ul v-else class="min-h-0 flex-1 divide-y divide-default overflow-y-auto overscroll-contain">
+            <li v-for="lead in filteredLeads" :key="lead.id">
+              <button
+                type="button"
+                class="flex w-full items-center gap-3 px-3 py-3 text-start transition-colors hover:bg-elevated"
+                :class="lead.id === selectedId && 'bg-primary/10'"
+                @click="selectLead(lead.id)"
+              >
+                <UAvatar
+                  :text="lead.lead_type === 'company' ? undefined : initial(lead)"
+                  :icon="lead.lead_type === 'company' ? 'i-lucide-building-2' : undefined"
+                  size="md"
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-2">
+                    <span class="truncate font-medium text-highlighted">{{ primaryName(lead) }}</span>
+                    <UBadge
+                      v-if="canSeeDeals && !leadIdsWithDealsSet.has(lead.id)"
+                      :label="t('crm.leads.noDeal')"
+                      color="warning"
+                      variant="subtle"
+                      size="sm"
+                      class="cds-tag shrink-0"
+                    />
+                  </span>
+                  <span v-if="secondaryName(lead)" class="block truncate text-xs text-toned">{{ secondaryName(lead) }}</span>
+                  <span class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+                    <bdi v-if="lead.phone" dir="ltr">{{ lead.phone }}</bdi>
+                    <span v-if="lead.phone">·</span>
+                    <span>{{ ago(lead.created_at) }}</span>
+                  </span>
+                </span>
+                <span class="flex shrink-0 items-center gap-2">
+                  <UBadge
+                    :label="t(`crm.leads.status.${lead.status}`)"
+                    :color="statusColors[lead.status]"
+                    variant="subtle"
+                    size="sm"
+                    class="cds-tag hidden sm:inline-flex"
+                  />
+                  <a
+                    v-if="toWhatsAppLink(lead.phone)"
+                    :href="toWhatsAppLink(lead.phone)!"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :aria-label="t('crm.deals.chatOnWhatsApp')"
+                    class="flex size-8 items-center justify-center text-[#25D366] hover:opacity-80"
+                    @click.stop
+                  >
+                    <UIcon name="i-simple-icons-whatsapp" class="size-5" />
+                  </a>
+                </span>
+              </button>
+            </li>
+          </ul>
+        </aside>
+
+        <!-- ===== Details ===== -->
+        <section
+          class="min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
+          :class="selectedLead ? 'flex' : 'hidden lg:flex'"
+        >
+          <div v-if="!selectedLead" class="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-muted">
+            <UIcon name="i-lucide-user-round-search" class="size-10" />
+            <p class="text-sm">{{ t("crm.leads.selectLead") }}</p>
+          </div>
+
+          <template v-else>
+            <div class="space-y-6 p-4 sm:p-6">
+              <!-- Header -->
+              <div class="flex flex-wrap items-start gap-3">
+                <UButton
+                  icon="i-lucide-arrow-right"
+                  color="neutral"
+                  variant="ghost"
+                  class="lg:hidden rtl:rotate-0 ltr:rotate-180"
+                  :aria-label="t('crm.leads.backToList')"
+                  @click="backToList"
+                />
+                <UAvatar
+                  :text="selectedLead.lead_type === 'company' ? undefined : initial(selectedLead)"
+                  :icon="selectedLead.lead_type === 'company' ? 'i-lucide-building-2' : undefined"
+                  size="xl"
+                />
+                <div class="min-w-0 flex-1">
+                  <h2 class="truncate text-xl font-semibold text-highlighted">{{ primaryName(selectedLead) }}</h2>
+                  <p v-if="secondaryName(selectedLead)" class="truncate text-sm text-toned">{{ secondaryName(selectedLead) }}</p>
+                  <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <UBadge
+                      :label="t(`crm.leads.type.${selectedLead.lead_type}`)"
+                      color="neutral"
+                      variant="subtle"
+                      size="sm"
+                      class="cds-tag"
+                    />
+                    <UBadge
+                      :label="t(`crm.leads.status.${selectedLead.status}`)"
+                      :color="statusColors[selectedLead.status]"
+                      variant="subtle"
+                      size="sm"
+                      class="cds-tag"
+                    />
+                    <UBadge
+                      v-if="selectedLead.customer_id"
+                      :label="t('crm.leads.converted')"
+                      color="success"
+                      variant="subtle"
+                      size="sm"
+                      class="cds-tag"
+                    />
+                  </div>
+                </div>
+                <div class="flex shrink-0 items-center gap-1">
+                  <UButton
+                    v-if="selectedLead.phone"
+                    :to="`tel:${selectedLead.phone}`"
+                    icon="i-lucide-phone"
+                    color="neutral"
+                    variant="outline"
+                    :aria-label="t('crm.deals.callContact')"
+                  />
+                  <UButton
+                    v-if="toWhatsAppLink(selectedLead.phone)"
+                    :to="toWhatsAppLink(selectedLead.phone)!"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    icon="i-simple-icons-whatsapp"
+                    color="neutral"
+                    variant="outline"
+                    :aria-label="t('crm.deals.chatOnWhatsApp')"
+                  />
+                  <UButton
+                    :to="`/crm/leads/${selectedLead.id}`"
+                    icon="i-lucide-pencil"
+                    color="neutral"
+                    variant="outline"
+                    :label="t('crm.leads.openProfile')"
+                  />
+                </div>
+              </div>
+
+              <!-- Facts -->
+              <dl class="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                <div>
+                  <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>
+                  <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ selectedLead.phone || "—" }}</bdi></dd>
+                </div>
+                <div v-if="selectedLead.phone2">
+                  <dt class="text-xs text-muted">{{ t("crm.leads.phone2") }}</dt>
+                  <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ selectedLead.phone2 }}</bdi></dd>
+                </div>
+                <div>
+                  <dt class="text-xs text-muted">{{ t("common.email") }}</dt>
+                  <dd class="font-medium text-highlighted">{{ selectedLead.email || "—" }}</dd>
+                </div>
+                <div>
+                  <dt class="text-xs text-muted">{{ t("crm.leads.source") }}</dt>
+                  <dd class="font-medium text-highlighted">
+                    {{ selectedLead.source ? t(`crm.leads.sourceValues.${selectedLead.source}`) : "—" }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-xs text-muted">{{ t("crm.leads.assignedTo") }}</dt>
+                  <dd class="font-medium text-highlighted">{{ profileLabel(selectedLead.assigned_to) }}</dd>
+                </div>
+                <div>
+                  <dt class="text-xs text-muted">{{ t("crm.leads.createdAt") }}</dt>
+                  <dd class="font-medium text-highlighted">{{ formatDate(selectedLead.created_at) }}</dd>
+                </div>
+              </dl>
+
+              <div>
+                <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{{ t("crm.leads.notes") }}</h3>
+                <p class="whitespace-pre-line bg-muted p-3 text-sm" :class="selectedLead.notes ? 'text-toned' : 'text-muted'">
+                  {{ selectedLead.notes || t("crm.leads.noNotes") }}
+                </p>
+              </div>
+
+              <!-- Deals -->
+              <div v-if="canSeeDeals" class="border-t border-default pt-5">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <h3 class="flex items-center gap-2 font-semibold text-highlighted">
+                    {{ t("crm.leads.dealsTitle") }}
+                    <UBadge :label="String(leadDeals?.length ?? 0)" color="neutral" variant="subtle" size="sm" class="cds-tag" />
+                  </h3>
+                  <UButton
+                    v-if="hasPermission('crm_deals', 'create')"
+                    icon="i-lucide-plus"
+                    :label="t('crm.leads.createDeal')"
+                    size="sm"
+                    @click="openDealModal"
+                  />
+                </div>
+
+                <div v-if="leadDealsStatus === 'pending'" class="flex justify-center py-6">
+                  <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-muted" />
+                </div>
+                <p v-else-if="!leadDeals?.length" class="border border-dashed border-default p-6 text-center text-sm text-muted">
+                  {{ t("crm.leads.noDealsYet") }}
+                </p>
+                <ul v-else class="space-y-2">
+                  <li v-for="deal in leadDeals" :key="deal.id">
+                    <button
+                      type="button"
+                      class="flex w-full flex-wrap items-center justify-between gap-2 border border-default p-3 text-start transition-colors hover:border-primary hover:bg-elevated"
+                      @click="openDeal(deal.id)"
+                    >
+                      <span class="min-w-0">
+                        <span class="block truncate font-medium text-highlighted">{{ deal.title || "—" }}</span>
+                        <span class="block text-xs text-muted">
+                          {{ pipelineName(deal.pipeline_id) }} · {{ profileLabel(deal.assigned_to) }} · {{ formatDate(deal.created_at) }}
+                        </span>
+                      </span>
+                      <span class="flex items-center gap-2">
+                        <span v-if="formatMoney(deal.value)" class="text-sm font-semibold text-success">{{ formatMoney(deal.value) }}</span>
+                        <UBadge
+                          :label="stageOf(deal.stage_id)?.name ?? '—'"
+                          :color="stageColor(deal.stage_id)"
+                          variant="subtle"
+                          size="sm"
+                          class="cds-tag"
+                        />
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </template>
+        </section>
+      </div>
     </template>
   </UDashboardPanel>
+
+  <LeadDealModal v-model:open="dealModalOpen" :lead="selectedLead" @created="onDealCreated" />
 
   <UModal v-model:open="createOpen" :title="t('crm.leads.newLead')">
     <template #body>
@@ -357,7 +699,7 @@ function openLead(lead: Lead) {
           :title="t('crm.leads.duplicatePhone')"
         >
           <template #description>
-            <ULink :to="`/crm/leads/${duplicateLead.id}`" class="inline-flex items-center gap-1 font-medium text-primary">
+            <ULink :to="`/crm/leads?id=${duplicateLead.id}`" class="inline-flex items-center gap-1 font-medium text-primary">
               {{ duplicateLead.name }}
               <UIcon name="i-lucide-arrow-left" class="size-3" />
             </ULink>

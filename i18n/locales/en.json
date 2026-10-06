@@ -496,7 +496,18 @@
         "qualified": "qualified",
         "converted": "converted",
         "lost": "lost"
-      }
+      },
+      "noResults": "No leads match.",
+      "selectLead": "Select a lead to see the details",
+      "backToList": "Back to the list",
+      "openProfile": "Edit",
+      "createdAt": "Created",
+      "noNotes": "No notes",
+      "dealsTitle": "Deals",
+      "createDeal": "Create deal",
+      "noDealsYet": "No deals for this lead yet.",
+      "createDealFor": "New deal for {name}",
+      "createDealSubmit": "Create deal"
     },
     "deals": {
       "title": "Deals",

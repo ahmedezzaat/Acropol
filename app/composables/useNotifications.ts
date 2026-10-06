@@ -82,7 +82,7 @@ export function useNotifications() {
           icon: "i-lucide-user-plus",
           color: "primary" as const,
           text: by ? t("notifications.leadAssignedBy", base) : t("notifications.leadAssigned", base),
-          link: `/crm/leads/${p.lead_id}`,
+          link: `/crm/leads?id=${p.lead_id}`,
         };
       case "activity_scheduled":
         return {
