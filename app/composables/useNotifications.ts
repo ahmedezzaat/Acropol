@@ -270,6 +270,14 @@ export function useNotificationsRealtime() {
       },
       { immediate: true },
     );
-    onBeforeUnmount(stop);
+    // Browsers only allow sound after the user has interacted with the page,
+    // so the first click or key press unlocks the notification chime.
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    window.addEventListener("keydown", unlockAudio, { once: true });
+    onBeforeUnmount(() => {
+      stop();
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    });
   }
 }

@@ -1,7 +1,7 @@
 // A short two-note chime generated with the Web Audio API (no audio file to
 // ship or cache). Browsers only let a page make sound after the user has
 // interacted with it, so the context is created/resumed from real clicks and
-// key presses (see unlockAudio) — the "Enable notifications" button counts.
+// key presses (see unlockAudio).
 let audioContext: AudioContext | null = null;
 
 export function unlockAudio() {
