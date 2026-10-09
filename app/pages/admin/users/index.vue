@@ -15,6 +15,7 @@ interface Profile {
   role_id: string | null;
   is_admin: boolean;
   is_active: boolean;
+  can_login: boolean;
 }
 
 interface Role {
@@ -27,7 +28,7 @@ const { data: users, refresh: refreshUsers, status: usersStatus } = await useAsy
   async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role_id, is_admin, is_active")
+      .select("id, email, full_name, role_id, is_admin, is_active, can_login")
       .order("email");
     if (error) throw error;
     return data ?? [];
@@ -62,11 +63,12 @@ const createOpen = ref(false);
 const creating = ref(false);
 const createSchema = computed(() =>
   z.object({
-    email: z.email(t("validation.invalidEmail")),
-    password: z.string().min(8, t("validation.minLength", { min: 8 })),
+    email: createState.can_login ? z.email(t("validation.invalidEmail")) : z.union([z.email(t("validation.invalidEmail")), z.literal("")]),
+    password: createState.can_login ? z.string().min(8, t("validation.minLength", { min: 8 })) : z.string(),
     full_name: z.string().min(1, t("validation.required")),
     role_id: z.uuid().nullable(),
     is_admin: z.boolean(),
+    can_login: z.boolean(),
   }),
 );
 type CreateSchema = {
@@ -75,6 +77,7 @@ type CreateSchema = {
   full_name: string;
   role_id: string | null;
   is_admin: boolean;
+  can_login: boolean;
 };
 const createState = reactive<CreateSchema>({
   email: "",
@@ -82,12 +85,17 @@ const createState = reactive<CreateSchema>({
   full_name: "",
   role_id: null,
   is_admin: false,
+  can_login: true,
 });
 
 async function onCreate(event: FormSubmitEvent<CreateSchema>) {
   creating.value = true;
   try {
-    await $fetch("/api/admin/users", { method: "POST", body: event.data });
+    const { email, password, ...rest } = event.data;
+    await $fetch("/api/admin/users", {
+      method: "POST",
+      body: { ...rest, ...(email ? { email } : {}), ...(event.data.can_login ? { password } : {}) },
+    });
     toast.add({ title: t("admin.users.userCreated"), color: "success" });
     createOpen.value = false;
     createState.email = "";
@@ -95,6 +103,7 @@ async function onCreate(event: FormSubmitEvent<CreateSchema>) {
     createState.full_name = "";
     createState.role_id = null;
     createState.is_admin = false;
+    createState.can_login = true;
     refreshUsers();
   } catch (err: any) {
     toast.add({
@@ -117,6 +126,7 @@ const editState = reactive({
   role_id: null as string | null,
   is_admin: false,
   is_active: true,
+  can_login: true,
 });
 const editEmailValid = computed(() => z.email().safeParse(editState.email).success);
 
@@ -127,6 +137,7 @@ function openEdit(user: Profile) {
   editState.role_id = user.role_id;
   editState.is_admin = user.is_admin;
   editState.is_active = user.is_active;
+  editState.can_login = user.can_login;
   editOpen.value = true;
 }
 
@@ -232,12 +243,17 @@ async function saveReset() {
 
     <template #body>
       <UTable :data="users ?? []" :columns="columns" :loading="usersStatus === 'pending' || usersStatus === 'idle'">
+        <template #email-cell="{ row }">
+          <span v-if="row.original.email.endsWith('@no-login.acropol.invalid')" class="text-muted">—</span>
+          <span v-else>{{ row.original.email }}</span>
+        </template>
         <template #role-cell="{ row }">
           {{ roleName(row.original.role_id) }}
         </template>
         <template #status-cell="{ row }">
           <div class="flex gap-1">
             <UBadge v-if="row.original.is_admin" :label="t('admin.users.admin')" color="primary" variant="subtle" />
+            <UBadge v-if="!row.original.can_login" :label="t('admin.users.noLoginBadge')" icon="i-lucide-lock" color="warning" variant="subtle" />
             <UBadge
               :label="row.original.is_active ? t('common.active') : t('common.inactive')"
               :color="row.original.is_active ? 'success' : 'neutral'"
@@ -273,16 +289,18 @@ async function saveReset() {
         <UFormField name="full_name" :label="t('admin.users.fullName')">
           <UInput v-model="createState.full_name" class="w-full" />
         </UFormField>
-        <UFormField name="email" :label="t('common.email')">
+        <UCheckbox v-model="createState.can_login" :label="t('admin.users.canLogin')" />
+        <p v-if="!createState.can_login" class="text-xs text-muted">{{ t("admin.users.noLoginHint") }}</p>
+        <UFormField name="email" :label="createState.can_login ? t('common.email') : `${t('common.email')} (${t('admin.users.optional')})`">
           <UInput v-model="createState.email" type="email" class="w-full" />
         </UFormField>
-        <UFormField name="password" :label="t('admin.users.password')">
+        <UFormField v-if="createState.can_login" name="password" :label="t('admin.users.password')">
           <UInput v-model="createState.password" type="password" class="w-full" />
         </UFormField>
         <UFormField name="role_id" :label="t('admin.users.role')">
           <USelect v-model="createState.role_id" :items="roleOptions" value-key="value" class="w-full" />
         </UFormField>
-        <UCheckbox v-model="createState.is_admin" :label="t('admin.users.administratorFullAccess')" />
+        <UCheckbox v-if="createState.can_login" v-model="createState.is_admin" :label="t('admin.users.administratorFullAccess')" />
         <UButton type="submit" :label="t('admin.users.createUser')" :loading="creating" block />
       </UForm>
     </template>
@@ -302,6 +320,9 @@ async function saveReset() {
         </UFormField>
         <UCheckbox v-model="editState.is_admin" :label="t('admin.users.administratorFullAccess')" />
         <UCheckbox v-model="editState.is_active" :label="t('admin.users.activeCanSignIn')" />
+        <UCheckbox v-model="editState.can_login" :label="t('admin.users.canLogin')" />
+        <p v-if="!editState.can_login" class="text-xs text-muted">{{ t("admin.users.noLoginHint") }}</p>
+        <p v-else-if="editTarget && !editTarget.can_login" class="text-xs text-muted">{{ t("admin.users.enableLoginHint") }}</p>
         <UButton :label="t('common.save')" :loading="editing" :disabled="!editEmailValid" block @click="saveEdit" />
       </div>
     </template>

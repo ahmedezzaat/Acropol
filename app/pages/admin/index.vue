@@ -13,6 +13,8 @@ const sections = [
   { titleKey: "admin.productCategories.title", icon: "i-lucide-tags", to: "/admin/product-categories" },
   { titleKey: "admin.teams.title", icon: "i-lucide-users-round", to: "/admin/teams" },
   { titleKey: "admin.automation.title", icon: "i-lucide-zap", to: "/admin/automation" },
+  { titleKey: "admin.serviceAreas.title", icon: "i-lucide-map", to: "/admin/service-areas" },
+  { titleKey: "admin.csPipelines.title", icon: "i-lucide-workflow", to: "/admin/cs-pipelines" },
   { titleKey: "admin.visitTypes.title", icon: "i-lucide-map-pinned", to: "/admin/visit-types" },
   { titleKey: "admin.integrations.title", icon: "i-lucide-plug", to: "/admin/integrations" },
 ];

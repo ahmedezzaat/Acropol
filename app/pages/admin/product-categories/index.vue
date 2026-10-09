@@ -9,6 +9,7 @@ interface CategoryRow {
   _key: string;
   id: string | null;
   name: string;
+  maintenance_interval_months: number | null;
 }
 
 const categories = ref<CategoryRow[]>([]);
@@ -29,11 +30,11 @@ const { data: categoriesPayload, status } = await useAsyncData("admin-product-ca
 });
 watchEffect(() => {
   if (!categoriesPayload.value) return;
-  categories.value = categoriesPayload.value.map((c) => ({ _key: newKey(), id: c.id, name: c.name }));
+  categories.value = categoriesPayload.value.map((c) => ({ _key: newKey(), id: c.id, name: c.name, maintenance_interval_months: c.maintenance_interval_months }));
 });
 
 function addCategory() {
-  categories.value.push({ _key: newKey(), id: null, name: t("admin.productCategories.newCategoryDefault") });
+  categories.value.push({ _key: newKey(), id: null, name: t("admin.productCategories.newCategoryDefault"), maintenance_interval_months: null });
 }
 
 function removeCategory(index: number) {
@@ -63,7 +64,7 @@ async function save() {
   }
 
   for (const [index, row] of categories.value.entries()) {
-    const payload = { name: row.name, sort_order: index + 1 };
+    const payload = { name: row.name, sort_order: index + 1, maintenance_interval_months: row.maintenance_interval_months };
 
     const { data, error } = row.id
       ? await supabase.from("product_categories").update(payload).eq("id", row.id).select().single()
@@ -98,7 +99,7 @@ async function save() {
       </div>
 
       <div v-else class="max-w-2xl">
-        <UPageCard :description="t('admin.productCategories.description')">
+        <UPageCard :description="t('admin.productCategories.description') + ' ' + t('admin.productCategories.maintenanceHint')">
           <div class="space-y-3">
             <div
               v-for="(row, index) in categories"
@@ -124,6 +125,15 @@ async function save() {
                 />
               </div>
               <UInput v-model="row.name" :placeholder="t('admin.productCategories.name')" class="min-w-40 flex-1" />
+              <div class="flex items-center gap-1.5">
+                <UInputNumber
+                  v-model="row.maintenance_interval_months"
+                  :min="1"
+                  :placeholder="t('admin.productCategories.noMaintenance')"
+                  class="w-28"
+                />
+                <span class="text-xs text-muted">{{ t("admin.productCategories.months") }}</span>
+              </div>
               <UButton icon="i-lucide-trash" color="error" variant="ghost" size="sm" @click="removeCategory(index)" />
             </div>
 

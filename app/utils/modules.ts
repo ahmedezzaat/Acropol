@@ -85,6 +85,21 @@ export const MODULES: ModuleDef[] = [
       },
     ],
   },
+  {
+    // Customer service: customers (everyone the CRM won, plus ones added here)
+    // with a richer profile and their products / installation progress.
+    key: "customer_service",
+    labelKey: "modules.customer_service.label",
+    icon: "i-lucide-headset",
+    route: "/cs",
+    resources: [
+      {
+        key: "cs_customers",
+        labelKey: "resources.cs_customers.label",
+        actions: crud("cs_customers"),
+      },
+    ],
+  },
 ];
 
 export function findModule(moduleKey: string) {

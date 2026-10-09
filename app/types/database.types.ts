@@ -25,6 +25,7 @@ export type Database = {
           team_id: string | null;
           is_admin: boolean;
           is_active: boolean;
+          can_login: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -36,6 +37,7 @@ export type Database = {
           team_id?: string | null;
           is_admin?: boolean;
           is_active?: boolean;
+          can_login?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -47,6 +49,7 @@ export type Database = {
           team_id?: string | null;
           is_admin?: boolean;
           is_active?: boolean;
+          can_login?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -159,6 +162,8 @@ export type Database = {
           address: string | null;
           converted_from_lead_id: string | null;
           assigned_to: string | null;
+          area_id: string | null;
+          customer_type: "individual" | "company";
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -172,6 +177,7 @@ export type Database = {
           address?: string | null;
           converted_from_lead_id?: string | null;
           assigned_to?: string | null;
+          area_id?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -185,6 +191,7 @@ export type Database = {
           address?: string | null;
           converted_from_lead_id?: string | null;
           assigned_to?: string | null;
+          area_id?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -736,6 +743,204 @@ export type Database = {
         };
         Relationships: [];
       };
+      service_areas: {
+        Row: { id: string; name: string; sort_order: number; created_at: string };
+        Insert: { id?: string; name: string; sort_order?: number; created_at?: string };
+        Update: { id?: string; name?: string; sort_order?: number; created_at?: string };
+        Relationships: [];
+      };
+      customer_products: {
+        Row: {
+          id: string;
+          customer_id: string;
+          name: string;
+          category_id: string | null;
+          project_engineer: string | null;
+          engineer_phone: string | null;
+          contract_date: string | null;
+          contract_code: string | null;
+          next_maintenance_at: string | null;
+          next_maintenance_note: string | null;
+          last_maintenance_on: string | null;
+          sales_person_id: string | null;
+          maintenance_declined_at: string | null;
+          operation_date: string | null;
+          warranty_status: string | null;
+          warranty_details: string | null;
+          payment_status: string | null;
+          notes: string | null;
+          pipeline_id: string;
+          stage_id: string;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          customer_id: string;
+          name: string;
+          category_id?: string | null;
+          project_engineer?: string | null;
+          engineer_phone?: string | null;
+          contract_date?: string | null;
+          contract_code?: string | null;
+          next_maintenance_at?: string | null;
+          next_maintenance_note?: string | null;
+          last_maintenance_on?: string | null;
+          sales_person_id?: string | null;
+          maintenance_declined_at?: string | null;
+          operation_date?: string | null;
+          warranty_status?: string | null;
+          warranty_details?: string | null;
+          payment_status?: string | null;
+          notes?: string | null;
+          pipeline_id: string;
+          stage_id?: string;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          customer_id?: string;
+          name?: string;
+          category_id?: string | null;
+          project_engineer?: string | null;
+          engineer_phone?: string | null;
+          contract_date?: string | null;
+          contract_code?: string | null;
+          next_maintenance_at?: string | null;
+          next_maintenance_note?: string | null;
+          last_maintenance_on?: string | null;
+          sales_person_id?: string | null;
+          maintenance_declined_at?: string | null;
+          operation_date?: string | null;
+          warranty_status?: string | null;
+          warranty_details?: string | null;
+          payment_status?: string | null;
+          notes?: string | null;
+          pipeline_id?: string;
+          stage_id?: string;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      cs_pipelines: {
+        Row: { id: string; name: string; sort_order: number; created_at: string };
+        Insert: { id?: string; name: string; sort_order?: number; created_at?: string };
+        Update: { id?: string; name?: string; sort_order?: number; created_at?: string };
+        Relationships: [];
+      };
+      cs_pipeline_stages: {
+        Row: {
+          id: string;
+          pipeline_id: string;
+          name: string;
+          sort_order: number;
+          is_final: boolean;
+          require_date: boolean;
+          max_stay_days: number | null;
+          max_stay_hours: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          pipeline_id: string;
+          name: string;
+          sort_order?: number;
+          is_final?: boolean;
+          require_date?: boolean;
+          max_stay_days?: number | null;
+          max_stay_hours?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          pipeline_id?: string;
+          name?: string;
+          sort_order?: number;
+          is_final?: boolean;
+          require_date?: boolean;
+          max_stay_days?: number | null;
+          max_stay_hours?: number | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      product_maintenance_log: {
+        Row: {
+          id: string;
+          product_id: string;
+          kind: string;
+          happened_at: string;
+          scheduled_for: string | null;
+          done_on: string | null;
+          note: string | null;
+          cost: number | null;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          kind: string;
+          happened_at?: string;
+          scheduled_for?: string | null;
+          done_on?: string | null;
+          note?: string | null;
+          cost?: number | null;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          product_id?: string;
+          kind?: string;
+          happened_at?: string;
+          scheduled_for?: string | null;
+          done_on?: string | null;
+          note?: string | null;
+          cost?: number | null;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      customer_product_stage_dates: {
+        Row: { product_id: string; stage_id: string; reached_on: string };
+        Insert: { product_id: string; stage_id: string; reached_on: string };
+        Update: { product_id?: string; stage_id?: string; reached_on?: string };
+        Relationships: [];
+      };
+      customer_product_items: {
+        Row: {
+          id: string;
+          product_id: string;
+          name: string;
+          quantity: number;
+          unit: string | null;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          name: string;
+          quantity?: number;
+          unit?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          product_id?: string;
+          name?: string;
+          quantity?: number;
+          unit?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       notifications: {
         Row: {
           id: string;
@@ -825,18 +1030,21 @@ export type Database = {
           id: string;
           name: string;
           sort_order: number;
+          maintenance_interval_months: number | null;
           created_at: string;
         };
         Insert: {
           id?: string;
           name: string;
           sort_order?: number;
+          maintenance_interval_months?: number | null;
           created_at?: string;
         };
         Update: {
           id?: string;
           name?: string;
           sort_order?: number;
+          maintenance_interval_months?: number | null;
           created_at?: string;
         };
         Relationships: [];

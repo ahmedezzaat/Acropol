@@ -1,7 +1,13 @@
 <script setup lang="ts">
 definePageMeta({ layout: "dashboard" });
 
-const { hasAnyModulePermission, isAdmin, loaded } = usePermissions();
+const { hasAnyModulePermission, isAdmin, loaded, loadFailed } = usePermissions();
+const supabase = useSupabaseClient();
+
+async function signInAgain() {
+  await supabase.auth.signOut();
+  await navigateTo("/login");
+}
 const { t } = useI18n();
 
 const visibleModules = computed(() =>
@@ -22,6 +28,13 @@ const visibleModules = computed(() =>
     <template #body>
       <div v-if="!loaded" class="flex justify-center py-16">
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
+      </div>
+
+      <!-- The lookup itself failed (usually an expired session) — different from
+      having no role, so say so and offer the fix. -->
+      <div v-else-if="loadFailed" class="mx-auto max-w-md space-y-4 py-16 text-center">
+        <p class="text-muted">{{ t("home.loadFailed") }}</p>
+        <UButton icon="i-lucide-log-in" :label="t('home.signInAgain')" @click="signInAgain" />
       </div>
 
       <div v-else-if="visibleModules.length === 0 && !isAdmin" class="py-16 text-center text-muted">

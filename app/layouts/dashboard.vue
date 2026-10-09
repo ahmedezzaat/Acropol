@@ -12,6 +12,7 @@ const resourceRoutes: Record<string, string> = {
   crm_quotes: "/crm/quotes",
   crm_customers: "/crm/customers",
   crm_visits: "/crm/visits",
+  cs_customers: "/cs/customers",
 };
 
 const route = useRoute();
@@ -32,6 +33,14 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
   const resourceLinks = m.resources
     .filter((r) => hasAnyModulePermission(r.key) && r.key !== "crm_quotes")
     .map((r) => ({ label: t(r.labelKey), to: resourceRoutes[r.key] }));
+  if (m.key === "customer_service") {
+    return [
+      { label: t("crm.dashboard.title"), to: "/cs/dashboard" },
+      { label: t("cs.customers.title"), to: "/cs/customers" },
+      { label: t("cs.installations.title"), to: "/cs/installations" },
+      { label: t("cs.maintenance.title"), to: "/cs/maintenance" },
+    ];
+  }
   if (m.key !== "crm") return resourceLinks;
   return [
     { label: t("crm.dashboard.title"), to: "/crm/dashboard" },
@@ -48,6 +57,8 @@ const settingsLinks = computed<NavigationMenuItem[]>(() => [
   { label: t("admin.productCategories.title"), icon: "i-lucide-tags", to: "/admin/product-categories" },
   { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
   { label: t("admin.automation.title"), icon: "i-lucide-zap", to: "/admin/automation" },
+  { label: t("admin.serviceAreas.title"), icon: "i-lucide-map", to: "/admin/service-areas" },
+  { label: t("admin.csPipelines.title"), icon: "i-lucide-workflow", to: "/admin/cs-pipelines" },
   { label: t("admin.visitTypes.title"), icon: "i-lucide-map-pinned", to: "/admin/visit-types" },
   { label: t("admin.integrations.title"), icon: "i-lucide-plug", to: "/admin/integrations" },
 ]);

@@ -6,6 +6,7 @@ const bodySchema = z.object({
   role_id: z.uuid().nullable().optional(),
   is_admin: z.boolean().optional(),
   is_active: z.boolean().optional(),
+  can_login: z.boolean().optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -43,12 +44,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: error.message });
   }
 
-  if (body.is_active !== undefined) {
+  if (body.is_active !== undefined || body.can_login !== undefined) {
     // Belt-and-suspenders: block/unblock at the Supabase Auth level too, not
-    // just the app-level is_active flag, so a deactivated user can't still
-    // sign in and mint a valid session.
+    // just the app-level flags, so a deactivated (or record-only) user can't
+    // still sign in and mint a valid session.
     await adminClient.auth.admin.updateUserById(id, {
-      ban_duration: body.is_active ? "none" : "876000h",
+      ban_duration: profile.is_active && profile.can_login ? "none" : "876000h",
     });
   }
 
