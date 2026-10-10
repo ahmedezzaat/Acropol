@@ -243,7 +243,7 @@ const trackRows = computed<TrackRow[]>(() => {
     );
 });
 const trackPagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([statKey, period], () => (trackPagination.value.pageIndex = 0));
+watch([statKey, period], () => (trackPagination.value = { ...trackPagination.value, pageIndex: 0 }));
 const trackPaged = computed(() =>
   trackRows.value.slice(trackPagination.value.pageIndex * trackPagination.value.pageSize, (trackPagination.value.pageIndex + 1) * trackPagination.value.pageSize),
 );
@@ -289,7 +289,7 @@ const columns = computed<TableColumn<Row>[]>(() => [
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 50 });
 watch([search, areaFilter, tab], () => {
-  pagination.value.pageIndex = 0;
+  pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
   filtered.value.slice(pagination.value.pageIndex * pagination.value.pageSize, (pagination.value.pageIndex + 1) * pagination.value.pageSize),
@@ -419,7 +419,7 @@ function openRecord(productId: string) {
               :items-per-page="trackPagination.pageSize"
               :total="trackRows.length"
               :sibling-count="1"
-              @update:page="(p: number) => (trackPagination.pageIndex = p - 1)"
+              @update:page="(p: number) => (trackPagination = { ...trackPagination, pageIndex: p - 1 })"
             />
           </div>
         </template>
@@ -584,7 +584,7 @@ function openRecord(productId: string) {
             :items-per-page="pagination.pageSize"
             :total="filtered.length"
             :sibling-count="1"
-            @update:page="(p: number) => (pagination.pageIndex = p - 1)"
+            @update:page="(p: number) => (pagination = { ...pagination, pageIndex: p - 1 })"
           />
         </div>
       </template>

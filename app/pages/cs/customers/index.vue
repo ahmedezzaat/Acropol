@@ -151,7 +151,7 @@ const columns = computed<TableColumn<CsCustomer>[]>(() => [
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 25 });
 watch([search, areaFilter, stageFilter, categoryFilter, typeFilter], () => {
-  pagination.value.pageIndex = 0;
+  pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 // The cards (phones, and the card view) share the table's paging.
 const pagedCards = computed(() =>
@@ -377,7 +377,7 @@ function openCustomer(id: string) {
           :items-per-page="pagination.pageSize"
           :total="filtered.length"
           :sibling-count="1"
-          @update:page="(p: number) => (pagination.pageIndex = p - 1)"
+          @update:page="(p: number) => (pagination = { ...pagination, pageIndex: p - 1 })"
         />
       </div>
       </template>

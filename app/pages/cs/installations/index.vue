@@ -124,7 +124,7 @@ const columns = computed<TableColumn<CsProduct>[]>(() => [
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 25 });
 watch([search, areaFilter, stageFilter, activePipelineId], () => {
-  pagination.value.pageIndex = 0;
+  pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
   filtered.value.slice(pagination.value.pageIndex * pagination.value.pageSize, (pagination.value.pageIndex + 1) * pagination.value.pageSize),
@@ -267,7 +267,7 @@ const pagedCards = computed(() =>
             :items-per-page="pagination.pageSize"
             :total="filtered.length"
             :sibling-count="1"
-            @update:page="(p: number) => (pagination.pageIndex = p - 1)"
+            @update:page="(p: number) => (pagination = { ...pagination, pageIndex: p - 1 })"
           />
         </div>
       </template>

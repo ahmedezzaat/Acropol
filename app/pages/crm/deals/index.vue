@@ -472,7 +472,7 @@ const pagination = ref({ pageIndex: 0, pageSize: 20 });
 // Any filter changing the row set should land the user back on page 1
 // instead of possibly showing an empty out-of-range page.
 watch([assigneeFilter, stageFilter, dateFrom, dateTo, dealSearch, activePipelineId], () => {
-  pagination.value.pageIndex = 0;
+  pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 
 const listColumns = computed<TableColumn<Deal>[]>(() => [
@@ -1269,7 +1269,7 @@ function openDeal(deal: Deal) {
             :items-per-page="pagination.pageSize"
             :total="listDeals.length"
             :sibling-count="1"
-            @update:page="(p: number) => (pagination.pageIndex = p - 1)"
+            @update:page="(p: number) => (pagination = { ...pagination, pageIndex: p - 1 })"
           />
         </div>
       </template>
