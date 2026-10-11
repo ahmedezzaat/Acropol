@@ -22,6 +22,7 @@ begin
 end;
 $$;
 
+drop trigger if exists deals_require_won_products on public.deals;
 create trigger deals_require_won_products
   before update of stage_id on public.deals
   for each row execute function public.deal_require_won_products();
