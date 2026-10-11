@@ -411,6 +411,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
           history_hidden_before: string | null;
+          new_deal_email_sent_at: string | null;
         };
         Insert: {
           id?: string;
@@ -427,6 +428,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           history_hidden_before?: string | null;
+          new_deal_email_sent_at?: string | null;
         };
         Update: {
           id?: string;
@@ -443,6 +445,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           history_hidden_before?: string | null;
+          new_deal_email_sent_at?: string | null;
         };
         Relationships: [
           {
@@ -909,6 +912,18 @@ export type Database = {
           cost?: number | null;
           created_by?: string | null;
         };
+        Relationships: [];
+      };
+      notification_emails: {
+        Row: { id: string; email: string; label: string | null; is_active: boolean; created_at: string };
+        Insert: { id?: string; email: string; label?: string | null; is_active?: boolean; created_at?: string };
+        Update: { id?: string; email?: string; label?: string | null; is_active?: boolean; created_at?: string };
+        Relationships: [];
+      };
+      app_secrets: {
+        Row: { key: string; value: string; updated_at: string; updated_by: string | null };
+        Insert: { key: string; value: string; updated_at?: string; updated_by?: string | null };
+        Update: { key?: string; value?: string; updated_at?: string; updated_by?: string | null };
         Relationships: [];
       };
       customer_product_stage_dates: {

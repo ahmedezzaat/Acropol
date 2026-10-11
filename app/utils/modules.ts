@@ -56,6 +56,7 @@ export const SETTINGS_ITEMS: SettingsItemDef[] = [
   { key: "cs_pipelines", path: "/admin/cs-pipelines", titleKey: "admin.csPipelines.title", icon: "i-lucide-workflow" },
   { key: "visit_types", path: "/admin/visit-types", titleKey: "admin.visitTypes.title", icon: "i-lucide-map-pinned" },
   { key: "integrations", path: "/admin/integrations", titleKey: "admin.integrations.title", icon: "i-lucide-plug" },
+  { key: "notification_emails", path: "/admin/notification-emails", titleKey: "admin.notificationEmails.title", icon: "i-lucide-mail" },
 ];
 
 // Which Settings page a path belongs to (/admin/roles/123 -> "roles"), or null

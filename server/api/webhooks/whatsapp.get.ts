@@ -1,9 +1,9 @@
 // Meta's webhook verification handshake: when you register the callback URL
 // in the WhatsApp app dashboard, Meta calls it once with hub.* query params
 // and expects the challenge echoed back if the verify token matches.
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   const query = getQuery(event);
-  const { verifyToken } = useRuntimeConfig(event).whatsapp;
+  const { verifyToken } = await getWhatsappConfig(event);
 
   if (
     verifyToken &&

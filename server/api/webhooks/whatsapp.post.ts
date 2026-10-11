@@ -44,7 +44,7 @@ function messageText(m: WhatsAppMessage) {
 // The request is authenticated by Meta's X-Hub-Signature-256 HMAC over the
 // raw body, keyed with the app secret, so nobody else can post leads here.
 export default defineEventHandler(async (event) => {
-  const { appSecret, defaultAssigneeId } = useRuntimeConfig(event).whatsapp;
+  const { appSecret, defaultAssigneeId } = await getWhatsappConfig(event);
   if (!appSecret) {
     throw createError({ statusCode: 503, statusMessage: "WhatsApp webhook is not configured" });
   }

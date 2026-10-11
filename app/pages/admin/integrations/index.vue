@@ -51,6 +51,56 @@ function formatDate(value: string | null) {
   });
 }
 
+// --- WhatsApp webhook settings (saved on the server; the app secret is write-only)
+// useFetch (not $fetch) so the session cookie is forwarded on a fresh page load.
+const { data: wa, refresh: refreshWa } = await useFetch<{
+  verifyToken: string;
+  hasAppSecret: boolean;
+  appSecretHint: string | null;
+  defaultAssigneeId: string | null;
+  sources: { verifyToken: string | null; appSecret: string | null; defaultAssigneeId: string | null };
+}>("/api/admin/integrations-config");
+const waVerifyToken = ref(wa.value?.verifyToken ?? "");
+const waAppSecret = ref("");
+const waAssignee = ref<string | null>(wa.value?.defaultAssigneeId ?? null);
+watch(
+  wa,
+  (saved) => {
+    waVerifyToken.value = saved?.verifyToken ?? "";
+    waAssignee.value = saved?.defaultAssigneeId ?? null;
+  },
+  { immediate: true },
+);
+const savingWa = ref(false);
+
+function generateToken() {
+  waVerifyToken.value = crypto.randomUUID().replace(/-/g, "");
+}
+async function saveWa(extra: Record<string, unknown> = {}) {
+  savingWa.value = true;
+  try {
+    await $fetch("/api/admin/integrations-config", {
+      method: "POST",
+      body: {
+        verify_token: waVerifyToken.value,
+        ...(waAppSecret.value ? { app_secret: waAppSecret.value } : {}),
+        default_assignee_id: waAssignee.value,
+        ...extra,
+      },
+    });
+    waAppSecret.value = "";
+    toast.add({ title: t("admin.integrations.waSaved"), color: "success" });
+    await refreshWa();
+  } catch (err: any) {
+    toast.add({ title: t("admin.integrations.waSaveFailed"), description: err?.data?.statusMessage ?? err.message, color: "error" });
+  } finally {
+    savingWa.value = false;
+  }
+}
+function removeSecret() {
+  saveWa({ clear_app_secret: true });
+}
+
 // --- Create key ---
 const createOpen = ref(false);
 const creating = ref(false);
@@ -281,9 +331,45 @@ const curlExample = computed(
               <li>{{ t("admin.integrations.waStep2") }}</li>
               <li>{{ t("admin.integrations.waStep3") }}</li>
             </ol>
-            <pre dir="ltr" class="overflow-x-auto bg-muted p-3 text-xs">NUXT_WHATSAPP_VERIFY_TOKEN=…
-NUXT_WHATSAPP_APP_SECRET=…
-NUXT_WHATSAPP_DEFAULT_ASSIGNEE_ID=…   # {{ t("admin.integrations.optional") }}</pre>
+            <div class="space-y-4 border-t border-default pt-4">
+              <UBadge
+                :label="wa?.verifyToken && wa?.hasAppSecret ? t('admin.integrations.waReady') : t('admin.integrations.waNotReady')"
+                :color="wa?.verifyToken && wa?.hasAppSecret ? 'success' : 'warning'"
+                variant="subtle"
+              />
+              <UFormField :label="t('admin.integrations.waVerifyToken')" :help="t('admin.integrations.waVerifyTokenHint')">
+                <div class="flex gap-2">
+                  <UInput v-model="waVerifyToken" dir="ltr" class="min-w-0 flex-1" />
+                  <UButton color="neutral" variant="outline" icon="i-lucide-wand-sparkles" :label="t('admin.integrations.waGenerate')" @click="generateToken" />
+                </div>
+              </UFormField>
+              <UFormField :label="t('admin.integrations.waAppSecret')">
+                <UInput
+                  v-model="waAppSecret"
+                  type="password"
+                  autocomplete="off"
+                  dir="ltr"
+                  class="w-full"
+                  :placeholder="wa?.hasAppSecret ? `•••••••• ${wa.appSecretHint ?? ''}` : ''"
+                />
+                <p v-if="wa?.hasAppSecret" class="mt-1 text-xs text-muted">
+                  {{ wa.sources.appSecret === "env" ? t("admin.integrations.waSecretFromEnv") : t("admin.integrations.waSecretSaved") }}
+                </p>
+              </UFormField>
+              <UFormField :label="t('admin.integrations.assignTo')" :help="t('admin.integrations.assignToHint')">
+                <USelect v-model="waAssignee" :items="assigneeOptions" value-key="value" class="w-full" />
+              </UFormField>
+              <div class="flex flex-wrap items-center gap-2">
+                <UButton :label="t('common.save')" :loading="savingWa" @click="saveWa()" />
+                <UButton
+                  v-if="wa?.hasAppSecret && wa.sources.appSecret === 'settings'"
+                  color="error"
+                  variant="ghost"
+                  :label="t('admin.integrations.waRemoveSecret')"
+                  @click="removeSecret"
+                />
+              </div>
+            </div>
             <p class="text-muted">{{ t("admin.integrations.waBehaviour") }}</p>
           </div>
         </UPageCard>

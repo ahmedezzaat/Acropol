@@ -893,6 +893,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   }
   creating.value = false;
 
+  notifyNewDeal(createdDeal.id);
   toast.add({ title: t("crm.deals.dealCreated"), color: "success" });
   createOpen.value = false;
   Object.assign(state, blankState());

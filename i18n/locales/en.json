@@ -427,7 +427,18 @@
       "waStep2": "Subscribe to the \"messages\" webhook field.",
       "waStep3": "Put the same verify token and the app secret (App settings → Basic) in the server environment, then restart:",
       "optional": "optional",
-      "waBehaviour": "The sender's WhatsApp name and first message become the lead's name and notes, with source WhatsApp. If the number already belongs to a lead or customer, no new lead is created. Requests are verified with Meta's signature, so only Meta can post here. The URL must be public HTTPS."
+      "waBehaviour": "The sender's WhatsApp name and first message become the lead's name and notes, with source WhatsApp. If the number already belongs to a lead or customer, no new lead is created. Requests are verified with Meta's signature, so only Meta can post here. The URL must be public HTTPS.",
+      "waSaved": "WhatsApp settings saved",
+      "waSaveFailed": "Couldn't save",
+      "waReady": "Ready to receive messages",
+      "waNotReady": "Not set up yet",
+      "waVerifyToken": "Verify token",
+      "waVerifyTokenHint": "Any text you choose; paste the same one into the webhook setup in Meta.",
+      "waGenerate": "Generate",
+      "waAppSecret": "App secret",
+      "waSecretSaved": "A secret is saved. Leave empty to keep it, or type a new one to replace it.",
+      "waSecretFromEnv": "The secret comes from the server settings. Enter one here to replace it.",
+      "waRemoveSecret": "Remove secret"
     },
     "visitTypes": {
       "title": "Trip & inspection types",
@@ -476,6 +487,33 @@
       "inUseHint": "{count} product(s) are in this stage. Move them first — you can still rename it.",
       "pipelineInUse": "{count} product(s) use this funnel, so it can't be deleted.",
       "inUseCount": "{count} product(s) here"
+    },
+    "notificationEmails": {
+      "title": "Notification emails",
+      "description": "When a new deal is added, an email goes to every active address here.",
+      "recipientsTitle": "Recipients",
+      "label": "Note (optional)",
+      "add": "Add",
+      "noEmails": "No addresses yet.",
+      "addFailed": "Couldn't add it",
+      "duplicate": "This address is already in the list",
+      "saveFailed": "Couldn't save",
+      "serviceTitle": "Email service (Resend)",
+      "serviceHint": "Enter the API key and the sender address. The key is stored on the server only and is never shown again.",
+      "ready": "Ready to send",
+      "notReady": "Not set up yet",
+      "apiKey": "Resend API key",
+      "keySaved": "A key is saved. Leave empty to keep it, or type a new one to replace it.",
+      "keyFromEnv": "The key comes from the server settings. Enter one here to replace it.",
+      "removeKey": "Remove key",
+      "fromAddress": "Sender address",
+      "fromHint": "Must be on a domain verified in Resend.",
+      "configSaved": "Settings saved",
+      "sendTest": "Send test email",
+      "testSent": "Test email sent to {count}",
+      "testNoRecipients": "Add an active address first",
+      "testNotConfigured": "Enter the Resend key and sender address first",
+      "testFailed": "Couldn't send"
     }
   },
   "crm": {

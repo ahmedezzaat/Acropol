@@ -95,6 +95,12 @@ export default defineNuxtConfig({
 
   // Private (server-only) settings, filled from NUXT_WHATSAPP_* env vars.
   runtimeConfig: {
+    email: {
+      // Resend (https://resend.com): an API key, and the address emails are sent
+      // from (on a domain verified in Resend), e.g. "Acropol <crm@acropol-eg.com>".
+      resendApiKey: "",
+      from: "",
+    },
     whatsapp: {
       // Any string you choose; paste the same one into Meta's webhook setup.
       verifyToken: "",

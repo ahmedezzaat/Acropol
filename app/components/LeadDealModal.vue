@@ -93,13 +93,14 @@ async function create() {
   // Without the assign permission the database makes the creator the owner.
   if (canAssign.value) payload.assigned_to = assignedTo.value;
 
-  const { error } = await supabase.from("deals").insert(payload);
+  const { data: created, error } = await supabase.from("deals").insert(payload).select("id").single();
   saving.value = false;
 
   if (error) {
     toast.add({ title: t("crm.deals.createDealFailed"), description: error.message, color: "error" });
     return;
   }
+  notifyNewDeal(created?.id);
   toast.add({ title: t("crm.deals.dealCreated"), color: "success" });
   open.value = false;
   emit("created");
