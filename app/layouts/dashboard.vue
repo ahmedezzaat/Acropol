@@ -3,7 +3,7 @@ import type { NavigationMenuItem } from "@nuxt/ui";
 
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
-const { isAdmin, hasAnyModulePermission, loaded } = usePermissions();
+const { isAdmin, hasAnyModulePermission, hasPermission, loaded } = usePermissions();
 const { t } = useI18n();
 
 const resourceRoutes: Record<string, string> = {
@@ -13,6 +13,7 @@ const resourceRoutes: Record<string, string> = {
   crm_customers: "/crm/customers",
   crm_visits: "/crm/visits",
   cs_customers: "/cs/customers",
+  cs_maintenance: "/cs/maintenance",
 };
 
 const route = useRoute();
@@ -31,14 +32,20 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
   // Quotes is temporarily hidden from navigation — see crm/deals/[id].vue
   // for the matching hide on the deal page.
   const resourceLinks = m.resources
-    .filter((r) => hasAnyModulePermission(r.key) && r.key !== "crm_quotes")
+    // Leads has its own "view" permission for the tab.
+    .filter((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)) && r.key !== "crm_quotes")
     .map((r) => ({ label: t(r.labelKey), to: resourceRoutes[r.key] }));
   if (m.key === "customer_service") {
+    const customers = hasAnyModulePermission("cs_customers");
     return [
-      { label: t("crm.dashboard.title"), to: "/cs/dashboard" },
-      { label: t("cs.customers.title"), to: "/cs/customers" },
-      { label: t("cs.installations.title"), to: "/cs/installations" },
-      { label: t("cs.maintenance.title"), to: "/cs/maintenance" },
+      ...(customers
+        ? [
+            { label: t("crm.dashboard.title"), to: "/cs/dashboard" },
+            { label: t("cs.customers.title"), to: "/cs/customers" },
+            { label: t("cs.installations.title"), to: "/cs/installations" },
+          ]
+        : []),
+      ...(hasAnyModulePermission("cs_maintenance") ? [{ label: t("cs.maintenance.title"), to: "/cs/maintenance" }] : []),
     ];
   }
   if (m.key !== "crm") return resourceLinks;

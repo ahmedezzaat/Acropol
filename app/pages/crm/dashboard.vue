@@ -2,7 +2,7 @@
 definePageMeta({ layout: "dashboard" });
 
 const supabase = useSupabaseClient();
-const { hasAnyModulePermission, loaded, load } = usePermissions();
+const { hasAnyModulePermission, hasPermission, loaded, load } = usePermissions();
 const { t } = useI18n();
 
 // This page isn't gated by a single crmPermission meta (it's open to
@@ -11,7 +11,7 @@ const { t } = useI18n();
 // crm/index.vue.
 if (!loaded.value) await load();
 
-const canLeads = computed(() => hasAnyModulePermission("crm_leads"));
+const canLeads = computed(() => hasPermission("crm_leads", "view"));
 const canDeals = computed(() => hasAnyModulePermission("crm_deals"));
 const canCustomers = computed(() => hasAnyModulePermission("crm_customers"));
 const canQuotes = computed(() => hasAnyModulePermission("crm_quotes"));

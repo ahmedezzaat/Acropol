@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({
   layout: "dashboard",
-  crmPermission: { module: "crm_leads" },
+  crmPermission: { module: "crm_leads", action: "view" },
 });
 
 const route = useRoute();

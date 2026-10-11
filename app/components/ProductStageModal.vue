@@ -68,6 +68,18 @@ async function save() {
     if (delError) return fail(delError.message);
   }
 
+  // Reaching the completed stage (تم التشغيل) puts the product into Maintenance:
+  // its operation date, which periodic maintenance counts from, is the date just
+  // entered for that stage (an operation date set earlier is left alone).
+  const reached = productStages.value.find((x) => x.id === stage.value);
+  if (reached?.is_final && !props.product.operation_date && dates[stage.value]) {
+    const { error: opError } = await supabase
+      .from("customer_products")
+      .update({ operation_date: dates[stage.value]! })
+      .eq("id", props.product.id);
+    if (opError) return fail(opError.message);
+  }
+
   saving.value = false;
   toast.add({ title: t("cs.installations.saved"), color: "success" });
   open.value = false;

@@ -46,6 +46,8 @@ export const MODULES: ModuleDef[] = [
         key: "crm_leads",
         labelKey: "resources.crm_leads.label",
         actions: [
+          // Shows the Leads tab and the leads list / profile pages.
+          { key: "view", labelKey: "resources.crm_leads.actions.view" },
           ...crud("crm_leads"),
           { key: "assign", labelKey: "resources.crm_leads.actions.assign" },
           { key: "view_all", labelKey: "resources.crm_leads.actions.view_all" },
@@ -97,6 +99,19 @@ export const MODULES: ModuleDef[] = [
         key: "cs_customers",
         labelKey: "resources.cs_customers.label",
         actions: crud("cs_customers"),
+      },
+      {
+        // Maintenance of operating products: appointments, visits done,
+        // cancellations and notes. Any one of these opens the Maintenance pages.
+        key: "cs_maintenance",
+        labelKey: "resources.cs_maintenance.label",
+        actions: [
+          { key: "view", labelKey: "resources.cs_maintenance.actions.view" },
+          { key: "schedule", labelKey: "resources.cs_maintenance.actions.schedule" },
+          { key: "complete", labelKey: "resources.cs_maintenance.actions.complete" },
+          { key: "cancel", labelKey: "resources.cs_maintenance.actions.cancel" },
+          { key: "note", labelKey: "resources.cs_maintenance.actions.note" },
+        ],
       },
     ],
   },

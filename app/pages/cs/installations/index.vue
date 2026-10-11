@@ -71,7 +71,7 @@ const filtered = computed(() =>
     if (p.pipeline_id !== activePipelineId.value) return false;
     const c = customerOf(p.customer_id);
     if (areaFilter.value && c?.area_id !== areaFilter.value) return false;
-    if (stageFilter.value && p.stage_id !== stageFilter.value) return false;
+    if (viewMode.value === "list" && stageFilter.value && p.stage_id !== stageFilter.value) return false;
     if (search.value) {
       const q = search.value.toLowerCase();
       const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${p.name} ${p.contract_code ?? ""} ${c?.phone ?? ""} ${c?.address ?? ""}`.toLowerCase();
@@ -105,7 +105,40 @@ async function onStageSaved() {
   await Promise.all([refresh(), refreshDates()]);
 }
 function openCustomer(id: string) {
-  navigateTo(`/cs/customers/${id}`);
+  navigateTo({ path: "/cs/customers", query: { id } });
+}
+
+// ---- View: the list (a table) or the Kanban board (a column per stage).
+// Remembered per browser.
+const viewMode = ref<"list" | "kanban">("kanban");
+onMounted(() => {
+  try {
+    const saved = localStorage.getItem("cs-installations-view");
+    if (saved === "list" || saved === "kanban") viewMode.value = saved;
+  } catch {
+    /* storage unavailable: keep the default */
+  }
+});
+function setView(mode: "list" | "kanban") {
+  viewMode.value = mode;
+  try {
+    localStorage.setItem("cs-installations-view", mode);
+  } catch {
+    /* ignore */
+  }
+}
+
+// ---- Kanban
+// Literal class names (not built from a variable) so Tailwind generates them.
+const borderByColor = {
+  neutral: "border-t-accented",
+  info: "border-t-info",
+  warning: "border-t-warning",
+  primary: "border-t-primary",
+  success: "border-t-success",
+} as const;
+function inStage(stageId: string) {
+  return filtered.value.filter((p) => p.stage_id === stageId);
 }
 
 function createdOn(p: CsProduct) {
@@ -132,7 +165,8 @@ const pagedCards = computed(() =>
 </script>
 
 <template>
-  <UDashboardPanel>
+  <!-- The board is one screen tall so every stage column scrolls on its own. -->
+  <UDashboardPanel :ui="viewMode === 'kanban' ? { root: 'h-svh' } : undefined">
     <template #header>
       <UDashboardNavbar>
         <template #leading>
@@ -158,7 +192,23 @@ const pagedCards = computed(() =>
             class="min-w-0 flex-1 basis-56"
           />
           <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-44" />
-          <USelect v-model="stageFilter" :items="stageItems" value-key="value" icon="i-lucide-workflow" class="w-44" />
+          <USelect v-if="viewMode === 'list'" v-model="stageFilter" :items="stageItems" value-key="value" icon="i-lucide-workflow" class="w-44" />
+          <UButtonGroup class="ms-auto">
+            <UButton
+              icon="i-lucide-list"
+              :color="viewMode === 'list' ? 'primary' : 'neutral'"
+              :variant="viewMode === 'list' ? 'solid' : 'outline'"
+              :aria-label="t('cs.installations.listView')"
+              @click="setView('list')"
+            />
+            <UButton
+              icon="i-lucide-columns-3"
+              :color="viewMode === 'kanban' ? 'primary' : 'neutral'"
+              :variant="viewMode === 'kanban' ? 'solid' : 'outline'"
+              :aria-label="t('cs.installations.kanbanView')"
+              @click="setView('kanban')"
+            />
+          </UButtonGroup>
         </div>
       </div>
     </template>
@@ -169,6 +219,61 @@ const pagedCards = computed(() =>
       </div>
 
       <p v-else-if="!filtered.length" class="py-16 text-center text-sm text-muted">{{ t("cs.customers.empty") }}</p>
+
+      <!-- Kanban: a column per stage of the chosen funnel -->
+      <div
+        v-else-if="viewMode === 'kanban'"
+        class="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 pb-2 sm:mx-0 sm:snap-none sm:gap-4 sm:px-0"
+      >
+        <div
+          v-for="stage in activeStages"
+          :key="stage.id"
+          class="flex min-h-0 w-[85vw] shrink-0 snap-center flex-col border border-t-4 border-default bg-muted sm:w-72 sm:snap-align-none"
+          :class="borderByColor[stageColor(stage.id)]"
+        >
+          <div class="flex shrink-0 items-center justify-between gap-2 border-b border-default p-3">
+            <span class="truncate font-medium text-highlighted">{{ stage.name }}</span>
+            <UBadge :label="String(inStage(stage.id).length)" color="neutral" variant="subtle" class="cds-tag" />
+          </div>
+
+          <div class="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2">
+            <div
+              v-for="p in inStage(stage.id)"
+              :key="p.id"
+              class="cursor-pointer border border-default bg-default p-3 text-sm transition-colors hover:border-primary hover:bg-elevated"
+              :class="overdue(p) && 'border-s-4 border-s-error'"
+              @click="openCustomer(p.customer_id)"
+            >
+              <div class="truncate font-semibold text-highlighted">{{ customerOf(p.customer_id) ? customerTitle(customerOf(p.customer_id)!) : "—" }}</div>
+              <div class="mt-0.5 truncate text-xs text-toned">{{ p.name }}</div>
+              <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                <span v-if="areaName(customerOf(p.customer_id)?.area_id)" class="flex items-center gap-1">
+                  <UIcon name="i-lucide-map-pin" class="size-3.5" />{{ areaName(customerOf(p.customer_id)?.area_id) }}
+                </span>
+              </div>
+              <div class="mt-2 flex items-center justify-between gap-2 text-xs">
+                <span class="flex items-center gap-1" :class="overdue(p) ? 'font-medium text-error' : 'text-muted'">
+                  <UIcon :name="overdue(p) ? 'i-lucide-triangle-alert' : 'i-lucide-calendar'" class="size-3.5" />
+                  {{ formatDate(dateOf(dates, p.id, stage.id)) }}
+                  <template v-if="overdue(p)">· {{ t("cs.dashboard.days", { count: stageDays(p) ?? 0 }) }}</template>
+                </span>
+                <UButton
+                  v-if="hasPermission('cs_customers', 'edit')"
+                  icon="i-lucide-arrow-left-right"
+                  size="xs"
+                  color="neutral"
+                  variant="soft"
+                  :label="t('cs.installations.move')"
+                  @click.stop="openStage(p)"
+                />
+              </div>
+            </div>
+            <p v-if="!inStage(stage.id).length" class="border border-dashed border-default py-6 text-center text-xs text-muted">
+              {{ t("cs.installations.emptyStage") }}
+            </p>
+          </div>
+        </div>
+      </div>
 
       <template v-else>
         <UTable

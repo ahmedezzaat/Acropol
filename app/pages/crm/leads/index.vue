@@ -4,7 +4,7 @@ import type { FormSubmitEvent } from "@nuxt/ui";
 
 definePageMeta({
   layout: "dashboard",
-  crmPermission: { module: "crm_leads" },
+  crmPermission: { module: "crm_leads", action: "view" },
 });
 
 useHead({ htmlAttrs: { class: "carbon" } });

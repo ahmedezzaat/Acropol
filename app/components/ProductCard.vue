@@ -9,6 +9,8 @@ const props = defineProps<{
   items?: CsProductItem[];
   categoryName?: string | null;
   salesPersonName?: string | null;
+  // The installation funnel; pages that are not about progress turn it off.
+  hideFunnel?: boolean;
 }>();
 
 const { t } = useI18n();
@@ -46,7 +48,7 @@ function isOverdue(prod: CsProduct) {
 </script>
 
 <template>
-<article class="space-y-4 border border-default bg-default p-4" :class="isOverdue(p) && 'border-s-4 border-s-error'">
+<article class="@container space-y-4 border border-default bg-default p-4" :class="isOverdue(p) && 'border-s-4 border-s-error'">
   <div class="flex flex-wrap items-start justify-between gap-2">
     <div class="min-w-0">
       <h4 class="font-semibold text-highlighted">
@@ -90,7 +92,7 @@ function isOverdue(prod: CsProduct) {
 
   <!-- Funnel: the pipeline's stages in order, each with its date. More
   stages than fit a phone simply scroll sideways. -->
-  <div class="overflow-x-auto">
+  <div v-if="!hideFunnel" class="overflow-x-auto">
     <ol
       class="grid gap-1.5 sm:gap-2"
       :style="{ gridTemplateColumns: `repeat(${stagesOf(p.pipeline_id).length}, minmax(${stagesOf(p.pipeline_id).length > 6 ? '4.5rem' : '0'}, 1fr))` }"
@@ -110,7 +112,7 @@ function isOverdue(prod: CsProduct) {
     </ol>
   </div>
 
-  <div class="grid gap-x-8 gap-y-1 text-sm md:grid-cols-2">
+  <div class="grid gap-x-8 gap-y-1 text-sm @xl:grid-cols-2">
     <dl class="divide-y divide-default">
       <div class="flex justify-between gap-3 py-2">
         <dt class="text-muted">{{ t("cs.profile.salesPerson") }}</dt>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { today, getLocalTimeZone } from "@internationalized/date";
 import * as z from "zod";
 import type { FormSubmitEvent, TableColumn } from "@nuxt/ui";
 import { getPaginationRowModel } from "@tanstack/vue-table";
@@ -537,8 +538,39 @@ const reassignReasonOptions = computed(() =>
     .filter((r) => r.pipeline_id === activePipelineId.value && r.category === reassignStage.value?.reason_category)
     .map((r) => ({ label: r.name, value: r.id })),
 );
+// Winning a deal records what was bought, per deal — so a bulk reassign cannot
+// move several deals to Won at once, but a single deal can (with its products).
+const wonProducts = ref<WonProductDraft[]>([]);
+const wonHasProducts = ref(false);
+async function prepareWonProducts(deal: Deal | undefined, closeDate: string) {
+  wonProducts.value = [
+    newWonProduct({ name: deal?.title ?? "", contract_date: closeDate, sales_person_id: deal?.assigned_to ?? null }),
+  ];
+  wonHasProducts.value = deal ? await dealHasProducts(supabase, deal.id) : false;
+}
+const todayStr = () => today(getLocalTimeZone()).toString();
+const reassignSingleDeal = computed(() =>
+  reassignDealIds.value.length === 1 ? deals.value?.find((d) => d.id === reassignDealIds.value[0]) : undefined,
+);
+const reassignIsWon = computed(
+  () => reassignStage.value?.system_key === "won" && !!reassignSingleDeal.value && reassignStageId.value !== reassignSingleDeal.value.stage_id,
+);
+const reassignStageItems = computed(() =>
+  activeStages.value
+    .filter((s) => s.system_key !== "won" || reassignDealIds.value.length <= 1)
+    .map((s) => ({ label: s.name, value: s.id })),
+);
+watch(reassignStageId, (stageId) => {
+  if (!reassignOpen.value) return;
+  if (allStages.value?.find((s) => s.id === stageId)?.system_key === "won" && reassignSingleDeal.value && stageId !== reassignSingleDeal.value.stage_id) {
+    prepareWonProducts(reassignSingleDeal.value, todayStr());
+  }
+});
 const reassignValid = computed(
-  () => !!reassignStageId.value && (!reassignStage.value?.reason_category || !!reassignReasonId.value),
+  () =>
+    !!reassignStageId.value &&
+    (!reassignStage.value?.reason_category || !!reassignReasonId.value) &&
+    (!reassignIsWon.value || wonHasProducts.value || wonProductsValid(wonProducts.value)),
 );
 
 function openReassign(dealIds: string[], prefillAssignee?: string | null) {
@@ -575,16 +607,27 @@ async function confirmReassign() {
     // leads), so this one case can't be a single batch update.
     for (const dealId of reassignDealIds.value) {
       const deal = deals.value?.find((d) => d.id === dealId);
-      if (deal?.customer_id) {
-        ({ error } = await supabase.from("deals").update(updates).eq("id", dealId));
-      } else {
-        const { customerId, error: resolveError } = await resolveWonCustomerId(supabase, deal?.lead_id ?? null);
-        if (resolveError || !customerId) {
+      let customerId = deal?.customer_id ?? null;
+      if (!customerId) {
+        const { customerId: resolved, error: resolveError } = await resolveWonCustomerId(supabase, deal?.lead_id ?? null);
+        if (resolveError || !resolved) {
           error = { message: resolveError ?? "conversion failed" };
-        } else {
-          ({ error } = await supabase.from("deals").update({ ...updates, customer_id: customerId }).eq("id", dealId));
+          break;
+        }
+        customerId = resolved;
+      }
+      // What was bought is recorded before the deal moves to Won.
+      if (reassignIsWon.value && !wonHasProducts.value) {
+        const productsError = await recordDealProducts(supabase, dealId, customerId, wonProducts.value);
+        if (productsError) {
+          error = { message: productsError };
+          break;
         }
       }
+      ({ error } = await supabase
+        .from("deals")
+        .update(deal?.customer_id ? updates : { ...updates, customer_id: customerId })
+        .eq("id", dealId));
       if (error) break;
     }
   } else {
@@ -706,6 +749,12 @@ const createPipelineStages = computed(() =>
   (allStages.value ?? []).filter((s) => s.pipeline_id === state.pipeline_id),
 );
 const createStage = computed(() => allStages.value?.find((s) => s.id === state.stage_id));
+// A deal created straight into Won also records what was bought.
+const createIsWon = computed(() => createStage.value?.system_key === "won");
+const createProducts = ref<WonProductDraft[]>([]);
+watch(createIsWon, (won) => {
+  if (won) createProducts.value = [newWonProduct({ contract_date: todayStr() })];
+});
 const createReasonOptions = computed(() =>
   (allReasons.value ?? [])
     .filter((r) => r.pipeline_id === state.pipeline_id && r.category === createStage.value?.reason_category)
@@ -756,6 +805,7 @@ const duplicateNewLead = computed(() => {
 
 async function onCreate(event: FormSubmitEvent<Schema>) {
   if (duplicateNewLead.value) return;
+  if (createIsWon.value && !wonProductsValid(createProducts.value)) return;
   creating.value = true;
 
   let leadId: string;
@@ -823,13 +873,25 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   };
   if (canAssign.value) payload.assigned_to = event.data.assigned_to || null;
 
-  const { error } = await supabase.from("deals").insert(payload);
-  creating.value = false;
+  const { data: createdDeal, error } = await supabase.from("deals").insert(payload).select("id").single();
 
   if (error) {
+    creating.value = false;
     toast.add({ title: t("crm.deals.createDealFailed"), description: error.message, color: "error" });
     return;
   }
+
+  // Created straight into Won: record what was bought, against the new deal.
+  if (createIsWon.value && customerId) {
+    const productsError = await recordDealProducts(supabase, createdDeal.id, customerId, createProducts.value);
+    if (productsError) {
+      creating.value = false;
+      toast.add({ title: t("crm.deals.createDealFailed"), description: productsError, color: "error" });
+      refresh();
+      return;
+    }
+  }
+  creating.value = false;
 
   toast.add({ title: t("crm.deals.dealCreated"), color: "success" });
   createOpen.value = false;
@@ -1339,12 +1401,14 @@ function openDeal(deal: Deal) {
           >
             <template #description>
               <ULink
+                v-if="hasPermission('crm_leads', 'view')"
                 :to="`/crm/leads/${duplicateNewLead.id}`"
                 class="inline-flex items-center gap-1 font-medium text-primary"
               >
                 {{ duplicateNewLead.name }}
                 <UIcon name="i-lucide-arrow-left" class="size-3" />
               </ULink>
+              <span v-else class="font-medium">{{ duplicateNewLead.name }}</span>
             </template>
           </UAlert>
           <UFormField name="lead_email" :label="t('common.email')">
@@ -1395,6 +1459,7 @@ function openDeal(deal: Deal) {
         <UFormField v-if="createStage?.reason_category" name="stage_reason_id" :label="t('crm.deals.reason')">
           <USelect v-model="state.stage_reason_id" :items="createReasonOptions" value-key="value" class="w-full" />
         </UFormField>
+        <WonProductsFields v-if="createIsWon" v-model="createProducts" :defaults="{ contract_date: todayStr() }" />
         <UFormField v-if="canAssign" name="assigned_to" :label="t('crm.deals.assignedTo')">
           <USelect v-model="state.assigned_to" :items="assigneeOptions" value-key="value" class="w-full" />
         </UFormField>
@@ -1406,7 +1471,7 @@ function openDeal(deal: Deal) {
           type="submit"
           :label="t('crm.deals.createDeal')"
           :loading="creating"
-          :disabled="!!duplicateNewLead"
+          :disabled="!!duplicateNewLead || (createIsWon && !wonProductsValid(createProducts))"
           block
         />
       </UForm>
@@ -1422,7 +1487,7 @@ function openDeal(deal: Deal) {
         <UFormField :label="t('crm.deals.stage')" required>
           <USelect
             v-model="reassignStageId"
-            :items="activeStages.map((s) => ({ label: s.name, value: s.id }))"
+            :items="reassignStageItems"
             value-key="value"
             class="w-full"
           />
@@ -1430,6 +1495,7 @@ function openDeal(deal: Deal) {
         <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
           <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
         </UFormField>
+        <WonProductsFields v-if="reassignIsWon && !wonHasProducts" v-model="wonProducts" :defaults="{ contract_date: todayStr(), sales_person_id: reassignSingleDeal?.assigned_to ?? null }" />
         <UFormField :label="t('crm.deals.historyVisibility')">
           <URadioGroup
             v-model="reassignHideHistory"

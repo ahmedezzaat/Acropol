@@ -2,7 +2,7 @@
 definePageMeta({ layout: "dashboard" });
 
 const { t } = useI18n();
-const { hasAnyModulePermission, loaded, load } = usePermissions();
+const { hasAnyModulePermission, hasPermission, loaded, load } = usePermissions();
 if (!loaded.value) await load();
 
 const routeByResource: Record<string, string> = {
@@ -17,7 +17,7 @@ const crmModule = findModule("crm")!;
 // first CRM section they can open.
 const firstAccessible =
   crmModule.resources.find((r) => r.key === "crm_deals" && hasAnyModulePermission(r.key)) ??
-  crmModule.resources.find((r) => hasAnyModulePermission(r.key));
+  crmModule.resources.find((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)));
 
 if (firstAccessible) {
   await navigateTo(routeByResource[firstAccessible.key], { replace: true });

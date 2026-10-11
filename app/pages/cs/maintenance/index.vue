@@ -4,7 +4,7 @@ import { getPaginationRowModel } from "@tanstack/vue-table";
 
 definePageMeta({
   layout: "dashboard",
-  crmPermission: { module: "cs_customers" },
+  crmPermission: { module: "cs_maintenance" },
 });
 
 useHead({ htmlAttrs: { class: "carbon" } });
@@ -13,6 +13,17 @@ const supabase = useSupabaseClient();
 const toast = useToast();
 const { t } = useI18n();
 const { hasPermission } = usePermissions();
+const can = {
+  get schedule() {
+    return hasPermission("cs_maintenance", "schedule");
+  },
+  get complete() {
+    return hasPermission("cs_maintenance", "complete");
+  },
+  get cancel() {
+    return hasPermission("cs_maintenance", "cancel");
+  },
+};
 const { areas, stageById, formatDate, formatDateTime, maintenanceDue, loadAreas, loadPipelines, areaName } = useCs();
 
 // Only products that reached the completed stage (تم التشغيل) — those are the
@@ -399,7 +410,9 @@ function openRecord(productId: string) {
                   <div class="truncate text-sm font-medium text-highlighted">
                     {{ customerOf(r.p.customer_id) ? customerTitle(customerOf(r.p.customer_id)!) : "—" }}
                   </div>
-                  <div class="truncate text-xs text-toned">{{ r.p.name }}</div>
+                  <div class="truncate text-xs text-toned">
+                    {{ r.p.name }}<bdi v-if="r.p.contract_code" dir="ltr" class="ms-1 text-muted">#{{ r.p.contract_code }}</bdi>
+                  </div>
                   <p v-if="r.note" class="mt-0.5 line-clamp-1 text-xs text-muted">{{ r.note }}</p>
                 </div>
                 <div class="flex shrink-0 flex-col items-end gap-1 text-end">
@@ -472,7 +485,10 @@ function openRecord(productId: string) {
           </template>
           <template #product-cell="{ row }">
             <div class="min-w-0">
-              <div class="truncate text-sm">{{ row.original.p.name }}</div>
+              <div class="truncate text-sm">
+                {{ row.original.p.name }}
+                <bdi v-if="row.original.p.contract_code" dir="ltr" class="ms-1 text-xs text-muted">#{{ row.original.p.contract_code }}</bdi>
+              </div>
               <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                 <span v-if="categoryOf(row.original.p.category_id)">{{ categoryOf(row.original.p.category_id)?.name }}</span>
                 <span v-if="row.original.months">· {{ t("cs.maintenance.periodic", { months: row.original.months }) }}</span>
@@ -489,9 +505,9 @@ function openRecord(productId: string) {
             <span class="line-clamp-2 max-w-64 text-sm text-muted">{{ row.original.p.next_maintenance_note || "—" }}</span>
           </template>
           <template #actions-cell="{ row }">
-            <div v-if="hasPermission('cs_customers', 'edit')" class="flex items-center justify-end gap-1">
+            <div class="flex items-center justify-end gap-1">
               <UButton
-                v-if="row.original.appointment"
+                v-if="row.original.appointment && can.complete"
                 icon="i-lucide-check"
                 size="xs"
                 color="success"
@@ -500,7 +516,7 @@ function openRecord(productId: string) {
                 @click.stop="openDone(row.original.p)"
               />
               <UButton
-                v-if="row.original.declined"
+                v-if="row.original.declined && can.cancel"
                 icon="i-lucide-rotate-ccw"
                 size="xs"
                 color="neutral"
@@ -508,8 +524,9 @@ function openRecord(productId: string) {
                 :label="t('cs.maintenance.resume')"
                 @click.stop="resume(row.original.p)"
               />
-              <template v-else>
+              <template v-else-if="!row.original.declined">
                 <UButton
+                  v-if="can.schedule"
                   :icon="row.original.appointment ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
                   size="xs"
                   color="neutral"
@@ -518,6 +535,7 @@ function openRecord(productId: string) {
                   @click.stop="openModal(row.original.p)"
                 />
                 <UButton
+                  v-if="can.cancel"
                   icon="i-lucide-ban"
                   size="xs"
                   color="error"
@@ -542,7 +560,9 @@ function openRecord(productId: string) {
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <div class="truncate font-semibold text-highlighted">{{ customerOf(r.p.customer_id) ? customerTitle(customerOf(r.p.customer_id)!) : "—" }}</div>
-                <div class="mt-0.5 truncate text-xs text-toned">{{ r.p.name }}</div>
+                <div class="mt-0.5 truncate text-xs text-toned">
+                  {{ r.p.name }}<bdi v-if="r.p.contract_code" dir="ltr" class="ms-1 text-muted">#{{ r.p.contract_code }}</bdi>
+                </div>
               </div>
               <UBadge
                 v-if="bucket(r) !== 'later'"
@@ -558,18 +578,19 @@ function openRecord(productId: string) {
                 <UIcon name="i-lucide-calendar-clock" class="size-3.5" />{{ whenText(r) }}
                 <span v-if="r.at !== null">· {{ r.appointment ? t("cs.maintenance.appointment") : t("cs.maintenance.periodicShort") }}</span>
               </span>
-              <div v-if="hasPermission('cs_customers', 'edit')" class="flex items-center gap-1">
-                <UButton v-if="r.appointment" icon="i-lucide-check" size="xs" color="success" variant="soft" :label="t('cs.maintenance.markDone')" @click.stop="openDone(r.p)" />
-                <UButton v-if="r.declined" icon="i-lucide-rotate-ccw" size="xs" color="neutral" variant="soft" @click.stop="resume(r.p)" />
-                <template v-else>
+              <div class="flex items-center gap-1">
+                <UButton v-if="r.appointment && can.complete" icon="i-lucide-check" size="xs" color="success" variant="soft" :label="t('cs.maintenance.markDone')" @click.stop="openDone(r.p)" />
+                <UButton v-if="r.declined && can.cancel" icon="i-lucide-rotate-ccw" size="xs" color="neutral" variant="soft" @click.stop="resume(r.p)" />
+                <template v-else-if="!r.declined">
                   <UButton
+                    v-if="can.schedule"
                     :icon="r.appointment ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
                     size="xs"
                     color="neutral"
                     variant="soft"
                     @click.stop="openModal(r.p)"
                   />
-                  <UButton icon="i-lucide-ban" size="xs" color="error" variant="soft" @click.stop="openCancel(r.p)" />
+                  <UButton v-if="can.cancel" icon="i-lucide-ban" size="xs" color="error" variant="soft" @click.stop="openCancel(r.p)" />
                 </template>
               </div>
             </div>

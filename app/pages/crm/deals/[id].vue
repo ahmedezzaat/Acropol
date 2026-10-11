@@ -434,14 +434,21 @@ const reassignReasonOptions = computed(() =>
     .filter((r) => r.pipeline_id === deal.value?.pipeline_id && r.category === reassignStage.value?.reason_category)
     .map((r) => ({ label: r.name, value: r.id })),
 );
+const reassignIsWon = computed(() => reassignStage.value?.system_key === "won" && reassignStageId.value !== deal.value?.stage_id);
 const reassignValid = computed(
-  () => !!reassignStageId.value && (!reassignStage.value?.reason_category || !!reassignReasonId.value),
+  () =>
+    !!reassignStageId.value &&
+    (!reassignStage.value?.reason_category || !!reassignReasonId.value) &&
+    (!reassignIsWon.value || wonProductsOk.value),
 );
 
 // Moving to another stage invalidates the reason picked for the old one;
 // going back to the current stage restores the deal's own reason.
 watch(reassignStageId, (stageId) => {
   if (!reassignOpen.value) return;
+  if (allStages.value?.find((s) => s.id === stageId)?.system_key === "won" && stageId !== deal.value?.stage_id) {
+    prepareWonProducts(today(getLocalTimeZone()).toString());
+  }
   reassignReasonId.value = stageId === deal.value?.stage_id ? (deal.value?.stage_reason_id ?? null) : null;
 });
 
@@ -476,6 +483,14 @@ async function confirmReassign() {
     }
     updates.customer_id = customerId;
   }
+  if (reassignIsWon.value) {
+    const productsError = await saveWonProducts((updates.customer_id as string | undefined) ?? deal.value.customer_id);
+    if (productsError) {
+      reassigning.value = false;
+      toast.add({ title: t("crm.deals.reassignFailed"), description: productsError, color: "error" });
+      return;
+    }
+  }
 
   const { error } = await supabase.from("deals").update(updates).eq("id", dealId);
   reassigning.value = false;
@@ -495,6 +510,23 @@ async function confirmReassign() {
   toast.add({ title: t("crm.deals.reassigned"), color: "success" });
   reassignOpen.value = false;
   refreshActivities();
+}
+
+// Winning a deal asks what was bought (Customer Service products). A deal that
+// already has its products recorded is not asked again.
+const wonProducts = ref<WonProductDraft[]>([]);
+const wonHasProducts = ref(false);
+async function prepareWonProducts(closeDate: string) {
+  wonProducts.value = [
+    newWonProduct({ name: deal.value?.title ?? "", contract_date: closeDate, sales_person_id: deal.value?.assigned_to ?? null }),
+  ];
+  wonHasProducts.value = await dealHasProducts(supabase, dealId);
+}
+const wonProductsOk = computed(() => wonHasProducts.value || wonProductsValid(wonProducts.value));
+async function saveWonProducts(customerId: string | null) {
+  if (wonHasProducts.value) return null;
+  if (!customerId) return t("crm.deals.noLeadForConversion");
+  return await recordDealProducts(supabase, dealId, customerId, wonProducts.value);
 }
 
 const stageChangeModalOpen = ref(false);
@@ -533,6 +565,7 @@ function selectStage(stageId: string) {
   const won = stage?.system_key === "won";
   pendingValue.value = won ? deal.value.value : null;
   pendingCloseDate.value = won ? deal.value.expected_close_date || today(getLocalTimeZone()).toString() : "";
+  if (won) prepareWonProducts(pendingCloseDate.value);
   stageChangeModalOpen.value = true;
 }
 
@@ -541,6 +574,7 @@ async function confirmStageChange() {
   if (noteRequired.value && !pendingNote.value.trim()) return;
   if (pendingStage.value?.reason_category && !pendingReasonId.value) return;
   if (isWonStage.value && (pendingValue.value == null || !pendingCloseDate.value)) return;
+  if (isWonStage.value && !wonProductsOk.value) return;
   if (isOfferSentStage.value && !pendingFile.value) return;
 
   changingStage.value = true;
@@ -574,6 +608,15 @@ async function confirmStageChange() {
       }
       resolvedCustomerId = customerId;
       updates.customer_id = customerId;
+    }
+
+    // What was bought is recorded before the deal moves, so it can never be Won
+    // without its products.
+    const productsError = await saveWonProducts(resolvedCustomerId);
+    if (productsError) {
+      changingStage.value = false;
+      toast.add({ title: t("crm.deals.saveFailed"), description: productsError, color: "error" });
+      return;
     }
   }
   const { error } = await supabase.from("deals").update(updates).eq("id", dealId);
@@ -786,6 +829,7 @@ const completeSubmitDisabled = computed(() => {
   if (!completionNote.value.trim()) return true;
   if (completeStage.value?.reason_category && !completeReasonId.value) return true;
   if (completeIsWonStage.value && (completeValue.value == null || !completeCloseDate.value)) return true;
+  if (completeIsWonStage.value && completeStageChanged.value && !wonProductsOk.value) return true;
   if (completeIsOfferSentStage.value && !completeFile.value) return true;
   if (!needsNextAction.value) return false;
   return !nextActivityType.value || !scheduledDate.value || !scheduledTime.value;
@@ -825,6 +869,13 @@ async function submitComplete() {
         }
         resolvedCustomerId = customerId;
         updates.customer_id = customerId;
+      }
+
+      const productsError = await saveWonProducts(resolvedCustomerId);
+      if (productsError) {
+        completing.value = false;
+        toast.add({ title: t("crm.deals.saveFailed"), description: productsError, color: "error" });
+        return;
       }
     }
 
@@ -926,6 +977,7 @@ watch(completeStageId, (newStageId, oldStageId) => {
   if (completeIsWonStage.value) {
     completeValue.value = deal.value?.value ?? null;
     completeCloseDate.value = deal.value?.expected_close_date || today(getLocalTimeZone()).toString();
+    prepareWonProducts(completeCloseDate.value);
   }
 });
 
@@ -1423,7 +1475,7 @@ function isPastDue(iso: string | null) {
               <p v-if="leadContact.email" class="text-muted">{{ leadContact.email }}</p>
               <p class="mt-2 text-xs text-muted">{{ t("crm.deals.customerOnWin") }}</p>
               <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <ULink :to="`/crm/leads/${deal.lead_id}`" class="inline-flex items-center gap-1 text-primary">
+                <ULink v-if="hasPermission('crm_leads', 'view')" :to="`/crm/leads/${deal.lead_id}`" class="inline-flex items-center gap-1 text-primary">
                   {{ t("crm.deals.viewLead") }}
                   <UIcon name="i-lucide-arrow-left" class="size-3" />
                 </ULink>
@@ -1518,6 +1570,11 @@ function isPastDue(iso: string | null) {
         <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
           <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
         </UFormField>
+        <WonProductsFields
+          v-if="reassignIsWon && !wonHasProducts"
+          v-model="wonProducts"
+          :defaults="{ contract_date: today(getLocalTimeZone()).toString(), sales_person_id: deal?.assigned_to ?? null }"
+        />
         <UFormField :label="t('crm.deals.historyVisibility')">
           <URadioGroup
             v-model="reassignHideHistory"
@@ -1554,6 +1611,7 @@ function isPastDue(iso: string | null) {
           <UFormField :label="t('crm.deals.wonDate')" required>
             <UInput v-model="pendingCloseDate" type="date" class="w-full" />
           </UFormField>
+          <WonProductsFields v-if="!wonHasProducts" v-model="wonProducts" :defaults="{ contract_date: pendingCloseDate, sales_person_id: deal?.assigned_to ?? null }" />
         </template>
         <template v-if="isOfferSentStage">
           <UAlert
@@ -1583,6 +1641,7 @@ function isPastDue(iso: string | null) {
             (noteRequired && !pendingNote.trim()) ||
             (!!pendingStage?.reason_category && !pendingReasonId) ||
             (isWonStage && (pendingValue == null || !pendingCloseDate)) ||
+            (isWonStage && !wonProductsOk) ||
             (isOfferSentStage && !pendingFile)
           "
           block
@@ -1674,6 +1733,11 @@ function isPastDue(iso: string | null) {
           <UFormField :label="t('crm.deals.wonDate')" required>
             <UInput v-model="completeCloseDate" type="date" class="w-full" />
           </UFormField>
+          <WonProductsFields
+            v-if="completeStageChanged && !wonHasProducts"
+            v-model="wonProducts"
+            :defaults="{ contract_date: completeCloseDate, sales_person_id: deal?.assigned_to ?? null }"
+          />
         </template>
 
         <template v-if="completeIsOfferSentStage">

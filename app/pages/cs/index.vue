@@ -7,6 +7,8 @@ if (!loaded.value) await load();
 // Customers is the landing page of Customer Service.
 if (hasAnyModulePermission("cs_customers")) {
   await navigateTo("/cs/customers", { replace: true });
+} else if (hasAnyModulePermission("cs_maintenance")) {
+  await navigateTo("/cs/maintenance", { replace: true });
 } else {
   await navigateTo("/403", { replace: true });
 }

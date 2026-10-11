@@ -764,6 +764,7 @@ export type Database = {
           last_maintenance_on: string | null;
           sales_person_id: string | null;
           maintenance_declined_at: string | null;
+          deal_id: string | null;
           operation_date: string | null;
           warranty_status: string | null;
           warranty_details: string | null;
@@ -789,12 +790,13 @@ export type Database = {
           last_maintenance_on?: string | null;
           sales_person_id?: string | null;
           maintenance_declined_at?: string | null;
+          deal_id?: string | null;
           operation_date?: string | null;
           warranty_status?: string | null;
           warranty_details?: string | null;
           payment_status?: string | null;
           notes?: string | null;
-          pipeline_id: string;
+          pipeline_id?: string;
           stage_id?: string;
           created_by?: string | null;
           created_at?: string;
@@ -814,6 +816,7 @@ export type Database = {
           last_maintenance_on?: string | null;
           sales_person_id?: string | null;
           maintenance_declined_at?: string | null;
+          deal_id?: string | null;
           operation_date?: string | null;
           warranty_status?: string | null;
           warranty_details?: string | null;

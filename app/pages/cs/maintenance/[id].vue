@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({
   layout: "dashboard",
-  crmPermission: { module: "cs_customers" },
+  crmPermission: { module: "cs_maintenance" },
 });
 
 useHead({ htmlAttrs: { class: "carbon" } });
@@ -15,7 +15,12 @@ const { t } = useI18n();
 const { hasPermission } = usePermissions();
 const { stageById, dateIndex, formatDate, formatDateTime, maintenanceDue, loadAreas, loadPipelines, areaName } = useCs();
 
-const canEdit = computed(() => hasPermission("cs_customers", "edit"));
+const can = reactive({
+  schedule: computed(() => hasPermission("cs_maintenance", "schedule")),
+  complete: computed(() => hasPermission("cs_maintenance", "complete")),
+  cancel: computed(() => hasPermission("cs_maintenance", "cancel")),
+  note: computed(() => hasPermission("cs_maintenance", "note")),
+});
 
 interface LogRow {
   id: string;
@@ -311,18 +316,19 @@ async function onSaved() {
                   </div>
                 </div>
 
-                <div v-if="canEdit && operating" class="flex flex-wrap items-center gap-2">
-                  <UButton v-if="declined" icon="i-lucide-rotate-ccw" :label="t('cs.maintenance.resume')" :loading="resuming" @click="resume" />
+                <div v-if="operating" class="flex flex-wrap items-center gap-2">
+                  <UButton v-if="declined && can.cancel" icon="i-lucide-rotate-ccw" :label="t('cs.maintenance.resume')" :loading="resuming" @click="resume" />
                   <template v-else>
-                    <UButton v-if="product.next_maintenance_at" icon="i-lucide-check" color="success" :label="t('cs.maintenance.markDone')" @click="openDone" />
+                    <UButton v-if="product.next_maintenance_at && can.complete" icon="i-lucide-check" color="success" :label="t('cs.maintenance.markDone')" @click="openDone" />
                     <UButton
+                      v-if="can.schedule"
                       :icon="product.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
                       :color="product.next_maintenance_at ? 'neutral' : 'primary'"
                       :variant="product.next_maintenance_at ? 'outline' : 'solid'"
                       :label="t(product.next_maintenance_at ? 'cs.maintenance.reschedule' : 'cs.maintenance.schedule')"
                       @click="openSchedule"
                     />
-                    <UButton icon="i-lucide-ban" color="error" variant="outline" :label="t('cs.maintenance.cancelAction')" @click="openCancel" />
+                    <UButton v-if="can.cancel" icon="i-lucide-ban" color="error" variant="outline" :label="t('cs.maintenance.cancelAction')" @click="openCancel" />
                   </template>
                 </div>
               </div>
@@ -331,6 +337,7 @@ async function onSaved() {
 
             <!-- The product itself -->
             <ProductCard
+              hide-funnel
               :product="product"
               :dates="stageDates"
               :items="cardData?.items ?? []"
@@ -339,7 +346,7 @@ async function onSaved() {
             />
 
             <!-- Add a note -->
-            <section v-if="canEdit" class="space-y-2 border border-default bg-default p-4">
+            <section v-if="can.note" class="space-y-2 border border-default bg-default p-4">
               <UTextarea v-model="noteText" :rows="2" :placeholder="t('cs.maintenance.notePlaceholder')" class="w-full" />
               <div class="flex justify-end">
                 <UButton

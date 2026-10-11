@@ -116,6 +116,7 @@
     "crm_leads": {
       "label": "Leads",
       "actions": {
+        "view": "View the leads list",
         "create": "Create",
         "edit": "Edit",
         "delete": "Delete",
@@ -166,6 +167,16 @@
         "create": "Create",
         "edit": "Edit (incl. products & progress)",
         "delete": "Delete"
+      }
+    },
+    "cs_maintenance": {
+      "label": "Maintenance",
+      "actions": {
+        "view": "View maintenance",
+        "schedule": "Schedule / reschedule",
+        "complete": "Mark maintenance done",
+        "cancel": "Cancel / resume maintenance",
+        "note": "Add notes"
       }
     }
   },
@@ -692,7 +703,13 @@
       },
       "reassignTitle": "Reassign deal",
       "filters": "Filters",
-      "callContact": "Call"
+      "callContact": "Call",
+      "wonProducts": {
+        "title": "Bought products",
+        "hint": "Record what the customer bought. These go to Customer Service to follow the installation.",
+        "product": "Product {n}",
+        "add": "Add another product"
+      }
     },
     "quotes": {
       "title": "Quotes",
@@ -880,7 +897,8 @@
       "allCategories": "All categories",
       "listView": "List view",
       "cardView": "Card view",
-      "total": "{count} customer(s)"
+      "total": "{count} customer(s)",
+      "selectCustomer": "Select a customer to see the details"
     },
     "profile": {
       "back": "Back",
@@ -963,7 +981,9 @@
       "stage": "Stage",
       "since": "Since",
       "created": "Added",
-      "total": "{count} product(s)"
+      "total": "{count} product(s)",
+      "listView": "List view",
+      "kanbanView": "Kanban view"
     },
     "dashboard": {
       "title": "Customer Service dashboard",
