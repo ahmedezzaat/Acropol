@@ -10,11 +10,16 @@ const bodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  const { adminClient } = await requireAdmin(event);
+  const { userId, isAdmin, adminClient } = await requireSetting(event, "users");
   const id = getRouterParam(event, "id");
   if (!id) throw createError({ statusCode: 400, statusMessage: "Missing user id" });
+  await guardNonAdmin(adminClient, isAdmin, userId, id);
 
   const body = await readValidatedBody(event, bodySchema.parse);
+  // Granting administrator is for administrators only.
+  if (!isAdmin && body.is_admin !== undefined) {
+    throw createError({ statusCode: 403, statusMessage: "Only an administrator can change administrator access" });
+  }
 
   if (body.email !== undefined) {
     // The email a user actually signs in with lives in Supabase Auth, not

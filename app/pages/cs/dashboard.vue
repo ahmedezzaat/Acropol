@@ -8,7 +8,10 @@ useHead({ htmlAttrs: { class: "carbon" } });
 
 const supabase = useSupabaseClient();
 const { t, locale } = useI18n();
-const { areas, pipelines, stagesOf, stageById, stageName, stageLimitDays, dateIndex, dateOf, daysSince, formatDate, loadAreas, loadPipelines, areaName } = useCs();
+const { hasAnyModulePermission } = usePermissions();
+const { areas, pipelines, stagesOf, stageById, stageName, stageLimitDays, dateIndex, dateOf, daysSince, formatDate, formatDateTime, maintenanceDue, loadAreas, loadPipelines, areaName } = useCs();
+// Maintenance numbers only for people who can see maintenance.
+const canMaintenance = computed(() => hasAnyModulePermission("cs_maintenance"));
 
 // A product is overdue once it has sat in its stage longer than the stage's
 // own limit (Settings); stages with no limit fall back to this many days.
@@ -30,6 +33,27 @@ const { data: stageDates } = await useAsyncData<CsStageDate[]>("cs-dash-dates", 
   return (data ?? []) as CsStageDate[];
 });
 const dates = computed(() => dateIndex(stageDates.value ?? []));
+const { data: categories } = await useAsyncData<{ id: string; name: string; maintenance_interval_months: number | null }[]>("cs-dash-categories", async () => {
+  const { data } = await supabase.from("product_categories").select("id, name, maintenance_interval_months").order("sort_order");
+  return data ?? [];
+});
+const { data: people } = await useAsyncData<{ id: string; full_name: string | null; email: string }[]>("cs-dash-people", async () => {
+  const { data } = await supabase.from("profiles").select("id, full_name, email");
+  return data ?? [];
+});
+// Visits done in the last 28 days (the maintenance log).
+const { data: doneRecently } = await useAsyncData<number>("cs-dash-maintenance-done", async () => {
+  if (!canMaintenance.value) return 0;
+  const from = new Date();
+  from.setDate(from.getDate() - 27);
+  const day = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-${String(from.getDate()).padStart(2, "0")}`;
+  const { count } = await supabase
+    .from("product_maintenance_log")
+    .select("id", { count: "exact", head: true })
+    .eq("kind", "done")
+    .gte("done_on", day);
+  return count ?? 0;
+});
 await useAsyncData("cs-dash-areas", async () => {
   await Promise.all([loadAreas(true), loadPipelines(true)]);
   return true;
@@ -151,8 +175,81 @@ const byArea = computed(() => {
 });
 const areaMax = computed(() => Math.max(1, ...byArea.value.map((r) => r.count)));
 
+// ---- Money and warranty (this view's products)
+const unpaid = computed(() => filteredProducts.value.filter((p) => p.payment_status === "unpaid").length);
+const inWarranty = computed(() => filteredProducts.value.filter((p) => p.warranty_status === "in_warranty").length);
+const outWarranty = computed(() => filteredProducts.value.filter((p) => p.warranty_status === "out_of_warranty").length);
+
+// ---- By product category and by sales person
+const byCategory = computed(() => {
+  const counts = new Map<string, number>();
+  for (const p of filteredProducts.value) {
+    const key = p.category_id ?? "none";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([id, count]) => ({ name: id === "none" ? t("cs.profile.noCategory") : (categories.value?.find((c) => c.id === id)?.name ?? "—"), count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+});
+const categoryMax = computed(() => Math.max(1, ...byCategory.value.map((r) => r.count)));
+
+const bySalesPerson = computed(() => {
+  const counts = new Map<string, number>();
+  for (const p of filteredProducts.value) {
+    const key = p.sales_person_id ?? "none";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([id, count]) => {
+      const u = people.value?.find((x) => x.id === id);
+      return { name: id === "none" ? t("cs.dashboard.noSalesPerson") : u ? u.full_name || u.email : "—", count };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+});
+const salesMax = computed(() => Math.max(1, ...bySalesPerson.value.map((r) => r.count)));
+
+// ---- Maintenance: products at the completed stage (any funnel), in the chosen
+// area. The period filter above does not apply: maintenance is about now.
+const maintenanceRows = computed(() => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const startOfToday = today.getTime();
+  return (products.value ?? [])
+    .filter((p) => !!stageById(p.stage_id)?.is_final)
+    .filter((p) => !areaFilter.value || customerById.value.get(p.customer_id)?.area_id === areaFilter.value)
+    .map((p) => {
+      const declined = !!p.maintenance_declined_at;
+      const months = categories.value?.find((c) => c.id === p.category_id)?.maintenance_interval_months ?? null;
+      const due = declined ? null : maintenanceDue(p, months);
+      const at = declined ? null : p.next_maintenance_at ? new Date(p.next_maintenance_at).getTime() : due ? new Date(`${due}T09:00:00`).getTime() : null;
+      return { p, declined, at, appointment: !declined && !!p.next_maintenance_at, startOfToday };
+    });
+});
+const maintenanceStats = computed(() => {
+  const rows = maintenanceRows.value;
+  const today = rows[0]?.startOfToday ?? new Date().setHours(0, 0, 0, 0);
+  const week = today + 7 * 86_400_000;
+  return {
+    overdue: rows.filter((r) => r.at !== null && r.at < today).length,
+    week: rows.filter((r) => r.at !== null && r.at >= today && r.at < week).length,
+    scheduled: rows.filter((r) => r.appointment && r.at !== null && r.at >= today).length,
+    cancelled: rows.filter((r) => r.declined).length,
+    unscheduled: rows.filter((r) => !r.declined && r.at === null).length,
+  };
+});
+const nextAppointments = computed(() => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return maintenanceRows.value
+    .filter((r) => r.appointment && r.at !== null && r.at >= today.getTime())
+    .sort((a, b) => a.at! - b.at!)
+    .slice(0, 5);
+});
+
 function openCustomer(id: string) {
-  navigateTo(`/cs/customers/${id}`);
+  navigateTo({ path: "/cs/customers", query: { id } });
 }
 </script>
 
@@ -206,6 +303,71 @@ function openCustomer(id: string) {
           </UPageCard>
         </div>
 
+        <!-- Warranty and payment -->
+        <div class="grid grid-cols-3 gap-4">
+          <UPageCard>
+            <div class="text-2xl font-bold" :class="unpaid ? 'text-error' : 'text-highlighted'">{{ unpaid }}</div>
+            <div class="text-sm text-muted">{{ t("cs.dashboard.unpaid") }}</div>
+          </UPageCard>
+          <UPageCard>
+            <div class="text-2xl font-bold text-success">{{ inWarranty }}</div>
+            <div class="text-sm text-muted">{{ t("cs.dashboard.inWarranty") }}</div>
+          </UPageCard>
+          <UPageCard>
+            <div class="text-2xl font-bold text-highlighted">{{ outWarranty }}</div>
+            <div class="text-sm text-muted">{{ t("cs.dashboard.outWarranty") }}</div>
+          </UPageCard>
+        </div>
+
+        <!-- Maintenance -->
+        <UPageCard v-if="canMaintenance" :title="t('cs.dashboard.maintenance')" :description="t('cs.dashboard.maintenanceHint')">
+          <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <div>
+              <div class="text-2xl font-bold" :class="maintenanceStats.overdue ? 'text-error' : 'text-highlighted'">{{ maintenanceStats.overdue }}</div>
+              <div class="text-xs text-muted">{{ t("cs.maintenance.stat.overdue") }}</div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold" :class="maintenanceStats.week ? 'text-warning' : 'text-highlighted'">{{ maintenanceStats.week }}</div>
+              <div class="text-xs text-muted">{{ t("cs.dashboard.dueThisWeek") }}</div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-highlighted">{{ maintenanceStats.scheduled }}</div>
+              <div class="text-xs text-muted">{{ t("cs.dashboard.upcomingAppointments") }}</div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-success">{{ doneRecently ?? 0 }}</div>
+              <div class="text-xs text-muted">{{ t("cs.dashboard.doneLast28") }}</div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-highlighted">{{ maintenanceStats.unscheduled }}</div>
+              <div class="text-xs text-muted">{{ t("cs.maintenance.unscheduled") }}</div>
+            </div>
+            <div>
+              <div class="text-2xl font-bold text-highlighted">{{ maintenanceStats.cancelled }}</div>
+              <div class="text-xs text-muted">{{ t("cs.maintenance.stat.declined") }}</div>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <UButton to="/cs/maintenance" icon="i-lucide-wrench" size="sm" color="neutral" variant="soft" :label="t('cs.dashboard.openMaintenance')" />
+          </div>
+
+          <div v-if="nextAppointments.length" class="mt-4 border-t border-default pt-3">
+            <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{{ t("cs.dashboard.nextUp") }}</div>
+            <ul class="divide-y divide-default">
+              <li v-for="r in nextAppointments" :key="r.p.id">
+                <NuxtLink :to="`/cs/maintenance/${r.p.id}`" class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm transition-colors hover:bg-elevated">
+                  <span class="min-w-0">
+                    <span class="block truncate font-medium text-highlighted">{{ customerById.get(r.p.customer_id) ? customerTitle(customerById.get(r.p.customer_id)!) : "—" }}</span>
+                    <span class="block truncate text-xs text-muted">{{ r.p.name }}</span>
+                  </span>
+                  <span class="shrink-0 text-xs text-muted">{{ formatDateTime(r.p.next_maintenance_at) }}</span>
+                </NuxtLink>
+              </li>
+            </ul>
+          </div>
+        </UPageCard>
+
         <!-- Funnel -->
         <UPageCard :title="t('cs.dashboard.funnel')">
           <div v-if="!total" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
@@ -247,7 +409,7 @@ function openCustomer(id: string) {
           </div>
         </UPageCard>
 
-        <div>
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <!-- By area -->
           <UPageCard :title="t('cs.dashboard.byArea')">
             <div v-if="!byArea.length" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
@@ -259,6 +421,38 @@ function openCustomer(id: string) {
                 </div>
                 <div class="h-2.5 w-full overflow-hidden rounded-full bg-elevated">
                   <div class="h-full rounded-full bg-kords-primary-500" :style="{ width: `${(r.count / areaMax) * 100}%` }" />
+                </div>
+              </div>
+            </div>
+          </UPageCard>
+
+          <!-- By product category -->
+          <UPageCard :title="t('cs.dashboard.byCategory')">
+            <div v-if="!byCategory.length" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
+            <div v-else class="space-y-2.5">
+              <div v-for="r in byCategory" :key="r.name" class="space-y-1">
+                <div class="flex items-baseline justify-between gap-2 text-xs">
+                  <span class="truncate text-highlighted">{{ r.name }}</span>
+                  <span class="font-medium text-highlighted">{{ r.count }}</span>
+                </div>
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-elevated">
+                  <div class="h-full rounded-full bg-kords-primary-500" :style="{ width: `${(r.count / categoryMax) * 100}%` }" />
+                </div>
+              </div>
+            </div>
+          </UPageCard>
+
+          <!-- By sales person -->
+          <UPageCard :title="t('cs.dashboard.bySalesPerson')">
+            <div v-if="!bySalesPerson.length" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
+            <div v-else class="space-y-2.5">
+              <div v-for="r in bySalesPerson" :key="r.name" class="space-y-1">
+                <div class="flex items-baseline justify-between gap-2 text-xs">
+                  <span class="truncate text-highlighted" dir="auto">{{ r.name }}</span>
+                  <span class="font-medium text-highlighted">{{ r.count }}</span>
+                </div>
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-elevated">
+                  <div class="h-full rounded-full bg-kords-primary-500" :style="{ width: `${(r.count / salesMax) * 100}%` }" />
                 </div>
               </div>
             </div>

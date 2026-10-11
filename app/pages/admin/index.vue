@@ -3,21 +3,13 @@ definePageMeta({ layout: "dashboard" });
 
 const { t } = useI18n();
 
-// crm-permission.global.ts already redirects any non-admin away from any
-// /admin/** route, so this page is reached only by admins.
-const sections = [
-  { titleKey: "admin.users.title", icon: "i-lucide-users", to: "/admin/users" },
-  { titleKey: "admin.roles.title", icon: "i-lucide-shield", to: "/admin/roles" },
-  { titleKey: "admin.pipelines.title", icon: "i-lucide-git-branch", to: "/admin/pipelines" },
-  { titleKey: "admin.activityTypes.title", icon: "i-lucide-list-checks", to: "/admin/activity-types" },
-  { titleKey: "admin.productCategories.title", icon: "i-lucide-tags", to: "/admin/product-categories" },
-  { titleKey: "admin.teams.title", icon: "i-lucide-users-round", to: "/admin/teams" },
-  { titleKey: "admin.automation.title", icon: "i-lucide-zap", to: "/admin/automation" },
-  { titleKey: "admin.serviceAreas.title", icon: "i-lucide-map", to: "/admin/service-areas" },
-  { titleKey: "admin.csPipelines.title", icon: "i-lucide-workflow", to: "/admin/cs-pipelines" },
-  { titleKey: "admin.visitTypes.title", icon: "i-lucide-map-pinned", to: "/admin/visit-types" },
-  { titleKey: "admin.integrations.title", icon: "i-lucide-plug", to: "/admin/integrations" },
-];
+const { hasPermission } = usePermissions();
+
+// crm-permission.global.ts only lets in administrators and roles granted at
+// least one Settings page; each person sees just the pages they can manage.
+const sections = computed(() =>
+  SETTINGS_ITEMS.filter((i) => hasPermission("settings", i.key)).map((i) => ({ titleKey: i.titleKey, icon: i.icon, to: i.path })),
+);
 </script>
 
 <template>

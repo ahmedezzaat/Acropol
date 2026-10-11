@@ -88,7 +88,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   }
 
   // The leader is naturally part of their own team.
-  await supabase.from("profiles").update({ team_id: data.id }).eq("id", event.data.leader_id);
+  await supabase.rpc("set_profiles_team", { p_profile_ids: [event.data.leader_id], p_team_id: data.id });
   creating.value = false;
 
   toast.add({ title: t("admin.teams.teamCreated"), color: "success" });

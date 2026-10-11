@@ -53,6 +53,7 @@ export interface CsProduct {
   last_maintenance_on: string | null;
   sales_person_id: string | null;
   maintenance_declined_at: string | null;
+  deal_id: string | null;
   operation_date: string | null;
   warranty_status: string | null;
   warranty_details: string | null;
@@ -70,6 +71,7 @@ export interface CsStageDate {
 }
 
 export interface CsCustomer {
+  extra_phones?: string[];
   id: string;
   name: string;
   company: string | null;

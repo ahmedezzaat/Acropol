@@ -96,7 +96,9 @@
     "details": "Details",
     "active": "Active",
     "inactive": "Inactive",
-    "done": "Done"
+    "done": "Done",
+    "addPhone": "Add another phone",
+    "extraPhones": "Other phones"
   },
   "nav": {
     "appName": "Acropol",
@@ -375,7 +377,7 @@
       "runNow": "Run now",
       "runResult": "{count} deal(s) unassigned",
       "runFailed": "Failed to run the rules",
-      "howItWorks": "Rules are checked automatically every 10 minutes. The clock starts when the deal entered the stage, or when someone last assigned it — whichever is later — so reassigning a deal gives it a fresh window. Deals that are already unassigned are skipped. Unassigning a deal also unassigns its lead, the same as any reassignment. Closed stages (Won, Competitor, Archive) can't have rules. A note counts only if it was written by the currently assigned user after that clock started; the comment written when moving a deal between stages doesn't count. Stay time counts working hours only: Fridays and Saturdays (Cairo time) are not counted, so a deal that entered a stage on Thursday morning has stayed about 24 hours by Sunday morning, not 72.",
+      "howItWorks": "Rules are checked automatically every 10 minutes. The clock starts when the deal entered the stage, or when someone last assigned it — whichever is later — so reassigning a deal gives it a fresh window. Deals that are already unassigned are skipped. Unassigning a deal also unassigns its lead, the same as any reassignment. Closed stages (Won, Competitor, Archive) can't have rules. A note counts only if it was written by the currently assigned user after that clock started; the comment written when moving a deal between stages doesn't count. Stay time counts working hours only: Fridays and Saturdays (Cairo time) are not counted, so a deal that entered a stage on Thursday morning has stayed about 24 hours by Sunday morning, not 72. The clock starts at 11:59 AM on a working day: a deal that enters before 11:59 AM starts counting at 11:59 AM (at 11:30 AM its stay time is still zero), one that enters after 5:00 PM starts the next working day at 11:59 AM, and one that enters on a Friday or Saturday starts on Sunday at 11:59 AM.",
       "noteCondition": "Note condition",
       "conditions": {
         "any": "Regardless of notes",
@@ -762,7 +764,10 @@
       "noQuotesYet": "No quotes yet.",
       "assignedTo": "Assigned to",
       "assignPermissionHint": "You don't have permission to assign customers.",
-      "assignCreateHint": "This customer will be assigned to you automatically. You don't have permission to assign them to someone else."
+      "assignCreateHint": "This customer will be assigned to you automatically. You don't have permission to assign them to someone else.",
+      "wonTotal": "Won deals total: {value}",
+      "noProductsYet": "No products yet. They appear here once a deal is won.",
+      "fromDeal": "From deal: {deal}"
     },
     "visits": {
       "title": "Trips & inspections",
@@ -898,7 +903,14 @@
       "listView": "List view",
       "cardView": "Card view",
       "total": "{count} customer(s)",
-      "selectCustomer": "Select a customer to see the details"
+      "selectCustomer": "Select a customer to see the details",
+      "delete": "Delete customer",
+      "deleteTitle": "Delete customer",
+      "deleteConfirm": "“{name}” will be deleted for good. Are you sure?",
+      "deleteBlockedTitle": "This customer can't be deleted ({count} product(s))",
+      "deleteBlocked": "They have products, with their installations and maintenance. Delete their products first if you want to delete the customer.",
+      "deleted": "Customer deleted",
+      "deleteFailed": "Couldn't delete the customer"
     },
     "profile": {
       "back": "Back",
@@ -1005,7 +1017,20 @@
         "90d": "Last 90 days"
       },
       "limitHint": "Each stage's limit is set in Settings; stages without one use {days} days.",
-      "daysOfLimit": "{days} days (limit {limit})"
+      "daysOfLimit": "{days} days (limit {limit})",
+      "unpaid": "Unpaid",
+      "inWarranty": "In warranty",
+      "outWarranty": "Out of warranty",
+      "maintenance": "Maintenance",
+      "maintenanceHint": "Products that are in operation. The period filter does not apply.",
+      "dueThisWeek": "Due this week",
+      "upcomingAppointments": "Upcoming appointments",
+      "doneLast28": "Done in the last 28 days",
+      "nextUp": "Next up",
+      "byCategory": "By category",
+      "bySalesPerson": "By sales person",
+      "noSalesPerson": "No sales person",
+      "openMaintenance": "Open maintenance"
     },
     "maintenance": {
       "title": "Maintenance",

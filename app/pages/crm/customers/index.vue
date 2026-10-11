@@ -93,6 +93,7 @@ type Schema = {
   address?: string;
   assigned_to?: string | null;
 };
+const extraPhones = ref<string[]>([]);
 const state = reactive<Partial<Schema>>({
   name: "",
   company: "",
@@ -108,6 +109,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     name: event.data.name,
     company: event.data.company || null,
     phone: trimOrNull(event.data.phone),
+    extra_phones: extraPhones.value.map((p) => p.trim()).filter((p) => p.length > 0),
     email: event.data.email || null,
     address: event.data.address || null,
   };
@@ -124,6 +126,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
   toast.add({ title: t("crm.customers.customerCreated"), color: "success" });
   createOpen.value = false;
   Object.assign(state, { name: "", company: "", phone: "", email: "", address: "", assigned_to: null });
+  extraPhones.value = [];
   refresh();
 }
 
@@ -187,6 +190,9 @@ function openCustomer(customer: Customer) {
         </UFormField>
         <UFormField name="phone" :label="t('common.phone')">
           <PhoneInput v-model="state.phone" />
+        </UFormField>
+        <UFormField :label="t('common.extraPhones')">
+          <ExtraPhones v-model="extraPhones" />
         </UFormField>
         <UFormField name="email" :label="t('common.email')">
           <UInput v-model="state.email" type="email" class="w-full" />

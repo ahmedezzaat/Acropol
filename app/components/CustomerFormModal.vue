@@ -17,6 +17,7 @@ const type = ref<"individual" | "company">("individual");
 const name = ref("");
 const company = ref("");
 const phone = ref("");
+const extraPhones = ref<string[]>([]);
 const email = ref("");
 const address = ref("");
 const areaId = ref<string | null>(null);
@@ -29,6 +30,7 @@ watch(open, async (isOpen) => {
   name.value = c?.name ?? "";
   company.value = c?.company ?? "";
   phone.value = c?.phone ?? "";
+  extraPhones.value = [...(c?.extra_phones ?? [])];
   email.value = c?.email ?? "";
   address.value = c?.address ?? "";
   areaId.value = c?.area_id ?? null;
@@ -56,6 +58,7 @@ async function save() {
     // Individuals carry no company name — that is what makes a customer an individual.
     company: type.value === "company" ? company.value.trim() || null : null,
     phone: trimOrNull(phone.value),
+    extra_phones: extraPhones.value.map((p) => p.trim()).filter((p) => p.length > 0),
     email: email.value.trim() || null,
     address: address.value.trim() || null,
     area_id: areaId.value,
@@ -90,6 +93,9 @@ async function save() {
         </UFormField>
         <UFormField :label="t('common.phone')">
           <PhoneInput v-model="phone" />
+        </UFormField>
+        <UFormField :label="t('common.extraPhones')">
+          <ExtraPhones v-model="extraPhones" />
         </UFormField>
         <UFormField :label="t('common.email')">
           <UInput v-model="email" type="email" class="w-full" />

@@ -8,7 +8,7 @@ const bodySchema = z.object({
 // Creates a key and returns the full secret ONCE — only its hash is stored,
 // so it can never be shown again.
 export default defineEventHandler(async (event) => {
-  const { userId, adminClient } = await requireAdmin(event);
+  const { userId, adminClient } = await requireSetting(event, "integrations");
   const body = await readValidatedBody(event, bodySchema.parse);
   const { key, prefix, hash } = generateApiKey();
 

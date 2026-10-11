@@ -16,7 +16,7 @@ const { areas, stages, pipelines, stageColor, stageName, stageLabelFull, loadAre
 const { data: customers, refresh, status } = await useAsyncData<CsCustomer[]>("cs-customers", async () => {
   const { data, error } = await supabase
     .from("customers")
-    .select("id, name, company, phone, email, address, area_id, created_at, customer_type")
+    .select("id, name, company, phone, extra_phones, email, address, area_id, created_at, customer_type")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as CsCustomer[];
@@ -104,7 +104,7 @@ const filtered = computed(() =>
     if (search.value) {
       const q = search.value.toLowerCase();
       const hay = `${c.name} ${c.company ?? ""} ${c.email ?? ""} ${c.address ?? ""}`.toLowerCase();
-      if (!hay.includes(q) && !phoneMatches(c.phone, search.value)) return false;
+      if (!hay.includes(q) && !phoneMatches(c.phone, search.value) && !(c.extra_phones ?? []).some((p) => phoneMatches(p, search.value))) return false;
     }
     return true;
   }),
@@ -166,6 +166,10 @@ function openCreate() {
 // products, stages): reload the list's data too.
 async function onChanged() {
   await Promise.all([refresh(), refreshProducts()]);
+}
+async function onDeleted() {
+  selectCustomer(null);
+  await onChanged();
 }
 async function onCreated(id: string) {
   await Promise.all([refresh(), refreshProducts()]);
@@ -278,7 +282,7 @@ async function onCreated(id: string) {
             <p class="text-sm">{{ t("cs.customers.selectCustomer") }}</p>
           </div>
           <div v-else class="p-4 sm:p-6">
-            <CsCustomerProfile :key="selectedCustomer.id" :customer-id="selectedCustomer.id" @back="selectCustomer(null)" @changed="onChanged" />
+            <CsCustomerProfile :key="selectedCustomer.id" :customer-id="selectedCustomer.id" @back="selectCustomer(null)" @changed="onChanged" @deleted="onDeleted" />
           </div>
         </section>
       </div>

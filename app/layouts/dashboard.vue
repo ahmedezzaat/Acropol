@@ -25,8 +25,9 @@ useNotificationsRealtime();
 // /admin only the settings pages, and on the home hub one link per area.
 // The way back to Home is the app name in the sidebar header.
 const accessibleModules = computed(() =>
-  MODULES.filter((m) => m.resources.some((r) => hasAnyModulePermission(r.key))),
+  MODULES.filter((m) => m.key !== "settings" && m.resources.some((r) => hasAnyModulePermission(r.key))),
 );
+const canSettings = computed(() => isAdmin.value || hasAnyModulePermission("settings"));
 
 function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
   // Quotes is temporarily hidden from navigation — see crm/deals/[id].vue
@@ -56,19 +57,9 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
   ];
 }
 
-const settingsLinks = computed<NavigationMenuItem[]>(() => [
-  { label: t("admin.users.title"), icon: "i-lucide-users", to: "/admin/users" },
-  { label: t("admin.roles.title"), icon: "i-lucide-shield", to: "/admin/roles" },
-  { label: t("admin.pipelines.title"), icon: "i-lucide-git-branch", to: "/admin/pipelines" },
-  { label: t("admin.activityTypes.title"), icon: "i-lucide-list-checks", to: "/admin/activity-types" },
-  { label: t("admin.productCategories.title"), icon: "i-lucide-tags", to: "/admin/product-categories" },
-  { label: t("admin.teams.title"), icon: "i-lucide-users-round", to: "/admin/teams" },
-  { label: t("admin.automation.title"), icon: "i-lucide-zap", to: "/admin/automation" },
-  { label: t("admin.serviceAreas.title"), icon: "i-lucide-map", to: "/admin/service-areas" },
-  { label: t("admin.csPipelines.title"), icon: "i-lucide-workflow", to: "/admin/cs-pipelines" },
-  { label: t("admin.visitTypes.title"), icon: "i-lucide-map-pinned", to: "/admin/visit-types" },
-  { label: t("admin.integrations.title"), icon: "i-lucide-plug", to: "/admin/integrations" },
-]);
+const settingsLinks = computed<NavigationMenuItem[]>(() =>
+  SETTINGS_ITEMS.filter((i) => hasPermission("settings", i.key)).map((i) => ({ label: t(i.titleKey), icon: i.icon, to: i.path })),
+);
 
 const items = computed<NavigationMenuItem[][]>(() => {
   // Permissions load asynchronously — render nothing until they have, so the
@@ -85,7 +76,7 @@ const items = computed<NavigationMenuItem[][]>(() => {
     [
       { label: t("nav.home"), icon: "i-lucide-house", to: "/" },
       ...accessibleModules.value.map((m) => ({ label: t(m.labelKey), icon: m.icon, to: m.route })),
-      ...(isAdmin.value ? [{ label: t("nav.settings"), icon: "i-lucide-settings", to: "/admin" }] : []),
+      ...(canSettings.value ? [{ label: t("nav.settings"), icon: "i-lucide-settings", to: "/admin" }] : []),
     ],
   ];
 });

@@ -158,6 +158,7 @@ export type Database = {
           name: string;
           company: string | null;
           phone: string | null;
+          extra_phones: string[];
           email: string | null;
           address: string | null;
           converted_from_lead_id: string | null;
@@ -173,6 +174,7 @@ export type Database = {
           name: string;
           company?: string | null;
           phone?: string | null;
+          extra_phones?: string[];
           email?: string | null;
           address?: string | null;
           converted_from_lead_id?: string | null;
@@ -187,6 +189,7 @@ export type Database = {
           name?: string;
           company?: string | null;
           phone?: string | null;
+          extra_phones?: string[];
           email?: string | null;
           address?: string | null;
           converted_from_lead_id?: string | null;
@@ -1151,6 +1154,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      set_profiles_team: {
+        Args: { p_profile_ids: string[]; p_team_id: string | null };
+        Returns: undefined;
+      };
       has_permission: {
         Args: { p_module: string; p_action: string };
         Returns: boolean;

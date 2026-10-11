@@ -35,6 +35,35 @@ function crud(resourceKey: string): ModuleActionDef[] {
   ];
 }
 
+// The pages of Settings. Each one is its own permission (action) on the
+// "settings" resource, so a role can be allowed to manage some of them without
+// being an administrator. Order here is the order they show in the menu.
+export interface SettingsItemDef {
+  key: string;
+  path: string;
+  titleKey: string;
+  icon: string;
+}
+export const SETTINGS_ITEMS: SettingsItemDef[] = [
+  { key: "users", path: "/admin/users", titleKey: "admin.users.title", icon: "i-lucide-users" },
+  { key: "roles", path: "/admin/roles", titleKey: "admin.roles.title", icon: "i-lucide-shield" },
+  { key: "pipelines", path: "/admin/pipelines", titleKey: "admin.pipelines.title", icon: "i-lucide-git-branch" },
+  { key: "activity_types", path: "/admin/activity-types", titleKey: "admin.activityTypes.title", icon: "i-lucide-list-checks" },
+  { key: "product_categories", path: "/admin/product-categories", titleKey: "admin.productCategories.title", icon: "i-lucide-tags" },
+  { key: "teams", path: "/admin/teams", titleKey: "admin.teams.title", icon: "i-lucide-users-round" },
+  { key: "automation", path: "/admin/automation", titleKey: "admin.automation.title", icon: "i-lucide-zap" },
+  { key: "service_areas", path: "/admin/service-areas", titleKey: "admin.serviceAreas.title", icon: "i-lucide-map" },
+  { key: "cs_pipelines", path: "/admin/cs-pipelines", titleKey: "admin.csPipelines.title", icon: "i-lucide-workflow" },
+  { key: "visit_types", path: "/admin/visit-types", titleKey: "admin.visitTypes.title", icon: "i-lucide-map-pinned" },
+  { key: "integrations", path: "/admin/integrations", titleKey: "admin.integrations.title", icon: "i-lucide-plug" },
+];
+
+// Which Settings page a path belongs to (/admin/roles/123 -> "roles"), or null
+// for the Settings hub itself.
+export function settingsKeyForPath(path: string) {
+  return SETTINGS_ITEMS.find((i) => path === i.path || path.startsWith(`${i.path}/`))?.key ?? null;
+}
+
 export const MODULES: ModuleDef[] = [
   {
     key: "crm",
@@ -112,6 +141,21 @@ export const MODULES: ModuleDef[] = [
           { key: "cancel", labelKey: "resources.cs_maintenance.actions.cancel" },
           { key: "note", labelKey: "resources.cs_maintenance.actions.note" },
         ],
+      },
+    ],
+  },
+  {
+    // Settings is reached through its own entry on the home page and sidebar,
+    // not as a module tile; it is listed here so roles can grant its pages.
+    key: "settings",
+    labelKey: "nav.settings",
+    icon: "i-lucide-settings",
+    route: "/admin",
+    resources: [
+      {
+        key: "settings",
+        labelKey: "nav.settings",
+        actions: SETTINGS_ITEMS.map((i) => ({ key: i.key, labelKey: i.titleKey })),
       },
     ],
   },

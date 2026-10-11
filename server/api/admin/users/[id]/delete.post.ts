@@ -1,7 +1,9 @@
 export default defineEventHandler(async (event) => {
-  const { userId, adminClient } = await requireAdmin(event);
+  const { userId, isAdmin, adminClient } = await requireSetting(event, "users");
   const id = getRouterParam(event, "id");
   if (!id) throw createError({ statusCode: 400, statusMessage: "Missing user id" });
+
+  await guardNonAdmin(adminClient, isAdmin, userId, id);
 
   if (id === userId) {
     throw createError({ statusCode: 400, statusMessage: "cannot_delete_self" });

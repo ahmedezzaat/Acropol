@@ -11,7 +11,7 @@ const bodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  const { adminClient } = await requireAdmin(event);
+  const { adminClient, isAdmin } = await requireSetting(event, "users");
   const body = await readValidatedBody(event, bodySchema.parse);
   const canLogin = body.can_login ?? true;
 
@@ -46,7 +46,8 @@ export default defineEventHandler(async (event) => {
     .update({
       full_name: body.full_name,
       role_id: body.role_id ?? null,
-      is_admin: canLogin ? (body.is_admin ?? false) : false,
+      // Only an administrator can make another administrator.
+      is_admin: canLogin && isAdmin ? (body.is_admin ?? false) : false,
       can_login: canLogin,
     })
     .eq("id", data.user.id)

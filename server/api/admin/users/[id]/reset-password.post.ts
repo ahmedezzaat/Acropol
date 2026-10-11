@@ -5,9 +5,10 @@ const bodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  const { adminClient } = await requireAdmin(event);
+  const { userId, isAdmin, adminClient } = await requireSetting(event, "users");
   const id = getRouterParam(event, "id");
   if (!id) throw createError({ statusCode: 400, statusMessage: "Missing user id" });
+  await guardNonAdmin(adminClient, isAdmin, userId, id);
 
   const body = await readValidatedBody(event, bodySchema.parse);
 

@@ -105,7 +105,7 @@ async function saveMembers() {
   const toRemove = [...currentMemberIds].filter((id) => !nextMemberIds.has(id));
 
   if (toAdd.length > 0) {
-    const { error } = await supabase.from("profiles").update({ team_id: teamId }).in("id", toAdd);
+    const { error } = await supabase.rpc("set_profiles_team", { p_profile_ids: toAdd, p_team_id: teamId });
     if (error) {
       savingMembers.value = false;
       toast.add({ title: t("admin.teams.saveMembersFailed"), description: error.message, color: "error" });
@@ -113,7 +113,7 @@ async function saveMembers() {
     }
   }
   if (toRemove.length > 0) {
-    const { error } = await supabase.from("profiles").update({ team_id: null }).in("id", toRemove);
+    const { error } = await supabase.rpc("set_profiles_team", { p_profile_ids: toRemove, p_team_id: null });
     if (error) {
       savingMembers.value = false;
       toast.add({ title: t("admin.teams.saveMembersFailed"), description: error.message, color: "error" });

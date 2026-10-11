@@ -7,7 +7,7 @@ const bodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  const { adminClient } = await requireAdmin(event);
+  const { adminClient } = await requireSetting(event, "integrations");
   const id = getRouterParam(event, "id");
   if (!id) throw createError({ statusCode: 400, statusMessage: "Missing key id" });
   const body = await readValidatedBody(event, bodySchema.parse);

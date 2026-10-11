@@ -3,7 +3,7 @@
 // and maintenance, linked CRM deals). It sits in the details pane of the
 // customers list; the parent re-creates it for each customer (:key).
 const props = defineProps<{ customerId: string }>();
-const emit = defineEmits<{ back: []; changed: [] }>();
+const emit = defineEmits<{ back: []; changed: []; deleted: [] }>();
 const customerId = props.customerId;
 
 const supabase = useSupabaseClient();
@@ -25,7 +25,7 @@ const { data: customer, refresh: refreshCustomer, status } = useAsyncData<CsCust
   async () => {
     const { data, error } = await supabase
       .from("customers")
-      .select("id, name, company, phone, email, address, area_id, converted_from_lead_id, created_at, customer_type")
+      .select("id, name, company, phone, extra_phones, email, address, area_id, converted_from_lead_id, created_at, customer_type")
       .eq("id", customerId)
       .maybeSingle();
     if (error) throw error;
@@ -146,6 +146,34 @@ async function onCustomerSaved() {
   await refreshCustomer();
   emit("changed");
 }
+// ---- Delete the customer: not while it has products (they carry the
+// installation and the whole maintenance history). The database refuses too.
+const deleteCustomerOpen = ref(false);
+const deletingCustomer = ref(false);
+function askDeleteCustomer() {
+  deleteCustomerOpen.value = true;
+}
+function closeDeleteCustomer() {
+  deleteCustomerOpen.value = false;
+}
+async function confirmDeleteCustomer() {
+  if (!customer.value || products.value.length) return;
+  deletingCustomer.value = true;
+  const { error } = await supabase.from("customers").delete().eq("id", customerId);
+  deletingCustomer.value = false;
+  if (error) {
+    toast.add({
+      title: t("cs.customers.deleteFailed"),
+      description: error.message.includes("customer_has_products") ? t("cs.customers.deleteBlocked") : error.message,
+      color: "error",
+    });
+    return;
+  }
+  deleteCustomerOpen.value = false;
+  toast.add({ title: t("cs.customers.deleted"), color: "success" });
+  emit("deleted");
+}
+
 function openEdit() {
   editOpen.value = true;
 }
@@ -294,6 +322,14 @@ function isOverdue(p: CsProduct) {
               :aria-label="t('common.email')"
             />
             <UButton v-if="canEdit" icon="i-lucide-pencil" :label="t('cs.customers.edit')" @click="openEdit" />
+            <UButton
+              v-if="canDelete"
+              icon="i-lucide-trash"
+              color="error"
+              variant="outline"
+              :aria-label="t('cs.customers.delete')"
+              @click="askDeleteCustomer"
+            />
           </div>
         </div>
 
@@ -314,7 +350,26 @@ function isOverdue(p: CsProduct) {
               @click="copyText(customer.phone)"
             />
           </div>
-          <div class="flex items-start justify-between gap-3 border-t border-default px-4 py-3 @lg:px-5 @lg:[&:nth-child(2)]:border-t-0">
+          <div v-if="customer.extra_phones?.length" class="border-t border-default px-4 py-3 @lg:col-span-2 @lg:px-5">
+          <dt class="text-xs text-muted">{{ t("common.extraPhones") }}</dt>
+          <dd class="mt-1 flex flex-wrap gap-x-5 gap-y-1.5">
+            <span v-for="p in customer.extra_phones" :key="p" class="inline-flex items-center gap-1.5 font-medium text-highlighted">
+              <bdi dir="ltr">{{ p }}</bdi>
+              <UButton icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(p)" />
+              <a
+                v-if="toWhatsAppLink(p)"
+                :href="toWhatsAppLink(p)!"
+                target="_blank"
+                rel="noopener noreferrer"
+                :aria-label="t('crm.deals.chatOnWhatsApp')"
+                class="text-[#25D366] hover:opacity-80"
+              >
+                <UIcon name="i-simple-icons-whatsapp" class="size-4" />
+              </a>
+            </span>
+          </dd>
+        </div>
+        <div class="flex items-start justify-between gap-3 border-t border-default px-4 py-3 @lg:px-5 @lg:[&:nth-child(2)]:border-t-0">
             <div class="min-w-0">
               <dt class="text-xs text-muted">{{ t("common.email") }}</dt>
               <dd class="break-all font-medium text-highlighted">{{ customer.email || "—" }}</dd>
@@ -469,6 +524,33 @@ function isOverdue(p: CsProduct) {
   <ProductStageModal v-model:open="stageModalOpen" :product="stageProduct" @saved="refreshProducts" />
   <MaintenanceModal v-model:open="maintenanceOpen" :product="maintenanceProduct" @saved="refreshProducts" />
   <MaintenanceDoneModal v-model:open="doneOpen" :product="doneProduct" @saved="refreshProducts" />
+
+  <UModal v-model:open="deleteCustomerOpen" :title="t('cs.customers.deleteTitle')">
+    <template #body>
+      <div class="space-y-4">
+        <UAlert
+          v-if="products.length"
+          icon="i-lucide-ban"
+          color="warning"
+          variant="subtle"
+          :title="t('cs.customers.deleteBlockedTitle', { count: products.length })"
+          :description="t('cs.customers.deleteBlocked')"
+        />
+        <p v-else class="text-sm text-muted">{{ t("cs.customers.deleteConfirm", { name: customer ? customerTitle(customer) : "" }) }}</p>
+        <div class="flex gap-2">
+          <UButton color="neutral" variant="outline" :label="t('common.cancel')" class="flex-1 justify-center" @click="closeDeleteCustomer" />
+          <UButton
+            v-if="!products.length"
+            color="error"
+            :label="t('common.delete')"
+            :loading="deletingCustomer"
+            class="flex-1 justify-center"
+            @click="confirmDeleteCustomer"
+          />
+        </div>
+      </div>
+    </template>
+  </UModal>
 
   <UModal v-model:open="deleteOpen" :title="t('cs.profile.deleteProduct')">
     <template #body>

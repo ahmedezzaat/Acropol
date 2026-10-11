@@ -17,7 +17,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
     usePermissions();
   if (!loaded.value) await load();
 
-  if (requiresAdmin && !isAdmin.value) return navigateTo("/403");
+  // Settings: an administrator, or a role granted that Settings page (any page
+  // of it for the hub).
+  if (requiresAdmin) {
+    const key = settingsKeyForPath(to.path);
+    const allowed = isAdmin.value || (key ? hasPermission("settings", key) : hasAnyModulePermission("settings"));
+    if (!allowed) return navigateTo("/403");
+  }
   if (!meta) return;
 
   const ok = meta.action

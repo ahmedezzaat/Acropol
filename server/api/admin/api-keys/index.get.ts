@@ -1,5 +1,5 @@
 export default defineEventHandler(async (event) => {
-  const { adminClient } = await requireAdmin(event);
+  const { adminClient } = await requireSetting(event, "integrations");
   const { data, error } = await adminClient
     .from("api_keys")
     .select("id, name, key_prefix, default_assignee_id, is_active, last_used_at, created_at")

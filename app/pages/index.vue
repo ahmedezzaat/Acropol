@@ -11,8 +11,9 @@ async function signInAgain() {
 const { t } = useI18n();
 
 const visibleModules = computed(() =>
-  MODULES.filter((m) => m.resources.some((r) => hasAnyModulePermission(r.key))),
+  MODULES.filter((m) => m.key !== "settings" && m.resources.some((r) => hasAnyModulePermission(r.key))),
 );
+const canSettings = computed(() => isAdmin.value || hasAnyModulePermission("settings"));
 </script>
 
 <template>
@@ -37,7 +38,7 @@ const visibleModules = computed(() =>
         <UButton icon="i-lucide-log-in" :label="t('home.signInAgain')" @click="signInAgain" />
       </div>
 
-      <div v-else-if="visibleModules.length === 0 && !isAdmin" class="py-16 text-center text-muted">
+      <div v-else-if="visibleModules.length === 0 && !canSettings" class="py-16 text-center text-muted">
         {{ t("home.noAccess") }}
       </div>
 
@@ -52,7 +53,7 @@ const visibleModules = computed(() =>
           <span class="font-medium text-highlighted">{{ t(module.labelKey) }}</span>
         </ULink>
         <ULink
-          v-if="isAdmin"
+          v-if="canSettings"
           to="/admin"
           class="flex flex-col items-center gap-3 rounded-lg border border-default p-6 text-center transition hover:border-primary hover:bg-elevated"
         >

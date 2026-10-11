@@ -1,5 +1,5 @@
 export default defineEventHandler(async (event) => {
-  const { adminClient } = await requireAdmin(event);
+  const { adminClient } = await requireSetting(event, "integrations");
   const id = getRouterParam(event, "id");
   if (!id) throw createError({ statusCode: 400, statusMessage: "Missing key id" });
 
