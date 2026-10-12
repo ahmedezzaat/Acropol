@@ -13,7 +13,7 @@ const supabase = useSupabaseClient();
 const toast = useToast();
 const { t } = useI18n();
 const { hasPermission } = usePermissions();
-const { stageById, dateIndex, formatDate, formatDateTime, maintenanceDue, loadAreas, loadPipelines, areaName } = useCs();
+const { stageById, visitTasks, dateIndex, formatDate, formatDateTime, maintenanceDue, loadAreas, loadPipelines, areaName } = useCs();
 
 const can = reactive({
   schedule: computed(() => hasPermission("cs_maintenance", "schedule")),
@@ -67,13 +67,13 @@ const { data: cardData } = await useAsyncData<{ dates: CsStageDate[]; items: CsP
 });
 const stageDates = computed(() => dateIndex(cardData.value?.dates ?? []));
 
-const { data: category } = await useAsyncData<{ name: string; maintenance_interval_months: number | null } | null>(
+const { data: category } = await useAsyncData<{ name: string; maintenance_interval_months: number | null; maintenance_tasks: MaintenanceTask[] } | null>(
   `cs-mrec-${productId}-category`,
   async () => {
     if (!product.value?.category_id) return null;
     const { data } = await supabase
       .from("product_categories")
-      .select("name, maintenance_interval_months")
+      .select("name, maintenance_interval_months, maintenance_tasks")
       .eq("id", product.value.category_id)
       .maybeSingle();
     return data ?? null;
@@ -104,6 +104,9 @@ const months = computed(() => category.value?.maintenance_interval_months ?? nul
 const declined = computed(() => !!product.value?.maintenance_declined_at);
 const periodicDue = computed(() => (product.value && !declined.value ? maintenanceDue(product.value, months.value) : null));
 const appointmentAt = computed(() => (product.value?.next_maintenance_at ? new Date(product.value.next_maintenance_at).getTime() : null));
+// What the next periodic visit has to do and the parts to change (from the
+// category's maintenance policy in Settings).
+const nextTasks = computed(() => visitTasks(product.value?.operation_date, periodicDue.value, category.value?.maintenance_tasks));
 const dueMs = computed(() => appointmentAt.value ?? (periodicDue.value ? new Date(`${periodicDue.value}T09:00:00`).getTime() : null));
 
 const startOfToday = () => {
@@ -312,6 +315,17 @@ async function onSaved() {
                     </div>
                     <div v-else class="mt-0.5 text-sm text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
                     <p v-if="product.next_maintenance_note" class="mt-1 whitespace-pre-line text-sm text-toned">{{ product.next_maintenance_note }}</p>
+                    <div v-if="!declined && nextTasks.length" class="mt-3 border-s-2 border-primary/40 ps-3 text-sm">
+                      <div class="text-xs font-semibold uppercase tracking-wide text-muted">{{ t("cs.maintenance.visitPlan") }}</div>
+                      <ul class="mt-1 space-y-1.5">
+                        <li v-for="(task, i) in nextTasks" :key="i">
+                          <span class="whitespace-pre-line text-highlighted">{{ task.title }}</span>
+                          <span v-if="task.replace" class="mt-0.5 block whitespace-pre-line text-xs text-muted">
+                            {{ t("cs.maintenance.partsToChange") }}: {{ task.replace }}
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
                     </template>
                   </div>
                 </div>

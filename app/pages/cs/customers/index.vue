@@ -9,6 +9,7 @@ useHead({ htmlAttrs: { class: "carbon" } });
 const supabase = useSupabaseClient();
 const { t } = useI18n();
 const { hasPermission } = usePermissions();
+const canViewAll = computed(() => hasPermission("cs_customers", "view_all"));
 const { areas, stages, pipelines, stageColor, stageName, stageLabelFull, loadAreas, loadPipelines } = useCs();
 
 // Customer service sees every customer: the ones a won deal created in the CRM
@@ -16,7 +17,7 @@ const { areas, stages, pipelines, stageColor, stageName, stageLabelFull, loadAre
 const { data: customers, refresh, status } = await useAsyncData<CsCustomer[]>("cs-customers", async () => {
   const { data, error } = await supabase
     .from("customers")
-    .select("id, name, company, phone, extra_phones, email, address, area_id, created_at, customer_type")
+    .select("id, name, company, phone, extra_phones, email, address, area_id, created_at, customer_type, cs_agent_id")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as CsCustomer[];
@@ -39,6 +40,19 @@ await useAsyncData("cs-customers-areas", async () => {
   await Promise.all([loadAreas(true), loadPipelines(true)]);
   return true;
 });
+
+// The Customer Service agents (for the filter, which only people who see every
+// customer need).
+const { data: people } = await useAsyncData<{ id: string; full_name: string | null; email: string }[]>("cs-customers-people", async () => {
+  const { data } = await supabase.from("profiles").select("id, full_name, email");
+  return data ?? [];
+});
+const agentFilter = ref<string | null>(null); // null = everyone, "none" = no agent
+const agentItems = computed(() => [
+  { label: t("cs.customers.allAgents"), value: null as string | null },
+  { label: t("cs.customers.noAgent"), value: "none" as string | null },
+  ...(people.value ?? []).map((u) => ({ label: u.full_name || u.email, value: u.id as string | null })),
+]);
 
 const search = ref("");
 const areaFilter = ref<string | null>(null);
@@ -96,6 +110,7 @@ const filtered = computed(() =>
   (customers.value ?? []).filter((c) => {
     if (typeFilter.value !== "all" && (isCompanyCustomer(c) ? "company" : "individual") !== typeFilter.value) return false;
     if (areaFilter.value && c.area_id !== areaFilter.value) return false;
+    if (agentFilter.value && (agentFilter.value === "none" ? !!c.cs_agent_id : c.cs_agent_id !== agentFilter.value)) return false;
     if (stageFilter.value && !stagesOf(c.id).includes(stageFilter.value)) return false;
     if (categoryFilter.value) {
       const has = (products.value ?? []).some((p) => p.customer_id === c.id && p.category_id === categoryFilter.value);
@@ -216,7 +231,8 @@ async function onCreated(id: string) {
             <div class="grid grid-cols-2 gap-2">
               <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-full" />
               <USelect v-model="stageFilter" :items="stageItems" value-key="value" icon="i-lucide-workflow" class="w-full" />
-              <USelect v-model="categoryFilter" :items="categoryItems" value-key="value" icon="i-lucide-tags" class="col-span-2 w-full" />
+              <USelect v-model="categoryFilter" :items="categoryItems" value-key="value" icon="i-lucide-tags" :class="canViewAll ? 'w-full' : 'col-span-2 w-full'" />
+              <USelect v-if="canViewAll" v-model="agentFilter" :items="agentItems" value-key="value" icon="i-lucide-user-round" class="w-full" />
             </div>
           </div>
 

@@ -168,7 +168,9 @@
       "actions": {
         "create": "Create",
         "edit": "Edit (incl. products & progress)",
-        "delete": "Delete"
+        "delete": "Delete",
+        "assign": "Assign customers to agents",
+        "view_all": "View all customers"
       }
     },
     "cs_maintenance": {
@@ -321,7 +323,22 @@
       "saveFailed": "Failed to save",
       "maintenanceHint": "Periodic maintenance: every how many months from the operation date (leave empty for none).",
       "noMaintenance": "No periodic maintenance",
-      "months": "months"
+      "months": "months",
+      "policies": "Policies",
+      "warrantyPolicy": "Warranty policy",
+      "warrantyPolicyHint": "A category can have several policies, one per kind of product. When creating or editing a product you pick one and its text fills the warranty details.",
+      "maintenancePolicy": "Recurring maintenance policy",
+      "maintenancePolicyHint": "A visit happens every {months} months from the operating date (تم التشغيل). Add the tasks: what will be done to the product and which parts to change, each with its own interval (a multiple of {months}).",
+      "maintenanceNeedsInterval": "First set the months between visits next to the category name, then add the tasks.",
+      "every": "Every",
+      "taskTitle": "What will be done to the product",
+      "taskReplace": "Parts to change",
+      "addTask": "Add a maintenance task",
+      "taskMultiple": "Must be a multiple of {months} months, otherwise it never falls on a visit.",
+      "policyName": "Policy name (e.g. Heater warranty)",
+      "policyText": "Warranty terms",
+      "addPolicy": "Add a warranty policy",
+      "policyDefault": "Policy"
     },
     "teams": {
       "title": "Teams",
@@ -948,7 +965,19 @@
       "deleteBlockedTitle": "This customer can't be deleted ({count} product(s))",
       "deleteBlocked": "They have products, with their installations and maintenance. Delete their products first if you want to delete the customer.",
       "deleted": "Customer deleted",
-      "deleteFailed": "Couldn't delete the customer"
+      "deleteFailed": "Couldn't delete the customer",
+      "agent": "Agent",
+      "allAgents": "All agents",
+      "noAgent": "No agent",
+      "agentHint": "An agent sees only the customers assigned to them.",
+      "assign": "Assign",
+      "assignTitle": "Assign the customer to an agent",
+      "assignHint": "Only people with at least one Customer Service permission are listed. An agent without “View all customers” sees only the customers assigned to them.",
+      "assigned": "Customer assigned",
+      "assignFailed": "Couldn't assign",
+      "boughtProducts": "Bought products",
+      "addBoughtProduct": "Add a product the customer bought",
+      "productsFailed": "The customer was saved, but the products couldn't be"
     },
     "profile": {
       "back": "Back",
@@ -1011,7 +1040,10 @@
       "yes": "Yes",
       "no": "No",
       "salesPerson": "Sales person",
-      "noSalesPerson": "Not set"
+      "noSalesPerson": "Not set",
+      "categoryPolicy": "Category warranty policy",
+      "useCategoryPolicy": "Use the warranty policy",
+      "chooseWarrantyPolicy": "Choose a warranty policy"
     },
     "installations": {
       "title": "Installations",
@@ -1159,7 +1191,21 @@
       "resumed": "Maintenance resumed",
       "evRescheduled": "Appointment rescheduled",
       "evDeclined": "Maintenance cancelled (customer declined)",
-      "evResumed": "Maintenance resumed"
+      "evResumed": "Maintenance resumed",
+      "visitPlan": "What the next visit will do",
+      "partsToChange": "Parts to change"
+    },
+    "print": {
+      "title": "Customer and product details",
+      "customer": "Customer",
+      "product": "Product",
+      "exportedBy": "Exported by",
+      "exportedAt": "on",
+      "button": "Print / Save as PDF",
+      "back": "Back",
+      "hint": "In the print window choose “Save as PDF” to export. Paper size A4.",
+      "menu": "Print / PDF",
+      "printCustomer": "Print customer"
     }
   }
 }

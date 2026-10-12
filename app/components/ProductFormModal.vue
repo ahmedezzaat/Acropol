@@ -12,6 +12,7 @@ const { t } = useI18n();
 interface Category {
   id: string;
   name: string;
+  warranty_policies: WarrantyPolicy[];
 }
 
 const { pipelines, loadPipelines, stagesOf } = useCs();
@@ -36,7 +37,7 @@ const people = ref<{ id: string; full_name: string | null; email: string }[]>([]
 watch(open, async (isOpen) => {
   if (!isOpen) return;
   const [{ data }, { data: users }] = await Promise.all([
-    supabase.from("product_categories").select("id, name").order("sort_order"),
+    supabase.from("product_categories").select("id, name, warranty_policies").order("sort_order"),
     supabase.from("profiles").select("id, full_name, email").eq("is_active", true).order("full_name"),
     loadPipelines(),
   ]);
@@ -59,6 +60,24 @@ watch(open, async (isOpen) => {
 const pipelineItems = computed(() => pipelines.value.map((x) => ({ label: x.name, value: x.id })));
 const firstStageId = computed(() => stagesOf(pipelineId.value)[0]?.id);
 const firstStageName = computed(() => stagesOf(pipelineId.value)[0]?.name ?? "");
+
+// The warranty policies of the chosen category (it may have several, one per kind
+// of product). A single policy fills the details when the category is picked and
+// they are still empty; with several, you choose which one this product has.
+const categoryPolicies = computed(() => categories.value.find((c) => c.id === categoryId.value)?.warranty_policies ?? []);
+const policyItems = computed(() => categoryPolicies.value.map((p, i) => ({ label: p.name, value: i })));
+const selectedPolicy = ref<number | undefined>(undefined);
+function onCategoryChange(id: string | null) {
+  categoryId.value = id;
+  selectedPolicy.value = undefined;
+  const list = categories.value.find((c) => c.id === id)?.warranty_policies ?? [];
+  if (list.length === 1 && !warrantyDetails.value.trim()) warrantyDetails.value = list[0]!.text;
+}
+function onPolicyChange(index: number | undefined) {
+  selectedPolicy.value = index;
+  const policy = index === undefined ? undefined : categoryPolicies.value[index];
+  if (policy) warrantyDetails.value = policy.text;
+}
 
 const categoryItems = computed(() => [
   { label: t("cs.profile.noCategory"), value: null },
@@ -147,7 +166,7 @@ function fail(message?: string) {
           <USelect v-model="salesPersonId" :items="salesPersonItems" value-key="value" icon="i-lucide-user-round" class="w-full" />
         </UFormField>
         <UFormField :label="t('cs.profile.category')">
-          <USelect v-model="categoryId" :items="categoryItems" value-key="value" class="w-full" />
+          <USelect :model-value="categoryId" :items="categoryItems" value-key="value" class="w-full" @update:model-value="onCategoryChange" />
         </UFormField>
 
         <div class="grid gap-3 sm:grid-cols-2">
@@ -169,6 +188,17 @@ function fail(message?: string) {
         </div>
         <UFormField :label="t('cs.profile.warrantyDetails')">
           <UTextarea v-model="warrantyDetails" :rows="2" class="w-full" />
+          <USelect
+            v-if="categoryPolicies.length"
+            :model-value="selectedPolicy"
+            :items="policyItems"
+            value-key="value"
+            :placeholder="t('cs.profile.chooseWarrantyPolicy')"
+            icon="i-lucide-shield-check"
+            size="sm"
+            class="mt-1.5 w-full"
+            @update:model-value="onPolicyChange"
+          />
         </UFormField>
 
         <UFormField :label="t('cs.profile.notes')">

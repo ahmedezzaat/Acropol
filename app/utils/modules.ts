@@ -128,7 +128,13 @@ export const MODULES: ModuleDef[] = [
       {
         key: "cs_customers",
         labelKey: "resources.cs_customers.label",
-        actions: crud("cs_customers"),
+        actions: [
+          ...crud("cs_customers"),
+          // Give a customer to a Customer Service agent.
+          { key: "assign", labelKey: "resources.cs_customers.actions.assign" },
+          // Without it an agent sees only the customers assigned to them.
+          { key: "view_all", labelKey: "resources.cs_customers.actions.view_all" },
+        ],
       },
       {
         // Maintenance of operating products: appointments, visits done,

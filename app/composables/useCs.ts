@@ -70,8 +70,24 @@ export interface CsStageDate {
   reached_on: string;
 }
 
+// One recurring maintenance task of a product category: done in the visits that
+// fall every `every_months` months from the operating date, and the parts to
+// change in that visit.
+export interface MaintenanceTask {
+  every_months: number;
+  title: string;
+  replace: string;
+}
+
+// A named warranty policy of a product category.
+export interface WarrantyPolicy {
+  name: string;
+  text: string;
+}
+
 export interface CsCustomer {
   extra_phones?: string[];
+  cs_agent_id?: string | null;
   id: string;
   name: string;
   company: string | null;
@@ -202,6 +218,17 @@ export function useCs() {
     return null;
   }
 
+  // What a maintenance visit on `due` (a yyyy-mm-dd date counted from the operation
+  // date) has to do: the category's tasks whose interval it falls on.
+  function visitTasks(operationDate: string | null | undefined, due: string | null | undefined, tasks: MaintenanceTask[] | null | undefined) {
+    if (!operationDate || !due || !tasks?.length) return [];
+    const [oy, om] = operationDate.split("-").map(Number) as [number, number];
+    const [dy, dm] = due.split("-").map(Number) as [number, number];
+    const months = (dy - oy) * 12 + (dm - om);
+    if (months <= 0) return [];
+    return tasks.filter((x) => x.every_months > 0 && months % x.every_months === 0);
+  }
+
   return {
     areas,
     pipelines,
@@ -222,5 +249,6 @@ export function useCs() {
     formatDate,
     formatDateTime,
     maintenanceDue,
+    visitTasks,
   };
 }

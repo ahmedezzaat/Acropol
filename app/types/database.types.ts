@@ -163,6 +163,7 @@ export type Database = {
           address: string | null;
           converted_from_lead_id: string | null;
           assigned_to: string | null;
+          cs_agent_id: string | null;
           area_id: string | null;
           customer_type: "individual" | "company";
           created_by: string;
@@ -179,6 +180,7 @@ export type Database = {
           address?: string | null;
           converted_from_lead_id?: string | null;
           assigned_to?: string | null;
+          cs_agent_id?: string | null;
           area_id?: string | null;
           created_by?: string;
           created_at?: string;
@@ -194,6 +196,7 @@ export type Database = {
           address?: string | null;
           converted_from_lead_id?: string | null;
           assigned_to?: string | null;
+          cs_agent_id?: string | null;
           area_id?: string | null;
           created_by?: string;
           created_at?: string;
@@ -1052,6 +1055,8 @@ export type Database = {
           name: string;
           sort_order: number;
           maintenance_interval_months: number | null;
+          warranty_policies: { name: string; text: string }[];
+          maintenance_tasks: { every_months: number; title: string; replace: string }[];
           created_at: string;
         };
         Insert: {
@@ -1059,6 +1064,8 @@ export type Database = {
           name: string;
           sort_order?: number;
           maintenance_interval_months?: number | null;
+          warranty_policies?: { name: string; text: string }[];
+          maintenance_tasks?: { every_months: number; title: string; replace: string }[];
           created_at?: string;
         };
         Update: {
@@ -1066,6 +1073,8 @@ export type Database = {
           name?: string;
           sort_order?: number;
           maintenance_interval_months?: number | null;
+          warranty_policies?: { name: string; text: string }[];
+          maintenance_tasks?: { every_months: number; title: string; replace: string }[];
           created_at?: string;
         };
         Relationships: [];
@@ -1169,6 +1178,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      cs_assignable_agents: {
+        Args: Record<string, never>;
+        Returns: { id: string; full_name: string | null; email: string }[];
+      };
       set_profiles_team: {
         Args: { p_profile_ids: string[]; p_team_id: string | null };
         Returns: undefined;

@@ -17,6 +17,17 @@ const canMaintenance = computed(() => hasAnyModulePermission("cs_maintenance"));
 const canDoMaintenance = computed(() => hasPermission("cs_maintenance", "complete"));
 const canScheduleMaintenance = computed(() => hasPermission("cs_maintenance", "schedule"));
 const canDelete = computed(() => hasPermission("cs_customers", "delete"));
+const canAssign = computed(() => hasPermission("cs_customers", "assign"));
+
+// ---- Assign the customer to an agent
+const assignOpen = ref(false);
+function openAssign() {
+  assignOpen.value = true;
+}
+async function onAssigned() {
+  await refreshCustomer();
+  emit("changed");
+}
 const canSeeDeals = computed(() => hasAnyModulePermission("crm_deals"));
 
 // Synced through useAsyncData's own `data` (see crm/leads/[id].vue for why).
@@ -25,7 +36,7 @@ const { data: customer, refresh: refreshCustomer, status } = useAsyncData<CsCust
   async () => {
     const { data, error } = await supabase
       .from("customers")
-      .select("id, name, company, phone, extra_phones, email, address, area_id, converted_from_lead_id, created_at, customer_type")
+      .select("id, name, company, phone, extra_phones, email, address, area_id, converted_from_lead_id, created_at, customer_type, cs_agent_id")
       .eq("id", customerId)
       .maybeSingle();
     if (error) throw error;
@@ -321,6 +332,16 @@ function isOverdue(p: CsProduct) {
               variant="outline"
               :aria-label="t('common.email')"
             />
+            <UButton
+              :to="`/cs/print/${customerId}`"
+              target="_blank"
+              icon="i-lucide-printer"
+              color="neutral"
+              variant="outline"
+              :aria-label="t('cs.print.printCustomer')"
+              :title="t('cs.print.printCustomer')"
+            />
+            <UButton v-if="canAssign" icon="i-lucide-user-plus" color="neutral" variant="outline" :label="t('cs.customers.assign')" @click="openAssign" />
             <UButton v-if="canEdit" icon="i-lucide-pencil" :label="t('cs.customers.edit')" @click="openEdit" />
             <UButton
               v-if="canDelete"
@@ -388,6 +409,13 @@ function isOverdue(p: CsProduct) {
             <dt class="text-xs text-muted">{{ t("cs.customers.area") }}</dt>
             <dd class="font-medium text-highlighted">{{ areaName(customer.area_id) || "—" }}</dd>
           </div>
+          <div class="flex items-start justify-between gap-3 border-t border-default px-4 py-3 @lg:px-5">
+            <div class="min-w-0">
+              <dt class="text-xs text-muted">{{ t("cs.customers.agent") }}</dt>
+              <dd class="font-medium text-highlighted">{{ salesPersonName(customer.cs_agent_id ?? null) || "—" }}</dd>
+            </div>
+            <UButton v-if="canAssign" icon="i-lucide-user-plus" size="xs" color="neutral" variant="soft" :label="t('cs.customers.assign')" @click="openAssign" />
+          </div>
           <div class="border-t border-default px-4 py-3 @lg:px-5">
             <dt class="flex items-center justify-between gap-2 text-xs text-muted">
               {{ t("cs.customers.address") }}
@@ -437,6 +465,16 @@ function isOverdue(p: CsProduct) {
           :sales-person-name="salesPersonName(p.sales_person_id)"
         >
       <template #actions>
+        <UButton
+          :to="`/cs/print/${customerId}?product=${p.id}`"
+          target="_blank"
+          icon="i-lucide-printer"
+          size="sm"
+          color="neutral"
+          variant="outline"
+          :aria-label="t('cs.print.menu')"
+          :title="t('cs.print.menu')"
+        />
         <div v-if="canEdit" class="flex shrink-0 items-center gap-1">
           <UButton icon="i-lucide-workflow" size="sm" :label="t('cs.installations.updateProgress')" @click="openStage(p)" />
           <UDropdownMenu :items="productMenu(p)">
@@ -514,6 +552,7 @@ function isOverdue(p: CsProduct) {
     </div>
   </div>
 
+  <CsAssignModal v-if="customer" v-model:open="assignOpen" :customer-id="customerId" :current-agent-id="customer.cs_agent_id ?? null" @saved="onAssigned" />
   <CustomerFormModal v-model:open="editOpen" :customer="customer" @saved="onCustomerSaved" />
   <ProductFormModal
     v-model:open="productModalOpen"
