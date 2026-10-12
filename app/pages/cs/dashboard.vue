@@ -134,7 +134,7 @@ const byStage = computed(() => {
 const stageMax = computed(() => Math.max(1, ...byStage.value.map((r) => r.count)));
 
 // One hue, lightness stepped by funnel position: darker means further along.
-const stageRamp = ["bg-kords-primary-200", "bg-kords-primary-400", "bg-kords-primary-500", "bg-kords-primary-700", "bg-kords-primary-900"];
+const stageRamp = ["bg-[#d9dbfa]", "bg-[#a3a7f0]", "bg-[#5258e4]", "bg-[#3b348f]", "bg-[#211951]"];
 function rampClass(rank: number, count: number) {
   return stageRamp[count <= 1 ? 4 : Math.round((rank / (count - 1)) * (stageRamp.length - 1))];
 }
@@ -254,21 +254,17 @@ function openCustomer(id: string) {
 </script>
 
 <template>
-  <UDashboardPanel>
+  <UDashboardPanel :ui="{ body: 'kords-canvas' }">
     <template #header>
-      <UDashboardNavbar :title="t('cs.dashboard.title')">
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
-      </UDashboardNavbar>
+      <KPageHeader :title="t('cs.dashboard.title')" />
 
-      <div class="w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
+      <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
         <div v-if="pipelines.length > 1" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
           <UTabs v-model="pipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs w-max min-w-full" />
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-48" />
-          <UTabs v-model="period" :items="periodTabs" value-key="value" variant="pill" size="sm" :content="false" />
+          <UTabs v-model="period" :items="periodTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs" />
         </div>
       </div>
     </template>
@@ -298,27 +294,27 @@ function openCustomer(id: string) {
         <!-- Maintenance -->
         <UPageCard class="kords-card" v-if="canMaintenance" :title="t('cs.dashboard.maintenance')" :description="t('cs.dashboard.maintenanceHint')">
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            <div>
+            <div class="rounded-[10px] bg-[#f6f9fc] p-3">
               <div class="text-2xl font-bold" :class="maintenanceStats.overdue ? 'text-error' : 'text-highlighted'">{{ maintenanceStats.overdue }}</div>
               <div class="text-xs text-muted">{{ t("cs.maintenance.stat.overdue") }}</div>
             </div>
-            <div>
+            <div class="rounded-[10px] bg-[#f6f9fc] p-3">
               <div class="text-2xl font-bold" :class="maintenanceStats.week ? 'text-warning' : 'text-highlighted'">{{ maintenanceStats.week }}</div>
               <div class="text-xs text-muted">{{ t("cs.dashboard.dueThisWeek") }}</div>
             </div>
-            <div>
+            <div class="rounded-[10px] bg-[#f6f9fc] p-3">
               <div class="text-2xl font-bold text-highlighted">{{ maintenanceStats.scheduled }}</div>
               <div class="text-xs text-muted">{{ t("cs.dashboard.upcomingAppointments") }}</div>
             </div>
-            <div>
+            <div class="rounded-[10px] bg-[#f6f9fc] p-3">
               <div class="text-2xl font-bold text-success">{{ doneRecently ?? 0 }}</div>
               <div class="text-xs text-muted">{{ t("cs.dashboard.doneLast28") }}</div>
             </div>
-            <div>
+            <div class="rounded-[10px] bg-[#f6f9fc] p-3">
               <div class="text-2xl font-bold text-highlighted">{{ maintenanceStats.unscheduled }}</div>
               <div class="text-xs text-muted">{{ t("cs.maintenance.unscheduled") }}</div>
             </div>
-            <div>
+            <div class="rounded-[10px] bg-[#f6f9fc] p-3">
               <div class="text-2xl font-bold text-highlighted">{{ maintenanceStats.cancelled }}</div>
               <div class="text-xs text-muted">{{ t("cs.maintenance.stat.declined") }}</div>
             </div>
@@ -356,7 +352,7 @@ function openCustomer(id: string) {
                   · {{ Math.round((row.count / total) * 100) }}%
                 </span>
               </div>
-              <div class="h-3 w-full overflow-hidden rounded-full bg-elevated">
+              <div class="h-3 w-full overflow-hidden rounded-full bg-[#eef1f6]">
                 <div class="h-full rounded-full" :class="rampClass(row.rank, byStage.length)" :style="{ width: `${(row.count / stageMax) * 100}%` }" />
               </div>
             </div>
@@ -373,7 +369,7 @@ function openCustomer(id: string) {
                 <span class="text-[10px] font-medium text-highlighted sm:text-xs">{{ m.count || "" }}</span>
                 <div
                   class="w-full max-w-8 rounded-t"
-                  :class="m.count ? 'bg-kords-primary-500' : 'bg-elevated'"
+                  :class="m.count ? 'bg-[#5258e4]' : 'bg-elevated'"
                   :style="{ height: `${m.count ? Math.max(6, (m.count / monthMax) * 82) : 3}%` }"
                   :title="`${m.label} ${m.year}: ${m.count}`"
                 />
@@ -395,8 +391,8 @@ function openCustomer(id: string) {
                   <span class="truncate text-highlighted">{{ r.name }}</span>
                   <span class="font-medium text-highlighted">{{ r.count }}</span>
                 </div>
-                <div class="h-2.5 w-full overflow-hidden rounded-full bg-elevated">
-                  <div class="h-full rounded-full bg-kords-primary-500" :style="{ width: `${(r.count / areaMax) * 100}%` }" />
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-[#eef1f6]">
+                  <div class="h-full rounded-full bg-[#5258e4]" :style="{ width: `${(r.count / areaMax) * 100}%` }" />
                 </div>
               </div>
             </div>
@@ -411,8 +407,8 @@ function openCustomer(id: string) {
                   <span class="truncate text-highlighted">{{ r.name }}</span>
                   <span class="font-medium text-highlighted">{{ r.count }}</span>
                 </div>
-                <div class="h-2.5 w-full overflow-hidden rounded-full bg-elevated">
-                  <div class="h-full rounded-full bg-kords-primary-500" :style="{ width: `${(r.count / categoryMax) * 100}%` }" />
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-[#eef1f6]">
+                  <div class="h-full rounded-full bg-[#5258e4]" :style="{ width: `${(r.count / categoryMax) * 100}%` }" />
                 </div>
               </div>
             </div>
@@ -427,8 +423,8 @@ function openCustomer(id: string) {
                   <span class="truncate text-highlighted" dir="auto">{{ r.name }}</span>
                   <span class="font-medium text-highlighted">{{ r.count }}</span>
                 </div>
-                <div class="h-2.5 w-full overflow-hidden rounded-full bg-elevated">
-                  <div class="h-full rounded-full bg-kords-primary-500" :style="{ width: `${(r.count / salesMax) * 100}%` }" />
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-[#eef1f6]">
+                  <div class="h-full rounded-full bg-[#5258e4]" :style="{ width: `${(r.count / salesMax) * 100}%` }" />
                 </div>
               </div>
             </div>
@@ -450,7 +446,7 @@ function openCustomer(id: string) {
                   <span class="block truncate text-xs text-muted">{{ x.p.name }}</span>
                 </span>
                 <span class="flex shrink-0 items-center gap-2 text-xs">
-                  <UBadge :label="stageName(x.p.stage_id)" color="neutral" variant="subtle" size="sm" class="cds-tag" />
+                  <KBadge :label="stageName(x.p.stage_id)" tone="neutral" />
                   <span class="font-semibold text-error">{{ t("cs.dashboard.daysOfLimit", { days: x.days, limit: Math.round(x.limit) }) }}</span>
                   <span class="hidden text-muted sm:inline">{{ formatDate(dateOf(dates, x.p.id, x.p.stage_id) ?? x.p.contract_date) }}</span>
                 </span>
