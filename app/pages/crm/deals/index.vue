@@ -373,6 +373,22 @@ const dateFrom = ref("");
 const dateTo = ref("");
 const dealSearch = ref("");
 
+// "Has a written note or a logged activity": deals whose timeline has a note, or
+// an activity someone logged or completed (not automatic entries or merely scheduled ones).
+type NoteFilter = "all" | "with" | "without";
+const noteFilter = ref<NoteFilter>("all");
+const noteFilterOptions = computed(() => [
+  { label: t("crm.deals.notesAny"), value: "all" },
+  { label: t("crm.deals.notesWith"), value: "with" },
+  { label: t("crm.deals.notesWithout"), value: "without" },
+]);
+const { data: dealIdsWithNotes, refresh: refreshNoteFlags } = await useAsyncData<string[]>("crm-deals-with-activity", async () => {
+  const { data, error } = await supabase.rpc("deals_with_activity");
+  if (error) throw error;
+  return (data ?? []) as string[];
+});
+const dealsWithNotes = computed(() => new Set(dealIdsWithNotes.value ?? []));
+
 // The kanban board only renders columns for the stage(s) actually picked —
 // narrowing to one stage means seeing just that one column.
 const visibleStages = computed(() =>
@@ -384,6 +400,8 @@ function matchesFilters(deal: Deal) {
     if (deal.assigned_to !== null) return false;
   } else if (assigneeFilter.value !== null && deal.assigned_to !== assigneeFilter.value) return false;
   if (stageFilter.value !== null && deal.stage_id !== stageFilter.value) return false;
+  if (noteFilter.value === "with" && !dealsWithNotes.value.has(deal.id)) return false;
+  if (noteFilter.value === "without" && dealsWithNotes.value.has(deal.id)) return false;
   if (dateFrom.value && deal.created_at < dateFrom.value) return false;
   if (dateTo.value && deal.created_at.slice(0, 10) > dateTo.value) return false;
   if (dealSearch.value) {
@@ -472,7 +490,7 @@ const sorting = ref([{ id: "created", desc: true }]);
 const pagination = ref({ pageIndex: 0, pageSize: 20 });
 // Any filter changing the row set should land the user back on page 1
 // instead of possibly showing an empty out-of-range page.
-watch([assigneeFilter, stageFilter, dateFrom, dateTo, dealSearch, activePipelineId], () => {
+watch([assigneeFilter, stageFilter, noteFilter, dateFrom, dateTo, dealSearch, activePipelineId], () => {
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 
@@ -542,11 +560,15 @@ const reassignReasonOptions = computed(() =>
 // move several deals to Won at once, but a single deal can (with its products).
 const wonProducts = ref<WonProductDraft[]>([]);
 const wonHasProducts = ref(false);
+const contractFile = ref<File | null>(null);
+const hasContract = ref(false);
 async function prepareWonProducts(deal: Deal | undefined, closeDate: string) {
   wonProducts.value = [
     newWonProduct({ name: deal?.title ?? "", contract_date: closeDate, sales_person_id: deal?.assigned_to ?? null }),
   ];
+  contractFile.value = null;
   wonHasProducts.value = deal ? await dealHasProducts(supabase, deal.id) : false;
+  hasContract.value = deal ? await dealHasContract(supabase, deal.id) : false;
 }
 const todayStr = () => today(getLocalTimeZone()).toString();
 const reassignSingleDeal = computed(() =>
@@ -570,7 +592,8 @@ const reassignValid = computed(
   () =>
     !!reassignStageId.value &&
     (!reassignStage.value?.reason_category || !!reassignReasonId.value) &&
-    (!reassignIsWon.value || wonHasProducts.value || wonProductsValid(wonProducts.value)),
+    (!reassignIsWon.value ||
+      ((wonHasProducts.value || wonProductsValid(wonProducts.value)) && (hasContract.value || !!contractFile.value))),
 );
 
 function openReassign(dealIds: string[], prefillAssignee?: string | null) {
@@ -616,7 +639,14 @@ async function confirmReassign() {
         }
         customerId = resolved;
       }
-      // What was bought is recorded before the deal moves to Won.
+      // The contract file and what was bought are recorded before the deal moves to Won.
+      if (reassignIsWon.value && !hasContract.value && contractFile.value) {
+        const contractError = await uploadDealContract(supabase, dealId, contractFile.value);
+        if (contractError) {
+          error = { message: contractError };
+          break;
+        }
+      }
       if (reassignIsWon.value && !wonHasProducts.value) {
         const productsError = await recordDealProducts(supabase, dealId, customerId, wonProducts.value);
         if (productsError) {
@@ -643,6 +673,85 @@ async function confirmReassign() {
   reassignOpen.value = false;
   rowSelection.value = {};
   refresh();
+}
+
+// --- Drag a card to another stage ---------------------------------------
+// Dropping a deal on a stage moves it, after asking what a move to that stage
+// needs: a note (or a reason for competitor / archive). Won and Offer sent need
+// more (value, products and contract; the offer file), so those open the deal's
+// own stage dialog instead of repeating all of it here.
+const canMoveDeals = computed(() => hasPermission("crm_deals", "edit"));
+const dragDealId = ref<string | null>(null);
+const overStageId = ref<string | null>(null);
+const moveOpen = ref(false);
+const moveDealRef = ref<Deal | null>(null);
+const moveStageId = ref<string | null>(null);
+const moveNote = ref("");
+const moveReasonId = ref<string | null>(null);
+const moving = ref(false);
+
+const moveStage = computed(() => allStages.value?.find((s) => s.id === moveStageId.value));
+const moveReasonOptions = computed(() =>
+  (allReasons.value ?? [])
+    .filter((r) => r.pipeline_id === activePipelineId.value && r.category === moveStage.value?.reason_category)
+    .map((r) => ({ label: r.name, value: r.id })),
+);
+const moveNoteRequired = computed(() => !moveStage.value?.reason_category);
+const moveValid = computed(
+  () => (!moveNoteRequired.value || !!moveNote.value.trim()) && (!moveStage.value?.reason_category || !!moveReasonId.value),
+);
+
+function onDealDragStart(e: DragEvent, deal: Deal) {
+  if (!canMoveDeals.value) return e.preventDefault();
+  dragDealId.value = deal.id;
+  e.dataTransfer?.setData("text/plain", deal.id);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+}
+function onDealDragEnd() {
+  dragDealId.value = null;
+  overStageId.value = null;
+}
+function onDealDrop(stageId: string) {
+  const deal = (deals.value ?? []).find((d) => d.id === dragDealId.value);
+  onDealDragEnd();
+  if (!deal || deal.stage_id === stageId) return;
+  const stage = allStages.value?.find((s) => s.id === stageId);
+  if (stage?.system_key === "won" || stage?.system_key === "offer_sent") {
+    navigateTo({ path: `/crm/deals/${deal.id}`, query: { changeStage: stageId } });
+    return;
+  }
+  moveDealRef.value = deal;
+  moveStageId.value = stageId;
+  moveNote.value = "";
+  moveReasonId.value = null;
+  moveOpen.value = true;
+}
+async function confirmMove() {
+  if (!moveDealRef.value || !moveStageId.value || !moveValid.value) return;
+  moving.value = true;
+  const { error } = await supabase
+    .from("deals")
+    .update({ stage_id: moveStageId.value, stage_reason_id: moveStage.value?.reason_category ? moveReasonId.value : null })
+    .eq("id", moveDealRef.value.id);
+  if (error) {
+    moving.value = false;
+    toast.add({ title: t("crm.deals.saveFailed"), description: error.message, color: "error" });
+    return;
+  }
+  // The stage change is logged by the database; the note is the "why".
+  if (moveNote.value.trim()) {
+    await supabase.from("deal_activities").insert({
+      deal_id: moveDealRef.value.id,
+      type: "note",
+      content: moveNote.value.trim(),
+      metadata: { stage_change: true },
+    });
+  }
+  moving.value = false;
+  moveOpen.value = false;
+  toast.add({ title: t("crm.deals.dealSaved"), color: "success" });
+  refresh();
+  refreshNoteFlags();
 }
 
 // --- Create deal ---
@@ -752,8 +861,12 @@ const createStage = computed(() => allStages.value?.find((s) => s.id === state.s
 // A deal created straight into Won also records what was bought.
 const createIsWon = computed(() => createStage.value?.system_key === "won");
 const createProducts = ref<WonProductDraft[]>([]);
+const createContract = ref<File | null>(null);
 watch(createIsWon, (won) => {
-  if (won) createProducts.value = [newWonProduct({ contract_date: todayStr() })];
+  if (won) {
+    createProducts.value = [newWonProduct({ contract_date: todayStr() })];
+    createContract.value = null;
+  }
 });
 const createReasonOptions = computed(() =>
   (allReasons.value ?? [])
@@ -805,7 +918,7 @@ const duplicateNewLead = computed(() => {
 
 async function onCreate(event: FormSubmitEvent<Schema>) {
   if (duplicateNewLead.value) return;
-  if (createIsWon.value && !wonProductsValid(createProducts.value)) return;
+  if (createIsWon.value && (!wonProductsValid(createProducts.value) || !createContract.value)) return;
   creating.value = true;
 
   let leadId: string;
@@ -881,7 +994,14 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     return;
   }
 
-  // Created straight into Won: record what was bought, against the new deal.
+  // Created straight into Won: store the contract file and record what was
+  // bought, against the new deal.
+  if (createIsWon.value && createContract.value) {
+    const contractError = await uploadDealContract(supabase, createdDeal.id, createContract.value);
+    if (contractError) {
+      toast.add({ title: t("crm.deals.attachmentUploadFailed"), description: contractError, color: "warning" });
+    }
+  }
   if (createIsWon.value && customerId) {
     const productsError = await recordDealProducts(supabase, createdDeal.id, customerId, createProducts.value);
     if (productsError) {
@@ -905,10 +1025,11 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
 // --- Mobile filter sheet ---
 const filtersOpen = ref(false);
 const activeFilterCount = computed(
-  () => [assigneeFilter.value !== null, !!stageFilter.value, !!dateFrom.value, !!dateTo.value].filter(Boolean).length,
+  () => [assigneeFilter.value !== null, !!stageFilter.value, noteFilter.value !== "all", !!dateFrom.value, !!dateTo.value].filter(Boolean).length,
 );
 function clearFilters() {
   stageFilter.value = null;
+  noteFilter.value = "all";
   dateFrom.value = "";
   dateTo.value = "";
   dealSearch.value = "";
@@ -932,12 +1053,9 @@ function openDeal(deal: Deal) {
   <!-- In Kanban mode the panel is exactly one screen tall, so the board gets a
   definite height and every stage column scrolls on its own (the panel's
   default is only a minimum height, which lets the page grow instead). -->
-  <UDashboardPanel :ui="{ root: viewMode === 'kanban' ? 'h-svh' : '' }">
+  <UDashboardPanel :ui="{ root: viewMode === 'kanban' ? 'h-svh' : '', body: 'kords-canvas' }">
     <template #header>
-      <UDashboardNavbar :title="t('crm.deals.title')">
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
+      <KPageHeader :title="t('crm.deals.title')" :count="listDeals.length">
         <template #right>
           <UButton
             v-if="hasPermission('crm_deals', 'create')"
@@ -946,14 +1064,14 @@ function openDeal(deal: Deal) {
             @click="openCreate"
           />
         </template>
-      </UDashboardNavbar>
+      </KPageHeader>
 
       <!-- Mobile-first toolbar: pipeline tabs scroll sideways, search + a
       Filters button + view toggle share one row; the individual filters live
       in a bottom sheet until there is room (lg) to show them inline. -->
-      <div class="w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
+      <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
         <div class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" class="w-max min-w-full" />
+          <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs w-max min-w-full" />
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <UInput
@@ -989,10 +1107,11 @@ function openDeal(deal: Deal) {
               :placeholder="t('crm.deals.stage')"
               class="w-44"
             />
+            <USelect v-model="noteFilter" :items="noteFilterOptions" value-key="value" icon="i-lucide-sticky-note" class="w-40" />
             <UInput v-model="dateFrom" type="date" :placeholder="t('crm.deals.createdFrom')" class="w-40" />
             <UInput v-model="dateTo" type="date" :placeholder="t('crm.deals.createdTo')" class="w-40" />
             <UButton
-              v-if="stageFilter || dateFrom || dateTo || dealSearch"
+              v-if="stageFilter || noteFilter !== 'all' || dateFrom || dateTo || dealSearch"
               icon="i-lucide-x"
               color="neutral"
               variant="ghost"
@@ -1002,18 +1121,20 @@ function openDeal(deal: Deal) {
             />
             <USeparator orientation="vertical" class="h-6" />
           </div>
-          <UButtonGroup class="ms-auto lg:ms-0">
+          <UButtonGroup class="kords-segment ms-auto lg:ms-0">
             <UButton
               icon="i-lucide-kanban"
-              :color="viewMode === 'kanban' ? 'primary' : 'neutral'"
-              :variant="viewMode === 'kanban' ? 'solid' : 'outline'"
+              color="neutral"
+              variant="ghost"
+              :class="viewMode === 'kanban' && 'kords-segment-on'"
               :aria-label="t('crm.deals.kanbanView')"
               @click="viewMode = 'kanban'"
             />
             <UButton
               icon="i-lucide-list"
-              :color="viewMode === 'list' ? 'primary' : 'neutral'"
-              :variant="viewMode === 'list' ? 'solid' : 'outline'"
+              color="neutral"
+              variant="ghost"
+              :class="viewMode === 'list' && 'kords-segment-on'"
               :aria-label="t('crm.deals.listView')"
               @click="viewMode = 'list'"
             />
@@ -1034,13 +1155,16 @@ function openDeal(deal: Deal) {
         <div
           v-for="stage in visibleStages"
           :key="stage.id"
-          class="flex min-h-0 w-[85vw] shrink-0 snap-center flex-col border border-t-4 border-default bg-muted sm:w-72 sm:snap-align-none"
-          :class="stageAccentBorderClass(stage)"
+          class="kords-lane flex min-h-0 w-[85vw] shrink-0 snap-center flex-col border border-t-4 border-default bg-muted sm:w-72 sm:snap-align-none"
+          :class="[stageAccentBorderClass(stage), dragDealId && overStageId === stage.id && 'ring-2 ring-primary']"
+          @dragover.prevent="overStageId = stage.id"
+          @dragleave="overStageId === stage.id && (overStageId = null)"
+          @drop.prevent="onDealDrop(stage.id)"
         >
           <div class="shrink-0 border-b border-default bg-[inherit] p-3">
             <div class="flex items-center justify-between gap-2">
               <span class="truncate font-medium text-highlighted">{{ stage.name }}</span>
-              <UBadge :label="String(dealsForStage(stage.id).length)" color="neutral" variant="subtle" class="cds-tag" />
+              <KBadge :label="String(dealsForStage(stage.id).length)" tone="neutral" />
             </div>
             <div v-if="stageTotalValue(stage.id)" class="mt-0.5 text-xs text-muted">
               {{ formatCurrency(stageTotalValue(stage.id)) }}
@@ -1051,8 +1175,11 @@ function openDeal(deal: Deal) {
             <div
               v-for="deal in dealsForStage(stage.id)"
               :key="deal.id"
-              class="group relative cursor-pointer overflow-hidden border border-default bg-default p-3 pb-4 text-sm transition-colors hover:border-primary hover:bg-elevated"
-              :class="isStageOverdue(deal) && 'border-s-4 border-s-error'"
+              class="kords-kcard group relative cursor-pointer overflow-hidden border border-default bg-default p-3 pb-4 text-sm"
+              :class="[isStageOverdue(deal) && 'kords-kcard-late', canMoveDeals && 'cursor-grab active:cursor-grabbing', dragDealId === deal.id && 'opacity-50']"
+              :draggable="canMoveDeals"
+              @dragstart="onDealDragStart($event, deal)"
+              @dragend="onDealDragEnd"
               @click="openDeal(deal)"
             >
               <div class="flex items-start justify-between gap-2">
@@ -1080,22 +1207,11 @@ function openDeal(deal: Deal) {
               </p>
               <div class="mt-3 flex items-center justify-between gap-2 text-xs">
                 <div class="flex min-w-0 items-center gap-1.5 text-muted">
-                  <UAvatar
-                    :text="deal.assigned_to ? assigneeInitial(deal.assigned_to) : undefined"
-                    :icon="deal.assigned_to ? undefined : 'i-lucide-user-round'"
-                    size="2xs"
-                  />
+                  <KAvatar :name="deal.assigned_to ? profileLabel(deal.assigned_to) : null" kind="user" size="2xs" />
                   <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
                 </div>
                 <div class="flex shrink-0 items-center gap-2">
-                  <UBadge
-                    v-if="dealReasonName(deal)"
-                    :label="dealReasonName(deal)!"
-                    size="sm"
-                    variant="subtle"
-                    :color="stageAccentColor(stage)"
-                    class="cds-tag"
-                  />
+                  <KBadge v-if="dealReasonName(deal)" :label="dealReasonName(deal)!" :tone="stageAccentColor(stage)" />
                   <a
                     v-if="toWhatsAppLink(dealContactPhone(deal))"
                     :href="toWhatsAppLink(dealContactPhone(deal))!"
@@ -1133,8 +1249,8 @@ function openDeal(deal: Deal) {
           <div
             v-for="deal in pagedListDeals"
             :key="deal.id"
-            class="relative cursor-pointer overflow-hidden border border-default bg-default p-3 pb-4 text-sm active:bg-elevated"
-            :class="isStageOverdue(deal) && 'border-s-4 border-s-error'"
+            class="kords-kcard relative cursor-pointer overflow-hidden border border-default bg-default p-3 pb-4 text-sm"
+            :class="isStageOverdue(deal) && 'kords-kcard-late'"
             @click="openDeal(deal)"
           >
             <div class="flex items-start justify-between gap-2">
@@ -1142,13 +1258,7 @@ function openDeal(deal: Deal) {
               <span v-if="deal.value" class="shrink-0 font-semibold text-success">{{ formatCurrency(deal.value) }}</span>
             </div>
             <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <UBadge
-                :label="stageName(deal.stage_id)"
-                :color="stageAccentColor(allStages?.find((s) => s.id === deal.stage_id))"
-                variant="subtle"
-                size="sm"
-                class="cds-tag"
-              />
+              <KBadge :label="stageName(deal.stage_id)" :tone="stageAccentColor(allStages?.find((s) => s.id === deal.stage_id))" />
               <span class="flex items-center gap-1" :class="stageAgeTextClass(deal)">
                 <UIcon :name="isStageOverdue(deal) ? 'i-lucide-triangle-alert' : 'i-lucide-clock'" class="size-3.5" />
                 {{ stageAgeLabel(deal) }}
@@ -1164,11 +1274,7 @@ function openDeal(deal: Deal) {
             </p>
             <div class="mt-3 flex items-center justify-between gap-2 text-xs">
               <div class="flex min-w-0 items-center gap-1.5 text-muted">
-                <UAvatar
-                  :text="deal.assigned_to ? assigneeInitial(deal.assigned_to) : undefined"
-                  :icon="deal.assigned_to ? undefined : 'i-lucide-user-round'"
-                  size="2xs"
-                />
+                <KAvatar :name="deal.assigned_to ? profileLabel(deal.assigned_to) : null" kind="user" size="2xs" />
                 <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
               </div>
               <a
@@ -1208,7 +1314,7 @@ function openDeal(deal: Deal) {
         </div>
         <UTable
           ref="dealsTable"
-          class="hidden md:block"
+          class="kords-card hidden shrink-0 overflow-hidden md:block"
           v-model:row-selection="rowSelection"
           v-model:sorting="sorting"
           v-model:pagination="pagination"
@@ -1219,12 +1325,7 @@ function openDeal(deal: Deal) {
           @select="(_e, row) => openDeal(row.original)"
         >
           <template #stage-cell="{ row }">
-            <UBadge
-              :label="stageName(row.original.stage_id)"
-              :color="stageAccentColor(allStages?.find((s) => s.id === row.original.stage_id))"
-              variant="subtle"
-              class="cds-tag"
-            />
+            <KBadge :label="stageName(row.original.stage_id)" :tone="stageAccentColor(allStages?.find((s) => s.id === row.original.stage_id))" />
           </template>
           <template #reason-cell="{ row }">
             {{ dealReasonName(row.original) ?? "—" }}
@@ -1271,7 +1372,7 @@ function openDeal(deal: Deal) {
               @update:model-value="(value: string | null) => openReassign([row.original.id], value)"
             />
             <div v-else class="flex items-center gap-1.5">
-              <UAvatar v-if="row.original.assigned_to" :text="assigneeInitial(row.original.assigned_to)" size="3xs" />
+              <KAvatar v-if="row.original.assigned_to" :name="profileLabel(row.original.assigned_to)" kind="user" size="3xs" />
               <span>{{ profileLabel(row.original.assigned_to) }}</span>
             </div>
           </template>
@@ -1460,6 +1561,9 @@ function openDeal(deal: Deal) {
         <UFormField v-if="createStage?.reason_category" name="stage_reason_id" :label="t('crm.deals.reason')">
           <USelect v-model="state.stage_reason_id" :items="createReasonOptions" value-key="value" class="w-full" />
         </UFormField>
+        <UFormField v-if="createIsWon" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
+          <UFileUpload v-model="createContract" class="w-full" />
+        </UFormField>
         <WonProductsFields v-if="createIsWon" v-model="createProducts" :defaults="{ contract_date: todayStr() }" />
         <UFormField v-if="canAssign" name="assigned_to" :label="t('crm.deals.assignedTo')">
           <USelect v-model="state.assigned_to" :items="assigneeOptions" value-key="value" class="w-full" />
@@ -1472,7 +1576,7 @@ function openDeal(deal: Deal) {
           type="submit"
           :label="t('crm.deals.createDeal')"
           :loading="creating"
-          :disabled="!!duplicateNewLead || (createIsWon && !wonProductsValid(createProducts))"
+          :disabled="!!duplicateNewLead || (createIsWon && (!wonProductsValid(createProducts) || !createContract))"
           block
         />
       </UForm>
@@ -1495,6 +1599,9 @@ function openDeal(deal: Deal) {
         </UFormField>
         <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
           <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <UFormField v-if="reassignIsWon && !hasContract" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
+          <UFileUpload v-model="contractFile" class="w-full" />
         </UFormField>
         <WonProductsFields v-if="reassignIsWon && !wonHasProducts" v-model="wonProducts" :defaults="{ contract_date: todayStr(), sales_person_id: reassignSingleDeal?.assigned_to ?? null }" />
         <UFormField :label="t('crm.deals.historyVisibility')">
@@ -1519,7 +1626,29 @@ function openDeal(deal: Deal) {
     </template>
   </UModal>
 
-  <USlideover v-model:open="filtersOpen" side="bottom" :title="t('crm.deals.filters')">
+  <UModal v-model:open="moveOpen" :title="t('crm.deals.changeStage', { stage: moveStage?.name })">
+    <template #body>
+      <div class="space-y-4">
+        <p v-if="moveDealRef" class="text-sm font-medium text-highlighted">{{ dealContactName(moveDealRef) }}</p>
+        <template v-if="moveStage?.reason_category">
+          <p class="text-sm text-muted">{{ t("crm.deals.reasonRequired") }}</p>
+          <USelect
+            :model-value="moveReasonId ?? undefined"
+            :items="moveReasonOptions"
+            value-key="value"
+            class="w-full"
+            @update:model-value="(v: string | undefined) => (moveReasonId = v ?? null)"
+          />
+        </template>
+        <UFormField :label="t('crm.deals.stageChangeNote')" :required="moveNoteRequired">
+          <UTextarea v-model="moveNote" :placeholder="t('crm.deals.stageChangeNotePlaceholder')" class="w-full" :rows="3" autofocus />
+        </UFormField>
+        <UButton :label="t('common.save')" :loading="moving" :disabled="!moveValid" block @click="confirmMove" />
+      </div>
+    </template>
+  </UModal>
+
+  <USlideover v-model:open="filtersOpen" side="bottom" :title="t('crm.deals.filters')" :ui="{ content: 'rounded-t-[14px]' }">
     <template #body>
       <div class="space-y-4 pb-[env(safe-area-inset-bottom)]">
         <UFormField :label="t('crm.deals.assignedTo')">
@@ -1540,6 +1669,9 @@ function openDeal(deal: Deal) {
             icon="i-lucide-git-branch"
             class="w-full"
           />
+        </UFormField>
+        <UFormField :label="t('crm.deals.notes')">
+          <USelect v-model="noteFilter" :items="noteFilterOptions" value-key="value" icon="i-lucide-sticky-note" class="w-full" />
         </UFormField>
         <div class="grid grid-cols-2 gap-3">
           <UFormField :label="t('crm.deals.createdFrom')">

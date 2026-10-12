@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 @import "./carbon.css";
+@import "./kords.css";
 
 /* Kords brand kit — colors, fonts, radius, shadows
    Source: Kords Design System v1.0 (kords-design-system.html) */

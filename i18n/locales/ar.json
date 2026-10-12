@@ -766,7 +766,13 @@
         "hint": "عند ربح الصفقة سجّل المنتجات التي اشتراها العميل. تنتقل إلى خدمة العملاء لمتابعة التركيب.",
         "product": "المنتج {n}",
         "add": "إضافة منتج آخر"
-      }
+      },
+      "contractFile": "ملف العقد",
+      "contractFileHint": "إلزامي عند ربح الصفقة (PDF أو صورة).",
+      "notes": "الملاحظات والأنشطة",
+      "notesAny": "كل الصفقات",
+      "notesWith": "بها ملاحظة أو نشاط مسجّل",
+      "notesWithout": "بدون ملاحظة أو نشاط"
     },
     "quotes": {
       "title": "عروض الأسعار",
@@ -1043,7 +1049,10 @@
       "noSalesPerson": "غير محدد",
       "categoryPolicy": "سياسة ضمان الفئة",
       "useCategoryPolicy": "استخدام سياسة الضمان",
-      "chooseWarrantyPolicy": "اختر سياسة الضمان"
+      "chooseWarrantyPolicy": "اختر سياسة الضمان",
+      "overdueCount": "{count} متأخر",
+      "completedCount": "{count} مكتمل",
+      "backToList": "العملاء"
     },
     "installations": {
       "title": "التركيبات",

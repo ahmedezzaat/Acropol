@@ -766,7 +766,13 @@
         "hint": "Record what the customer bought. These go to Customer Service to follow the installation.",
         "product": "Product {n}",
         "add": "Add another product"
-      }
+      },
+      "contractFile": "Contract file",
+      "contractFileHint": "Required to win the deal (PDF or an image).",
+      "notes": "Notes and activities",
+      "notesAny": "All deals",
+      "notesWith": "With a note or logged activity",
+      "notesWithout": "No note or logged activity"
     },
     "quotes": {
       "title": "Quotes",
@@ -1043,7 +1049,10 @@
       "noSalesPerson": "Not set",
       "categoryPolicy": "Category warranty policy",
       "useCategoryPolicy": "Use the warranty policy",
-      "chooseWarrantyPolicy": "Choose a warranty policy"
+      "chooseWarrantyPolicy": "Choose a warranty policy",
+      "overdueCount": "{count} overdue",
+      "completedCount": "{count} completed",
+      "backToList": "Customers"
     },
     "installations": {
       "title": "Installations",

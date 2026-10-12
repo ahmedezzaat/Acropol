@@ -4,6 +4,8 @@ import type { NavigationMenuItem } from "@nuxt/ui";
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const { isAdmin, hasAnyModulePermission, hasPermission, loaded } = usePermissions();
+// Carbon is the base for every screen; Kords adds the brand on top (app/assets/css/kords.css).
+useHead({ htmlAttrs: { class: "carbon kords" } });
 const { t } = useI18n();
 
 const resourceRoutes: Record<string, string> = {

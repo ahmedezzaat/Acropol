@@ -100,7 +100,7 @@ onMounted(() => {
   <div class="sheet-wrap">
     <div class="no-print toolbar">
       <button type="button" class="btn" @click="doPrint">{{ t("cs.print.button") }}</button>
-      <NuxtLink :to="{ path: '/cs/customers', query: { id: customerId } }" class="btn ghost">{{ t("cs.print.back") }}</NuxtLink>
+      <NuxtLink :to="`/cs/customers/${customerId}`" class="btn ghost">{{ t("cs.print.back") }}</NuxtLink>
       <span class="hint">{{ t("cs.print.hint") }}</span>
     </div>
 

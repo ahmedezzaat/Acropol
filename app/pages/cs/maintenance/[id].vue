@@ -206,12 +206,9 @@ async function onSaved() {
 </script>
 
 <template>
-  <UDashboardPanel>
+  <UDashboardPanel :ui="{ body: 'kords-canvas' }">
     <template #header>
-      <UDashboardNavbar :title="t('cs.maintenance.record')">
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
+      <KPageHeader :title="t('cs.maintenance.record')">
         <template #right>
           <UButton
             icon="i-lucide-arrow-right"
@@ -222,7 +219,7 @@ async function onSaved() {
             class="rtl:flex-row-reverse"
           />
         </template>
-      </UDashboardNavbar>
+      </KPageHeader>
     </template>
 
     <template #body>
@@ -233,16 +230,25 @@ async function onSaved() {
 
       <div v-else class="mx-auto w-full max-w-6xl space-y-5">
         <!-- ===== Who / what ===== -->
-        <div class="border border-default bg-default p-4 sm:p-5">
+        <div class="kords-card p-5">
           <div class="flex flex-wrap items-start justify-between gap-4">
-            <div class="min-w-0 flex-1 basis-64">
-              <NuxtLink v-if="customer" :to="`/cs/customers/${customer.id}`" class="text-sm text-primary hover:underline">
-                {{ customerTitle(customer) }}
-              </NuxtLink>
-              <h2 class="mt-0.5 text-xl font-semibold text-highlighted sm:text-2xl">
-                {{ product.name }}
-                <bdi v-if="product.contract_code" dir="ltr" class="ms-1 text-sm font-normal text-muted">#{{ product.contract_code }}</bdi>
-              </h2>
+            <div class="flex min-w-0 flex-1 basis-64 items-center gap-3">
+              <KAvatar
+                v-if="customer"
+                :name="isCompanyCustomer(customer) ? null : customerTitle(customer)"
+                kind="contact"
+                :icon="isCompanyCustomer(customer) ? 'i-lucide-building-2' : undefined"
+                size="xl"
+              />
+              <div class="min-w-0">
+                <NuxtLink v-if="customer" :to="`/cs/customers/${customer.id}`" class="text-sm text-primary hover:underline">
+                  {{ customerTitle(customer) }}
+                </NuxtLink>
+                <h2 class="mt-0.5 text-xl font-semibold text-highlighted sm:text-2xl">
+                  {{ product.name }}
+                  <bdi v-if="product.contract_code" dir="ltr" class="ms-1 text-sm font-normal text-muted">#{{ product.contract_code }}</bdi>
+                </h2>
+              </div>
             </div>
             <div v-if="customer" class="flex flex-wrap items-center gap-2">
               <UButton v-if="customer.phone" :to="`tel:${customer.phone}`" icon="i-lucide-phone" color="neutral" variant="outline" :label="t('crm.deals.callContact')" />
@@ -280,8 +286,8 @@ async function onSaved() {
           <div class="min-w-0 space-y-5">
             <!-- Where maintenance stands, with the actions -->
             <section
-              class="border p-4 sm:p-5"
-              :class="state === 'overdue' || state === 'declined' ? 'border-error/40 bg-error/5' : state === 'today' ? 'border-warning/40 bg-warning/5' : 'border-default bg-default'"
+              class="kords-card p-5"
+              :class="state === 'overdue' || state === 'declined' ? 'kords-kcard-late' : state === 'today' ? 'kords-card-warn' : ''"
             >
               <div class="flex flex-wrap items-start justify-between gap-4">
                 <div class="flex min-w-0 items-start gap-3">
@@ -293,12 +299,10 @@ async function onSaved() {
                   <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                       <span class="text-xs text-muted">{{ t("cs.maintenance.next") }}</span>
-                      <UBadge
+                      <KBadge
                         :label="state === 'overdue' ? t('cs.maintenance.late', { days: daysLate }) : t(`cs.maintenance.${state}`)"
-                        :color="stateColor[state]"
-                        :variant="state === 'unscheduled' || state === 'later' ? 'outline' : 'subtle'"
-                        size="sm"
-                        class="cds-tag"
+                        :tone="stateColor[state]"
+                        :outlined="state === 'unscheduled' || state === 'later'"
                       />
                     </div>
                     <div v-if="declined" class="mt-0.5">
@@ -360,7 +364,7 @@ async function onSaved() {
             />
 
             <!-- Add a note -->
-            <section v-if="can.note" class="space-y-2 border border-default bg-default p-4">
+            <section v-if="can.note" class="kords-card space-y-2 p-4">
               <UTextarea v-model="noteText" :rows="2" :placeholder="t('cs.maintenance.notePlaceholder')" class="w-full" />
               <div class="flex justify-end">
                 <UButton
@@ -378,9 +382,9 @@ async function onSaved() {
             <section class="space-y-3">
               <h3 class="flex items-center gap-2 text-lg font-semibold text-highlighted">
                 {{ t("cs.maintenance.activity") }}
-                <UBadge :label="String(events.length)" color="neutral" variant="subtle" class="cds-tag" />
+                <KBadge :label="String(events.length)" tone="neutral" />
               </h3>
-              <p v-if="!events.length" class="border border-dashed border-default p-8 text-center text-sm text-muted">
+              <p v-if="!events.length" class="kords-card p-8 text-center text-sm text-muted">
                 {{ t("cs.maintenance.noEvents") }}
               </p>
               <ol v-else class="relative space-y-4 border-s border-default ps-6">
@@ -391,7 +395,7 @@ async function onSaved() {
                   >
                     <UIcon :name="eventMeta[e.kind].icon" class="size-3.5" />
                   </span>
-                  <div class="border border-default bg-default p-3 text-sm">
+                  <div class="kords-card p-3 text-sm">
                     <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                       <span class="font-medium text-highlighted">{{ t(eventMeta[e.kind].label) }}</span>
                       <span class="text-xs text-muted">
@@ -415,17 +419,17 @@ async function onSaved() {
           <!-- ===== Summary ===== -->
           <aside class="space-y-5 lg:sticky lg:top-0">
             <div class="grid grid-cols-2 gap-3">
-              <div class="border border-default bg-default p-3">
+              <div class="kords-card p-4">
                 <div class="text-xs text-muted">{{ t("cs.maintenance.visitsDone") }}</div>
                 <div class="mt-1 text-2xl font-bold" :class="doneVisits.length ? 'text-success' : 'text-highlighted'">{{ doneVisits.length }}</div>
               </div>
-              <div class="border border-default bg-default p-3">
+              <div class="kords-card p-4">
                 <div class="text-xs text-muted">{{ t("cs.maintenance.totalCost") }}</div>
                 <div class="mt-1 text-lg font-bold text-highlighted">{{ totalCost ? money(totalCost) : "—" }}</div>
               </div>
             </div>
 
-            <section class="border border-default bg-default">
+            <section class="kords-card overflow-hidden">
               <h3 class="border-b border-default px-4 py-3 text-sm font-semibold text-highlighted">{{ t("cs.maintenance.schedule2") }}</h3>
               <dl class="divide-y divide-default text-sm">
                 <div class="flex justify-between gap-3 px-4 py-2.5">
@@ -447,7 +451,7 @@ async function onSaved() {
               </dl>
             </section>
 
-            <section class="border border-default bg-default">
+            <section class="kords-card overflow-hidden">
               <h3 class="border-b border-default px-4 py-3 text-sm font-semibold text-highlighted">{{ t("cs.maintenance.contract") }}</h3>
               <dl class="divide-y divide-default text-sm">
                 <div class="flex justify-between gap-3 px-4 py-2.5">

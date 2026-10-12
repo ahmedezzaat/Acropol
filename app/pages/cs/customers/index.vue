@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { TableColumn } from "@nuxt/ui";
+import { getPaginationRowModel } from "@tanstack/vue-table";
+
 definePageMeta({
   layout: "dashboard",
   crmPermission: { module: "cs_customers" },
@@ -10,7 +13,7 @@ const supabase = useSupabaseClient();
 const { t } = useI18n();
 const { hasPermission } = usePermissions();
 const canViewAll = computed(() => hasPermission("cs_customers", "view_all"));
-const { areas, stages, pipelines, stageColor, stageName, stageLabelFull, loadAreas, loadPipelines } = useCs();
+const { areas, stages, pipelines, stageColor, stageName, stageLabelFull, loadAreas, loadPipelines, areaName, formatDate } = useCs();
 
 // Customer service sees every customer: the ones a won deal created in the CRM
 // and the ones added here directly.
@@ -131,38 +134,6 @@ function stageBadges(customerId: string) {
   return [...new Set(stagesOf(customerId))].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
 }
 
-// ---- Master / detail
-// The list sits on one side and the selected customer's record on the other (on
-// a phone they take turns full-screen). The selection lives in ?id= so it
-// survives a refresh and links from other pages open straight to a customer.
-const route = useRoute();
-const router = useRouter();
-const selectedId = ref<string | null>(typeof route.query.id === "string" ? route.query.id : null);
-
-function selectCustomer(id: string | null) {
-  selectedId.value = id;
-  const query = { ...route.query };
-  if (id) query.id = id;
-  else delete query.id;
-  router.replace({ query });
-}
-watch(
-  () => route.query.id,
-  (id) => {
-    selectedId.value = typeof id === "string" ? id : null;
-  },
-);
-
-const selectedCustomer = computed(() => customers.value?.find((c) => c.id === selectedId.value) ?? null);
-
-// On a wide screen there is room for both panes, so open the first customer
-// instead of an empty details pane.
-onMounted(() => {
-  if (!selectedId.value && window.innerWidth >= 1024 && filtered.value[0]) {
-    selectedId.value = filtered.value[0].id;
-  }
-});
-
 function ago(value: string | undefined) {
   if (!value) return "";
   const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
@@ -173,135 +144,214 @@ function ago(value: string | undefined) {
   return rtf.format(0, "day");
 }
 
+// ---- The list. A customer opens on its own page (/cs/customers/:id).
+function openCustomer(id: string) {
+  navigateTo(`/cs/customers/${id}`);
+}
+function productCount(customerId: string) {
+  return stagesOf(customerId).length;
+}
+// The latest (most advanced) stage among a customer's products.
+function latestStage(customerId: string) {
+  const list = stageBadges(customerId);
+  return list[list.length - 1];
+}
+const agentName = (id: string | null) => {
+  const u = id ? people.value?.find((x) => x.id === id) : null;
+  return u ? u.full_name || u.email : null;
+};
+
+const columns = computed<TableColumn<CsCustomer>[]>(() => [
+  { id: "created", header: t("cs.customers.created") },
+  { id: "customer", header: t("cs.installations.customer") },
+  { id: "contact", header: t("cs.customers.contact") },
+  { id: "area", header: t("cs.customers.area") },
+  { id: "products", header: t("cs.profile.products") },
+  { id: "stage", header: t("cs.installations.stage") },
+  ...(canViewAll.value ? [{ id: "agent", header: t("cs.customers.agent") }] : []),
+  { id: "actions", header: "" },
+]);
+
+const pagination = ref({ pageIndex: 0, pageSize: 50 });
+watch([search, areaFilter, stageFilter, categoryFilter, agentFilter, typeFilter], () => {
+  pagination.value = { ...pagination.value, pageIndex: 0 };
+});
+const pagedCards = computed(() =>
+  filtered.value.slice(pagination.value.pageIndex * pagination.value.pageSize, (pagination.value.pageIndex + 1) * pagination.value.pageSize),
+);
+
+const activeFilterCount = computed(
+  () => [areaFilter.value, stageFilter.value, categoryFilter.value, agentFilter.value, search.value].filter(Boolean).length,
+);
+function clearFilters() {
+  search.value = "";
+  areaFilter.value = null;
+  stageFilter.value = null;
+  categoryFilter.value = null;
+  agentFilter.value = null;
+}
+
 const createOpen = ref(false);
 function openCreate() {
   createOpen.value = true;
 }
-// The record in the details pane changed something the list shows (name,
-// products, stages): reload the list's data too.
-async function onChanged() {
-  await Promise.all([refresh(), refreshProducts()]);
-}
-async function onDeleted() {
-  selectCustomer(null);
-  await onChanged();
-}
 async function onCreated(id: string) {
   await Promise.all([refresh(), refreshProducts()]);
-  selectCustomer(id);
+  openCustomer(id);
 }
 </script>
 
 <template>
-  <!-- One screen tall with its body padding removed, so the list and the
-  details each scroll on their own instead of the whole page. -->
-  <UDashboardPanel :ui="{ root: 'h-svh', body: 'gap-0 overflow-hidden p-0 sm:p-0' }">
+  <UDashboardPanel :ui="{ body: 'kords-canvas' }">
     <template #header>
-      <UDashboardNavbar>
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
-        <template #title>
-          <span class="flex items-center gap-2">
-            {{ t("cs.customers.title") }}
-            <UBadge :label="String(customers?.length ?? 0)" color="neutral" variant="subtle" class="cds-tag" />
-          </span>
-        </template>
+      <KPageHeader :title="t('cs.customers.title')" :count="customers?.length ?? 0">
         <template #right>
-          <UButton
-            v-if="hasPermission('cs_customers', 'create')"
-            icon="i-lucide-plus"
-            :label="t('cs.customers.new')"
-            @click="openCreate"
-          />
+          <UButton v-if="hasPermission('cs_customers', 'create')" icon="i-lucide-plus" :label="t('cs.customers.new')" @click="openCreate" />
         </template>
-      </UDashboardNavbar>
+      </KPageHeader>
+
+      <!-- Search, type tabs and filters in one bar -->
+      <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
+        <div class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+          <UTabs v-model="typeFilter" :items="typeTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full" />
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <UInput v-model="search" icon="i-lucide-search" :placeholder="t('cs.customers.search')" class="min-w-0 flex-1 basis-60 lg:max-w-80 lg:flex-none" />
+          <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-40" />
+          <USelect v-model="stageFilter" :items="stageItems" value-key="value" icon="i-lucide-workflow" class="w-44" />
+          <USelect v-model="categoryFilter" :items="categoryItems" value-key="value" icon="i-lucide-tags" class="w-40" />
+          <USelect v-if="canViewAll" v-model="agentFilter" :items="agentItems" value-key="value" icon="i-lucide-user-round" class="w-40" />
+          <UButton
+            v-if="activeFilterCount"
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            :label="t('crm.deals.clearFilters')"
+            @click="clearFilters"
+          />
+        </div>
+      </div>
     </template>
 
     <template #body>
-      <div class="flex min-h-0 flex-1">
-        <!-- ===== Customer list ===== -->
-        <aside
-          class="min-h-0 w-full flex-col border-default lg:w-96 lg:shrink-0 lg:border-e"
-          :class="selectedCustomer ? 'hidden lg:flex' : 'flex'"
-        >
-          <div class="shrink-0 space-y-3 border-b border-default p-3">
-            <UInput v-model="search" icon="i-lucide-search" :placeholder="t('cs.customers.search')" class="w-full" />
-            <UTabs v-model="typeFilter" :items="typeTabs" value-key="value" variant="pill" size="sm" :content="false" class="w-full" />
-            <div class="grid grid-cols-2 gap-2">
-              <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-full" />
-              <USelect v-model="stageFilter" :items="stageItems" value-key="value" icon="i-lucide-workflow" class="w-full" />
-              <USelect v-model="categoryFilter" :items="categoryItems" value-key="value" icon="i-lucide-tags" :class="canViewAll ? 'w-full' : 'col-span-2 w-full'" />
-              <USelect v-if="canViewAll" v-model="agentFilter" :items="agentItems" value-key="value" icon="i-lucide-user-round" class="w-full" />
-            </div>
-          </div>
-
-          <div v-if="status === 'pending' || status === 'idle'" class="flex justify-center py-10">
-            <UIcon name="i-lucide-loader-2" class="size-5 animate-spin text-muted" />
-          </div>
-          <p v-else-if="!filtered.length" class="p-8 text-center text-sm text-muted">{{ t("cs.customers.empty") }}</p>
-
-          <ul v-else class="min-h-0 flex-1 divide-y divide-default overflow-y-auto overscroll-contain">
-            <li v-for="c in filtered" :key="c.id">
-              <button
-                type="button"
-                class="flex w-full items-center gap-3 px-3 py-3 text-start transition-colors hover:bg-elevated"
-                :class="c.id === selectedId && 'bg-primary/10'"
-                @click="selectCustomer(c.id)"
-              >
-                <UAvatar
-                  :text="isCompanyCustomer(c) ? undefined : customerTitle(c).trim().charAt(0).toUpperCase()"
-                  :icon="isCompanyCustomer(c) ? 'i-lucide-building-2' : undefined"
-                  size="md"
-                />
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate font-medium text-highlighted">{{ customerTitle(c) }}</span>
-                  <span v-if="customerSubtitle(c)" class="block truncate text-xs text-toned">{{ customerSubtitle(c) }}</span>
-                  <span class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-                    <bdi v-if="c.phone" dir="ltr">{{ c.phone }}</bdi>
-                    <span v-if="c.phone">·</span>
-                    <span>{{ ago(c.created_at) }}</span>
-                  </span>
-                </span>
-                <span class="flex shrink-0 items-center gap-2">
-                  <span v-if="stagesOf(c.id).length" class="flex items-center gap-1">
-                    <UBadge
-                      :label="stageName(stageBadges(c.id)[stageBadges(c.id).length - 1]!)"
-                      :color="stageColor(stageBadges(c.id)[stageBadges(c.id).length - 1]!)"
-                      variant="subtle"
-                      size="sm"
-                      class="cds-tag hidden sm:inline-flex"
-                    />
-                    <span class="text-xs text-muted">{{ stagesOf(c.id).length }}</span>
-                  </span>
-                  <a
-                    v-if="toWhatsAppLink(c.phone)"
-                    :href="toWhatsAppLink(c.phone)!"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    :aria-label="t('crm.deals.chatOnWhatsApp')"
-                    class="flex size-8 items-center justify-center text-[#25D366] hover:opacity-80"
-                    @click.stop
-                  >
-                    <UIcon name="i-simple-icons-whatsapp" class="size-5" />
-                  </a>
-                </span>
-              </button>
-            </li>
-          </ul>
-        </aside>
-
-        <!-- ===== Details ===== -->
-        <section class="min-h-0 min-w-0 flex-1 flex-col overflow-y-auto" :class="selectedCustomer ? 'flex' : 'hidden lg:flex'">
-          <div v-if="!selectedCustomer" class="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-muted">
-            <UIcon name="i-lucide-user-round-search" class="size-10" />
-            <p class="text-sm">{{ t("cs.customers.selectCustomer") }}</p>
-          </div>
-          <div v-else class="p-4 sm:p-6">
-            <CsCustomerProfile :key="selectedCustomer.id" :customer-id="selectedCustomer.id" @back="selectCustomer(null)" @changed="onChanged" @deleted="onDeleted" />
-          </div>
-        </section>
+      <div v-if="status === 'pending' || status === 'idle'" class="flex justify-center py-16">
+        <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
+      <div v-else-if="!filtered.length" class="kords-card flex flex-col items-center gap-2 p-12 text-center text-muted">
+        <UIcon name="i-lucide-user-round-search" class="size-9" />
+        <p class="text-sm">{{ t("cs.customers.empty") }}</p>
+        <UButton v-if="activeFilterCount" color="neutral" variant="outline" size="sm" :label="t('crm.deals.clearFilters')" @click="clearFilters" />
+      </div>
+
+      <template v-else>
+        <!-- Phone: cards -->
+        <div class="space-y-2 md:hidden">
+          <button
+            v-for="c in pagedCards"
+            :key="c.id"
+            type="button"
+            class="kords-kcard flex w-full items-center gap-3 border border-default bg-default p-3 text-start"
+            @click="openCustomer(c.id)"
+          >
+            <KAvatar :name="isCompanyCustomer(c) ? null : customerTitle(c)" kind="contact" :icon="isCompanyCustomer(c) ? 'i-lucide-building-2' : undefined" size="lg" />
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-semibold text-highlighted">{{ customerTitle(c) }}</span>
+              <span v-if="customerSubtitle(c)" class="block truncate text-xs text-toned">{{ customerSubtitle(c) }}</span>
+              <span class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                <bdi v-if="c.phone" dir="ltr">{{ c.phone }}</bdi>
+                <span v-if="areaName(c.area_id)" class="flex items-center gap-1"><UIcon name="i-lucide-map-pin" class="size-3" />{{ areaName(c.area_id) }}</span>
+                <span v-if="productCount(c.id)">{{ t("cs.customers.productsCount", { count: productCount(c.id) }) }}</span>
+              </span>
+            </span>
+            <KBadge v-if="latestStage(c.id)" :label="stageName(latestStage(c.id)!)" :tone="stageColor(latestStage(c.id)!)" class="shrink-0" />
+          </button>
+        </div>
+
+        <!-- Desktop: table -->
+        <UTable
+          v-model:pagination="pagination"
+          :data="filtered"
+          :columns="columns"
+          :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
+          :ui="{ root: 'kords-card hidden shrink-0 overflow-hidden md:block [&_tbody_tr]:cursor-pointer' }"
+          @select="(_e, row) => openCustomer(row.original.id)"
+        >
+          <template #created-cell="{ row }">
+            <div class="whitespace-nowrap text-sm">
+              <div class="text-highlighted">{{ formatDate((row.original.created_at ?? "").slice(0, 10)) }}</div>
+              <div class="text-xs text-muted">{{ ago(row.original.created_at) }}</div>
+            </div>
+          </template>
+          <template #customer-cell="{ row }">
+            <div class="flex min-w-0 items-center gap-3">
+              <KAvatar
+                :name="isCompanyCustomer(row.original) ? null : customerTitle(row.original)"
+                kind="contact"
+                :icon="isCompanyCustomer(row.original) ? 'i-lucide-building-2' : undefined"
+                size="md"
+              />
+              <div class="min-w-0">
+                <div class="truncate font-medium text-highlighted">{{ customerTitle(row.original) }}</div>
+                <div v-if="customerSubtitle(row.original)" class="truncate text-xs text-toned">{{ customerSubtitle(row.original) }}</div>
+              </div>
+            </div>
+          </template>
+          <template #contact-cell="{ row }">
+            <div class="text-sm">
+              <bdi v-if="row.original.phone" dir="ltr" class="text-highlighted">{{ row.original.phone }}</bdi>
+              <span v-else class="text-muted">—</span>
+              <div v-if="row.original.extra_phones?.length" class="text-xs text-muted">+{{ row.original.extra_phones.length }}</div>
+            </div>
+          </template>
+          <template #area-cell="{ row }">
+            <span class="text-sm">{{ areaName(row.original.area_id) || "—" }}</span>
+          </template>
+          <template #products-cell="{ row }">
+            <div v-if="productCount(row.original.id)" class="flex flex-wrap items-center gap-1">
+              <KBadge :label="String(productCount(row.original.id))" tone="primary" />
+              <KBadge v-for="n in categoriesOf(row.original.id).slice(0, 2)" :key="n" :label="n" tone="neutral" outlined />
+              <span v-if="categoriesOf(row.original.id).length > 2" class="text-xs text-muted">+{{ categoriesOf(row.original.id).length - 2 }}</span>
+            </div>
+            <span v-else class="text-sm text-muted">—</span>
+          </template>
+          <template #stage-cell="{ row }">
+            <KBadge v-if="latestStage(row.original.id)" :label="stageName(latestStage(row.original.id)!)" :tone="stageColor(latestStage(row.original.id)!)" />
+            <span v-else class="text-sm text-muted">—</span>
+          </template>
+          <template #agent-cell="{ row }">
+            <div v-if="agentName(row.original.cs_agent_id ?? null)" class="flex items-center gap-1.5 text-sm">
+              <KAvatar :name="agentName(row.original.cs_agent_id ?? null)" kind="user" size="2xs" />
+              <span class="truncate">{{ agentName(row.original.cs_agent_id ?? null) }}</span>
+            </div>
+            <span v-else class="text-sm text-muted">—</span>
+          </template>
+          <template #actions-cell="{ row }">
+            <a
+              v-if="toWhatsAppLink(row.original.phone)"
+              :href="toWhatsAppLink(row.original.phone)!"
+              target="_blank"
+              rel="noopener noreferrer"
+              :aria-label="t('crm.deals.chatOnWhatsApp')"
+              class="inline-flex size-8 items-center justify-center text-[#25D366] hover:opacity-80"
+              @click.stop
+            >
+              <UIcon name="i-simple-icons-whatsapp" class="size-5" />
+            </a>
+          </template>
+        </UTable>
+
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <span class="text-sm text-muted">{{ t("cs.customers.total", { count: filtered.length }) }}</span>
+          <UPagination
+            :page="pagination.pageIndex + 1"
+            :items-per-page="pagination.pageSize"
+            :total="filtered.length"
+            :sibling-count="1"
+            @update:page="(p: number) => (pagination = { ...pagination, pageIndex: p - 1 })"
+          />
+        </div>
+      </template>
     </template>
   </UDashboardPanel>
 

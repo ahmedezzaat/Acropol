@@ -1,0 +1,307 @@
+/* Kords design system — the app edition (from design-system-export: LightTheme.ts,
+   _variables.scss, _override.scss, the Vuetify component overrides and the
+   components/kords recipes), ported to Nuxt UI variables. Opt-in via an
+   `html.kords` class (the dashboard layout sets `carbon kords`), the same way
+   `html.carbon` works. The colour palette (kords-primary …) and fonts live in
+   main.css.
+
+   Tokens: primary #211951 (deep indigo) · secondary #5258e4 · accent #15f5ba;
+   text #11142d heading / #334155 body / #64748b description / #777e89 muted;
+   page #f8f9fa, card #fff, hover #f6f9fc, sunken #f2f6fa; border #e5eaef,
+   input border #dfe5ef, focus #5258e4; radius 7px (cards 14px); soft card shadow.
+   Conventions: primary = flat primary button, secondary = tonal (soft),
+   destructive = text / outlined error; status = tinted background + strong text;
+   overdue = error, upcoming = warning, done = success, informational = secondary.
+
+   With Carbon (`html.carbon.kords`): Carbon keeps the table structure (gray header
+   band, flat rows) and the accessible status colours; Kords supplies the colours,
+   radii, fields and cards. Without Carbon, Kords stands alone. */
+
+html.kords {
+  --kords-text-heading: #11142d;
+  --kords-text-body: #334155;
+  --kords-text-description: #64748b;
+  --kords-text-muted: #777e89;
+  --kords-page: #f8f9fa;
+  --kords-hover: #f6f9fc;
+  --kords-sunken: #f2f6fa;
+  --kords-border: #e5eaef;
+  --kords-input-border: #dfe5ef;
+  --kords-focus: #5258e4;
+  --kords-inverse: #211951;
+  --kords-accent: #15f5ba;
+  --kords-shadow-card: 0 0 2px 0 rgba(145, 158, 171, 0.3), 0 12px 24px -4px rgba(145, 158, 171, 0.12);
+
+  /* 7px root radius; cards 14px (Vuetify `rounded="lg"`). */
+  --ui-radius: 7px;
+  --radius-xs: 3.5px;
+  --radius-sm: 7px;
+  --radius-md: 10.5px;
+  --radius-lg: 14px;
+  --radius-xl: 21px;
+  --radius-2xl: 28px;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+
+  --ui-bg: #ffffff;
+  --ui-bg-muted: var(--kords-sunken);
+  --ui-bg-elevated: var(--kords-hover);
+  --ui-bg-accented: #eaeff4;
+  --ui-border: var(--kords-border);
+  --ui-border-muted: var(--kords-border);
+  --ui-border-accented: #cbd5e1;
+
+  --ui-text: var(--kords-text-body);
+  --ui-text-highlighted: var(--kords-text-heading);
+  --ui-text-toned: var(--kords-text-body);
+  --ui-text-muted: var(--kords-text-description);
+  --ui-text-dimmed: var(--kords-text-muted);
+  --ui-text-inverted: #ffffff;
+
+  --ui-primary: var(--color-kords-primary-900);
+  --ui-secondary: var(--color-kords-secondary-400);
+}
+
+/* Headings: heading ink. */
+html.kords h1,
+html.kords h2,
+html.kords h3,
+html.kords h4 {
+  color: var(--kords-text-heading);
+}
+
+/* The page canvas the cards sit on. */
+html.kords .kords-canvas {
+  background: var(--kords-page);
+}
+
+/* Content card: white, 14px, soft card shadow. */
+html.kords .kords-card {
+  background: #ffffff;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--kords-shadow-card);
+  --tw-ring-shadow: 0 0 #0000;
+}
+
+/* Inverse card (deep indigo): white text, mint accent. Tokens are re-pointed
+   locally so every utility inside (text-muted, border-default, bg-default,
+   text-success…) reads correctly on the dark surface. */
+html.kords .kords-card-dark {
+  background: var(--kords-inverse);
+  color: #ffffff;
+  --ui-bg: transparent;
+  --ui-bg-elevated: rgba(255, 255, 255, 0.08);
+  --ui-bg-muted: rgba(255, 255, 255, 0.06);
+  --ui-text: #ffffff;
+  --ui-text-highlighted: #ffffff;
+  --ui-text-toned: rgba(255, 255, 255, 0.85);
+  --ui-text-muted: rgba(255, 255, 255, 0.7);
+  --ui-text-dimmed: rgba(255, 255, 255, 0.5);
+  --ui-border: rgba(255, 255, 255, 0.16);
+  --ui-border-accented: rgba(255, 255, 255, 0.34);
+  --ui-success: var(--kords-accent);
+  --ui-error: #ff9aa8;
+}
+html.kords .kords-card-dark h1,
+html.kords .kords-card-dark h2,
+html.kords .kords-card-dark h3 {
+  color: #ffffff;
+}
+
+/* Buttons: 7px radius, no elevation, weight 400 (Nuxt UI buttons are already flat). */
+html.kords button[data-slot="base"]:not([role]),
+html.kords a[data-slot="base"] {
+  border-radius: 7px;
+}
+
+/* Fields: outlined, 7px, white, #dfe5ef border; indigo focus. (Carbon's filled,
+   bottom-border fields are replaced.) */
+html.kords input[data-slot="base"],
+html.kords textarea[data-slot="base"],
+html.kords [role="combobox"][data-slot="base"],
+html.kords button[aria-haspopup="listbox"][data-slot="base"] {
+  background: #ffffff !important;
+  border-radius: 7px !important;
+  box-shadow: inset 0 0 0 1px var(--kords-input-border) !important;
+  color: var(--kords-text-heading);
+}
+html.kords input[data-slot="base"]:hover,
+html.kords textarea[data-slot="base"]:hover,
+html.kords [role="combobox"][data-slot="base"]:hover,
+html.kords button[aria-haspopup="listbox"][data-slot="base"]:hover {
+  box-shadow: inset 0 0 0 1px var(--color-kords-primary-300) !important;
+}
+html.kords input[data-slot="base"]:focus-visible,
+html.kords textarea[data-slot="base"]:focus-visible,
+html.kords [role="combobox"][data-slot="base"]:focus-visible,
+html.kords button[aria-haspopup="listbox"][data-slot="base"]:focus-visible,
+html.kords [role="combobox"][data-slot="base"][data-state="open"],
+html.kords button[aria-haspopup="listbox"][data-slot="base"][data-state="open"] {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--kords-focus) !important;
+}
+
+/* Tables: Carbon's structure with the Kords colours. */
+html.kords table thead th {
+  background: var(--kords-sunken);
+  color: var(--kords-text-heading);
+  font-weight: 500;
+}
+html.kords table tbody td {
+  border-bottom: 1px solid var(--kords-border);
+}
+html.kords table tbody tr:hover > td {
+  background: var(--kords-hover);
+}
+
+/* Badges and tags: pills (status chips are tinted background + strong text). */
+html.kords .cds-tag {
+  border-radius: 9999px;
+}
+
+/* Pipeline stepper (deal profile): 7px steps like Kords tabs, current one filled primary. */
+html.kords .kords-step {
+  border-radius: 7px;
+  border-color: transparent;
+}
+
+/* Avatar tones (KAvatar): brand ramp for internal users, slate ramp for contacts,
+   light ramp (dark initials) for dense lists. Every dark shade holds white initials at >= 4.5:1. */
+html.kords {
+  --avatar-tone-1: #211951; --avatar-tone-2: #2e2670; --avatar-tone-3: #3b348f; --avatar-tone-4: #4645be; --avatar-tone-5: #5258e4;
+  --avatar-neutral-1: #334155; --avatar-neutral-2: #414f63; --avatar-neutral-3: #4f5d71; --avatar-neutral-4: #5d6b7f; --avatar-neutral-5: #64748b;
+  --avatar-light-1: #e2e5ea; --avatar-light-2: #dde1e7; --avatar-light-3: #d7dce3; --avatar-light-4: #d1d7df; --avatar-light-5: #cbd2db;
+}
+
+/* Kanban: soft rounded lanes holding white cards. The stage colour stays as the
+   lane's top accent; an overdue card gets a red start edge. */
+html.kords .kords-lane {
+  background: #eef1f6;
+  border-radius: 14px;
+  border-width: 4px 0 0 0;
+  overflow: hidden;
+}
+html.kords .kords-lane > div:first-child {
+  background: transparent;
+  border-bottom-color: #e1e7ef;
+}
+html.kords .kords-kcard {
+  background: #ffffff;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: var(--kords-shadow-card);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+html.kords .kords-kcard:hover {
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(33, 25, 81, 0.12);
+}
+html.kords .kords-kcard-late {
+  border-inline-start: 4px solid var(--ui-error);
+}
+
+/* Filter bar: a white strip under the page header, with a segmented view toggle. */
+html.kords .kords-filterbar {
+  background: #ffffff;
+  border-bottom: 1px solid #e5eaef;
+}
+html.kords .kords-segment {
+  background: #eef1f6;
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+}
+html.kords .kords-segment button[data-slot="base"] {
+  border-radius: 7px;
+  box-shadow: none;
+}
+html.kords .kords-segment button[data-slot="base"]:not(.kords-segment-on) {
+  background: transparent;
+  color: #64748b;
+}
+html.kords .kords-segment .kords-segment-on {
+  background: #211951;
+  color: #ffffff;
+}
+html.kords .kords-segment-tabs [data-slot="list"] {
+  background: #eef1f6;
+  border-radius: 9px;
+}
+html.kords .kords-segment-tabs [data-slot="indicator"] {
+  border-radius: 7px;
+}
+
+/* Pill tabs (pipelines, modes): round outlined buttons, the active one filled indigo. */
+html.kords .kords-pilltabs [data-slot="list"] {
+  background: transparent;
+  border: 0;
+  gap: 8px;
+  padding: 0;
+}
+html.kords .kords-pilltabs [data-slot="list"]::before,
+html.kords .kords-pilltabs [data-slot="indicator"] {
+  display: none;
+}
+html.kords .kords-pilltabs [data-slot="trigger"] {
+  flex: none;
+  border-radius: 9999px;
+  padding: 6px 16px;
+  background: #ffffff;
+  color: #64748b;
+  box-shadow: inset 0 0 0 1px #dfe5ef;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+html.kords .kords-pilltabs [data-slot="trigger"]:hover {
+  color: #11142d;
+  box-shadow: inset 0 0 0 1px #5258e4;
+}
+html.kords .kords-pilltabs [data-slot="trigger"][data-state="active"] {
+  background: #211951;
+  color: #ffffff;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+/* Multi-select filter chips (e.g. product category): outlined pills, picked ones tinted indigo. */
+html.kords .kords-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  background: #ffffff;
+  color: #64748b;
+  box-shadow: inset 0 0 0 1px #dfe5ef;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+html.kords .kords-chip:hover {
+  color: #11142d;
+  box-shadow: inset 0 0 0 1px #5258e4;
+}
+html.kords .kords-chip-on {
+  background: rgba(33, 25, 81, 0.08);
+  color: #211951;
+  box-shadow: inset 0 0 0 1.5px #211951;
+  font-weight: 600;
+}
+html.kords .kords-chip-count {
+  border-radius: 9999px;
+  background: #eef1f6;
+  padding: 0 7px;
+  font-size: 11px;
+  line-height: 18px;
+  color: #64748b;
+}
+html.kords .kords-chip-on .kords-chip-count {
+  background: #211951;
+  color: #ffffff;
+}
+
+/* A card that needs attention today (amber start edge); overdue uses .kords-kcard-late. */
+html.kords .kords-card-warn {
+  border-inline-start: 4px solid var(--ui-warning);
+}

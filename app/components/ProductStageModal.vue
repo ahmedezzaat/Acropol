@@ -2,7 +2,8 @@
 // Move a product through its pipeline's stages and keep the date of every
 // stage. Picking the current stage and its date is the common case; the other
 // dates can be filled in or corrected too.
-const props = defineProps<{ product: CsProduct | null }>();
+// `initialStage`: the stage a card was dropped on (drag and drop), pre-selected.
+const props = defineProps<{ product: CsProduct | null; initialStage?: string | null }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
@@ -25,10 +26,13 @@ watch(open, async (isOpen) => {
     .from("customer_product_stage_dates")
     .select("stage_id, reached_on")
     .eq("product_id", props.product.id);
-  stage.value = props.product.stage_id;
+  stage.value = props.initialStage || props.product.stage_id;
   for (const key of Object.keys(dates)) delete dates[key];
   for (const s of productStages.value) dates[s.id] = "";
   for (const row of data ?? []) dates[row.stage_id] = row.reached_on;
+  // A stage picked by dropping a card on it proposes today unless it has a date or must be typed in.
+  const picked = productStages.value.find((s) => s.id === stage.value);
+  if (picked && !dates[picked.id] && !picked.require_date) dates[picked.id] = today;
 });
 
 // Choosing a stage that has no date yet proposes today, except for stages that

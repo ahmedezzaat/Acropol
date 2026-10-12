@@ -287,9 +287,6 @@ function primaryName(lead: Lead) {
 function secondaryName(lead: Lead) {
   return lead.lead_type === "company" && lead.company_name ? lead.name : null;
 }
-function initial(lead: Lead) {
-  return primaryName(lead).trim().charAt(0).toUpperCase() || "?";
-}
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
@@ -382,18 +379,9 @@ function backToList() {
 <template>
   <!-- One screen tall with its body padding removed, so the list and the
   details each scroll on their own instead of the whole page. -->
-  <UDashboardPanel :ui="{ root: 'h-svh', body: 'gap-0 overflow-hidden p-0 sm:p-0' }">
+  <UDashboardPanel :ui="{ root: 'h-svh', body: 'kords-canvas gap-0 overflow-hidden p-0 sm:p-0' }">
     <template #header>
-      <UDashboardNavbar>
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
-        <template #title>
-          <span class="flex items-center gap-2">
-            {{ t("crm.leads.title") }}
-            <UBadge :label="String(leads?.length ?? 0)" color="neutral" variant="subtle" class="cds-tag" />
-          </span>
-        </template>
+      <KPageHeader :title="t('crm.leads.title')" :count="leads?.length ?? 0">
         <template #right>
           <UButton
             v-if="hasPermission('crm_leads', 'create')"
@@ -402,19 +390,19 @@ function backToList() {
             @click="createOpen = true"
           />
         </template>
-      </UDashboardNavbar>
+      </KPageHeader>
     </template>
 
     <template #body>
       <div class="flex min-h-0 flex-1">
         <!-- ===== Contact list ===== -->
         <aside
-          class="min-h-0 w-full flex-col border-default lg:w-96 lg:shrink-0 lg:border-e"
+          class="min-h-0 w-full flex-col border-default bg-white lg:w-96 lg:shrink-0 lg:border-e"
           :class="selectedLead ? 'hidden lg:flex' : 'flex'"
         >
-          <div class="shrink-0 space-y-3 border-b border-default p-3">
+          <div class="kords-filterbar shrink-0 space-y-3 border-b border-default p-3">
             <UInput v-model="search" icon="i-lucide-search" :placeholder="t('crm.leads.searchPlaceholder')" class="w-full" />
-            <UTabs v-model="typeFilter" :items="typeTabs" value-key="value" variant="pill" size="sm" :content="false" class="w-full" />
+            <UTabs v-model="typeFilter" :items="typeTabs" value-key="value" variant="pill" size="sm" :content="false" class="kords-segment-tabs w-full" />
             <div class="grid grid-cols-2 gap-2">
               <USelectMenu
                 v-model="assigneeFilter"
@@ -442,22 +430,16 @@ function backToList() {
                 :class="lead.id === selectedId && 'bg-primary/10'"
                 @click="selectLead(lead.id)"
               >
-                <UAvatar
-                  :text="lead.lead_type === 'company' ? undefined : initial(lead)"
+                <KAvatar
+                  :name="lead.lead_type === 'company' ? null : primaryName(lead)"
                   :icon="lead.lead_type === 'company' ? 'i-lucide-building-2' : undefined"
+                  kind="contact"
                   size="md"
                 />
                 <span class="min-w-0 flex-1">
                   <span class="flex items-center gap-2">
                     <span class="truncate font-medium text-highlighted">{{ primaryName(lead) }}</span>
-                    <UBadge
-                      v-if="canSeeDeals && !leadIdsWithDealsSet.has(lead.id)"
-                      :label="t('crm.leads.noDeal')"
-                      color="warning"
-                      variant="subtle"
-                      size="sm"
-                      class="cds-tag shrink-0"
-                    />
+                    <KBadge v-if="canSeeDeals && !leadIdsWithDealsSet.has(lead.id)" :label="t('crm.leads.noDeal')" tone="warning" class="shrink-0" />
                   </span>
                   <span v-if="secondaryName(lead)" class="block truncate text-xs text-toned">{{ secondaryName(lead) }}</span>
                   <span class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
@@ -467,13 +449,7 @@ function backToList() {
                   </span>
                 </span>
                 <span class="flex shrink-0 items-center gap-2">
-                  <UBadge
-                    :label="t(`crm.leads.status.${lead.status}`)"
-                    :color="statusColors[lead.status]"
-                    variant="subtle"
-                    size="sm"
-                    class="cds-tag hidden sm:inline-flex"
-                  />
+                  <KBadge :label="t(`crm.leads.status.${lead.status}`)" :tone="statusColors[lead.status]" class="hidden sm:inline-flex" />
                   <a
                     v-if="toWhatsAppLink(lead.phone)"
                     :href="toWhatsAppLink(lead.phone)!"
@@ -493,7 +469,7 @@ function backToList() {
 
         <!-- ===== Details ===== -->
         <section
-          class="min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
+          class="kords-canvas min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
           :class="selectedLead ? 'flex' : 'hidden lg:flex'"
         >
           <div v-if="!selectedLead" class="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-muted">
@@ -502,9 +478,9 @@ function backToList() {
           </div>
 
           <template v-else>
-            <div class="space-y-6 p-4 sm:p-6">
+            <div class="space-y-4 p-4 sm:p-6">
               <!-- Header -->
-              <div class="flex flex-wrap items-start gap-3">
+              <div class="kords-card flex flex-wrap items-start gap-3 p-5">
                 <UButton
                   icon="i-lucide-arrow-right"
                   color="neutral"
@@ -513,37 +489,19 @@ function backToList() {
                   :aria-label="t('crm.leads.backToList')"
                   @click="backToList"
                 />
-                <UAvatar
-                  :text="selectedLead.lead_type === 'company' ? undefined : initial(selectedLead)"
+                <KAvatar
+                  :name="selectedLead.lead_type === 'company' ? null : primaryName(selectedLead)"
                   :icon="selectedLead.lead_type === 'company' ? 'i-lucide-building-2' : undefined"
+                  kind="contact"
                   size="xl"
                 />
                 <div class="min-w-0 flex-1">
                   <h2 class="truncate text-xl font-semibold text-highlighted">{{ primaryName(selectedLead) }}</h2>
                   <p v-if="secondaryName(selectedLead)" class="truncate text-sm text-toned">{{ secondaryName(selectedLead) }}</p>
                   <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <UBadge
-                      :label="t(`crm.leads.type.${selectedLead.lead_type}`)"
-                      color="neutral"
-                      variant="subtle"
-                      size="sm"
-                      class="cds-tag"
-                    />
-                    <UBadge
-                      :label="t(`crm.leads.status.${selectedLead.status}`)"
-                      :color="statusColors[selectedLead.status]"
-                      variant="subtle"
-                      size="sm"
-                      class="cds-tag"
-                    />
-                    <UBadge
-                      v-if="selectedLead.customer_id"
-                      :label="t('crm.leads.converted')"
-                      color="success"
-                      variant="subtle"
-                      size="sm"
-                      class="cds-tag"
-                    />
+                    <KBadge :label="t(`crm.leads.type.${selectedLead.lead_type}`)" tone="neutral" />
+                    <KBadge :label="t(`crm.leads.status.${selectedLead.status}`)" :tone="statusColors[selectedLead.status]" />
+                    <KBadge v-if="selectedLead.customer_id" :label="t('crm.leads.converted')" tone="success" />
                   </div>
                 </div>
                 <div class="flex shrink-0 items-center gap-1">
@@ -576,7 +534,7 @@ function backToList() {
               </div>
 
               <!-- Facts -->
-              <dl class="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+              <dl class="kords-card grid gap-x-6 gap-y-4 p-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
                 <div>
                   <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>
                   <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ selectedLead.phone || "—" }}</bdi></dd>
@@ -605,19 +563,19 @@ function backToList() {
                 </div>
               </dl>
 
-              <div>
-                <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{{ t("crm.leads.notes") }}</h3>
-                <p class="whitespace-pre-line bg-muted p-3 text-sm" :class="selectedLead.notes ? 'text-toned' : 'text-muted'">
+              <div class="kords-card p-5">
+                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{{ t("crm.leads.notes") }}</h3>
+                <p class="whitespace-pre-line rounded-[7px] bg-muted p-3 text-sm" :class="selectedLead.notes ? 'text-toned' : 'text-muted'">
                   {{ selectedLead.notes || t("crm.leads.noNotes") }}
                 </p>
               </div>
 
               <!-- Deals -->
-              <div v-if="canSeeDeals" class="border-t border-default pt-5">
+              <div v-if="canSeeDeals" class="kords-card p-5">
                 <div class="mb-3 flex items-center justify-between gap-2">
                   <h3 class="flex items-center gap-2 font-semibold text-highlighted">
                     {{ t("crm.leads.dealsTitle") }}
-                    <UBadge :label="String(leadDeals?.length ?? 0)" color="neutral" variant="subtle" size="sm" class="cds-tag" />
+                    <KBadge :label="String(leadDeals?.length ?? 0)" tone="neutral" />
                   </h3>
                   <UButton
                     v-if="hasPermission('crm_deals', 'create')"
@@ -638,7 +596,7 @@ function backToList() {
                   <li v-for="deal in leadDeals" :key="deal.id">
                     <button
                       type="button"
-                      class="flex w-full flex-wrap items-center justify-between gap-2 border border-default p-3 text-start transition-colors hover:border-primary hover:bg-elevated"
+                      class="kords-kcard flex w-full flex-wrap items-center justify-between gap-2 border border-default p-3 text-start"
                       @click="openDeal(deal.id)"
                     >
                       <span class="min-w-0">
@@ -649,13 +607,7 @@ function backToList() {
                       </span>
                       <span class="flex items-center gap-2">
                         <span v-if="formatMoney(deal.value)" class="text-sm font-semibold text-success">{{ formatMoney(deal.value) }}</span>
-                        <UBadge
-                          :label="stageOf(deal.stage_id)?.name ?? '—'"
-                          :color="stageColor(deal.stage_id)"
-                          variant="subtle"
-                          size="sm"
-                          class="cds-tag"
-                        />
+                        <KBadge :label="stageOf(deal.stage_id)?.name ?? '—'" :tone="stageColor(deal.stage_id)" />
                       </span>
                     </button>
                   </li>

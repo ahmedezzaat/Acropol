@@ -48,7 +48,7 @@ function isOverdue(prod: CsProduct) {
 </script>
 
 <template>
-<article class="@container space-y-4 border border-default bg-default p-4" :class="isOverdue(p) && 'border-s-4 border-s-error'">
+<article class="kords-card @container space-y-4 p-5" :class="isOverdue(p) && 'kords-kcard-late'">
   <div class="flex flex-wrap items-start justify-between gap-2">
     <div class="min-w-0">
       <h4 class="font-semibold text-highlighted">
@@ -56,34 +56,20 @@ function isOverdue(prod: CsProduct) {
         <bdi v-if="p.contract_code" dir="ltr" class="ms-1 text-xs font-normal text-muted">#{{ p.contract_code }}</bdi>
       </h4>
       <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <UBadge :label="stageName(p.stage_id)" :color="stageColor(p.stage_id)" variant="subtle" size="sm" class="cds-tag" />
-        <UBadge
-          v-if="isOverdue(p)"
-          :label="t('cs.installations.overdue', { days: daysInCurrent(p) ?? 0 })"
-          icon="i-lucide-triangle-alert"
-          color="error"
-          variant="subtle"
-          size="sm"
-          class="cds-tag"
-        />
-        <UBadge v-if="categoryName" :label="categoryName" color="neutral" variant="outline" size="sm" class="cds-tag" />
-        <UBadge
+        <KBadge :label="stageName(p.stage_id)" :tone="stageColor(p.stage_id)" />
+        <KBadge v-if="isOverdue(p)" :label="t('cs.installations.overdue', { days: daysInCurrent(p) ?? 0 })" icon="i-lucide-triangle-alert" tone="error" />
+        <KBadge v-if="categoryName" :label="categoryName" tone="neutral" outlined />
+        <KBadge
           v-if="p.warranty_status"
           :label="t(`cs.profile.warranty.${p.warranty_status}`)"
           icon="i-lucide-shield"
-          :color="warrantyColor[p.warranty_status as keyof typeof warrantyColor] ?? 'neutral'"
-          variant="subtle"
-          size="sm"
-          class="cds-tag"
+          :tone="warrantyColor[p.warranty_status as keyof typeof warrantyColor] ?? 'neutral'"
         />
-        <UBadge
+        <KBadge
           v-if="p.payment_status"
           :label="t(`cs.profile.payment.${p.payment_status}`)"
           icon="i-lucide-banknote"
-          :color="paymentColor[p.payment_status as keyof typeof paymentColor] ?? 'neutral'"
-          variant="subtle"
-          size="sm"
-          class="cds-tag"
+          :tone="paymentColor[p.payment_status as keyof typeof paymentColor] ?? 'neutral'"
         />
       </div>
     </div>
@@ -100,7 +86,7 @@ function isOverdue(prod: CsProduct) {
       <li
         v-for="st in stagesOf(p.pipeline_id)"
         :key="st.id"
-        class="border px-1 py-2 text-center"
+        class="kords-step border px-1 py-2 text-center"
         :class="stepClass[stepState(p, st.id)]"
         :aria-current="stepState(p, st.id) === 'current' ? 'step' : undefined"
       >
@@ -152,7 +138,7 @@ function isOverdue(prod: CsProduct) {
   <!-- Package of instruments -->
   <div v-if="items.length">
     <h5 class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{{ t("cs.profile.items") }}</h5>
-    <ul class="divide-y divide-default border border-default">
+    <ul class="divide-y divide-default overflow-hidden rounded-[10px] border border-default">
       <li v-for="i in items" :key="i.id" class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
         <span class="min-w-0 truncate" dir="auto">{{ i.name }}</span>
         <span class="shrink-0 font-semibold text-highlighted">{{ i.quantity }}<span v-if="i.unit" class="ms-1 font-normal text-muted">{{ i.unit }}</span></span>
@@ -160,7 +146,7 @@ function isOverdue(prod: CsProduct) {
     </ul>
   </div>
 
-  <div v-if="p.notes" class="flex gap-2 bg-muted p-3 text-sm text-toned">
+  <div v-if="p.notes" class="flex gap-2 rounded-[10px] bg-muted p-3 text-sm text-toned">
     <UIcon name="i-lucide-sticky-note" class="mt-0.5 size-4 shrink-0 text-muted" />
     <p class="whitespace-pre-line">{{ p.notes }}</p>
   </div>

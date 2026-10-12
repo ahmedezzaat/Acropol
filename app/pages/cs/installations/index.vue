@@ -66,7 +66,16 @@ function customerOf(id: string) {
   return customers.value?.find((c) => c.id === id);
 }
 
-const filtered = computed(() =>
+// Product category chips (multi-select): none picked = every category. "none" is
+// the products without a category.
+const categoryFilter = ref<string[]>([]);
+function toggleCategory(id: string) {
+  categoryFilter.value = categoryFilter.value.includes(id) ? categoryFilter.value.filter((x) => x !== id) : [...categoryFilter.value, id];
+}
+watch(activePipelineId, () => (categoryFilter.value = []));
+
+// Everything except the category filter, so each chip can show its own count.
+const beforeCategory = computed(() =>
   (products.value ?? []).filter((p) => {
     if (p.pipeline_id !== activePipelineId.value) return false;
     const c = customerOf(p.customer_id);
@@ -80,6 +89,19 @@ const filtered = computed(() =>
     return true;
   }),
 );
+const filtered = computed(() =>
+  categoryFilter.value.length ? beforeCategory.value.filter((p) => categoryFilter.value.includes(p.category_id ?? "none")) : beforeCategory.value,
+);
+const categoryChips = computed(() => {
+  const all = (products.value ?? []).filter((p) => p.pipeline_id === activePipelineId.value);
+  const ids = [...new Set(all.map((p) => p.category_id ?? "none"))];
+  const named = ids
+    .filter((id) => id !== "none")
+    .map((id) => ({ id, label: categoryName(id) ?? "—" }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const chips = [...named, ...(ids.includes("none") ? [{ id: "none", label: t("cs.profile.noCategory") }] : [])];
+  return chips.map((c) => ({ ...c, count: beforeCategory.value.filter((p) => (p.category_id ?? "none") === c.id).length }));
+});
 
 function categoryName(id: string | null) {
   return id ? (categories.value?.find((c) => c.id === id)?.name ?? null) : null;
@@ -97,15 +119,38 @@ function overdue(p: CsProduct) {
 
 const stageModalOpen = ref(false);
 const stageProduct = ref<CsProduct | null>(null);
-function openStage(p: CsProduct) {
+const stageTarget = ref<string | null>(null);
+function openStage(p: CsProduct, targetStageId: string | null = null) {
   stageProduct.value = p;
+  stageTarget.value = targetStageId;
   stageModalOpen.value = true;
+}
+
+// ---- Drag and drop: drop a card on another stage to move it. The same dialog as
+// the Update button opens with that stage chosen, since a stage needs its date.
+const canMove = computed(() => hasPermission("cs_customers", "edit"));
+const dragId = ref<string | null>(null);
+const overStage = ref<string | null>(null);
+function onDragStart(e: DragEvent, p: CsProduct) {
+  if (!canMove.value) return e.preventDefault();
+  dragId.value = p.id;
+  e.dataTransfer?.setData("text/plain", p.id);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+}
+function onDragEnd() {
+  dragId.value = null;
+  overStage.value = null;
+}
+function onDrop(stageId: string) {
+  const p = (products.value ?? []).find((x) => x.id === dragId.value);
+  onDragEnd();
+  if (p && p.stage_id !== stageId) openStage(p, stageId);
 }
 async function onStageSaved() {
   await Promise.all([refresh(), refreshDates()]);
 }
 function openCustomer(id: string) {
-  navigateTo({ path: "/cs/customers", query: { id } });
+  navigateTo(`/cs/customers/${id}`);
 }
 
 // ---- View: the list (a table) or the Kanban board (a column per stage).
@@ -156,7 +201,7 @@ const columns = computed<TableColumn<CsProduct>[]>(() => [
   { id: "actions", header: "" },
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 25 });
-watch([search, areaFilter, stageFilter, activePipelineId], () => {
+watch([search, areaFilter, stageFilter, activePipelineId, categoryFilter], () => {
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
@@ -166,23 +211,13 @@ const pagedCards = computed(() =>
 
 <template>
   <!-- The board is one screen tall so every stage column scrolls on its own. -->
-  <UDashboardPanel :ui="viewMode === 'kanban' ? { root: 'h-svh' } : undefined">
+  <UDashboardPanel :ui="viewMode === 'kanban' ? { root: 'h-svh', body: 'kords-canvas' } : { body: 'kords-canvas' }">
     <template #header>
-      <UDashboardNavbar>
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
-        <template #title>
-          <span class="flex items-center gap-2">
-            {{ t("cs.installations.title") }}
-            <UBadge :label="String(filtered.length)" color="neutral" variant="subtle" class="cds-tag" />
-          </span>
-        </template>
-      </UDashboardNavbar>
+      <KPageHeader :title="t('cs.installations.title')" :count="filtered.length" />
 
-      <div class="w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
+      <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
         <div v-if="pipelines.length > 1" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" class="w-max min-w-full" />
+          <UTabs v-model="activePipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs w-max min-w-full" />
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <UInput
@@ -210,6 +245,26 @@ const pagedCards = computed(() =>
             />
           </UButtonGroup>
         </div>
+
+        <!-- Product category: pick one or several -->
+        <div v-if="categoryChips.length" class="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+          <button type="button" class="kords-chip" :class="!categoryFilter.length && 'kords-chip-on'" @click="categoryFilter = []">
+            {{ t("cs.customers.allCategories") }}
+          </button>
+          <button
+            v-for="c in categoryChips"
+            :key="c.id"
+            type="button"
+            class="kords-chip"
+            :class="categoryFilter.includes(c.id) && 'kords-chip-on'"
+            :aria-pressed="categoryFilter.includes(c.id)"
+            @click="toggleCategory(c.id)"
+          >
+            <UIcon v-if="categoryFilter.includes(c.id)" name="i-lucide-check" class="size-3.5" />
+            {{ c.label }}
+            <span class="kords-chip-count">{{ c.count }}</span>
+          </button>
+        </div>
       </div>
     </template>
 
@@ -228,20 +283,26 @@ const pagedCards = computed(() =>
         <div
           v-for="stage in activeStages"
           :key="stage.id"
-          class="flex min-h-0 w-[85vw] shrink-0 snap-center flex-col border border-t-4 border-default bg-muted sm:w-72 sm:snap-align-none"
-          :class="borderByColor[stageColor(stage.id)]"
+          class="kords-lane flex min-h-0 w-[85vw] shrink-0 snap-center flex-col border border-t-4 border-default bg-muted sm:w-72 sm:snap-align-none"
+          :class="[borderByColor[stageColor(stage.id)], dragId && overStage === stage.id && 'ring-2 ring-primary']"
+          @dragover.prevent="overStage = stage.id"
+          @dragleave="overStage === stage.id && (overStage = null)"
+          @drop.prevent="onDrop(stage.id)"
         >
           <div class="flex shrink-0 items-center justify-between gap-2 border-b border-default p-3">
             <span class="truncate font-medium text-highlighted">{{ stage.name }}</span>
-            <UBadge :label="String(inStage(stage.id).length)" color="neutral" variant="subtle" class="cds-tag" />
+            <KBadge :label="String(inStage(stage.id).length)" tone="neutral" />
           </div>
 
           <div class="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2">
             <div
               v-for="p in inStage(stage.id)"
               :key="p.id"
-              class="cursor-pointer border border-default bg-default p-3 text-sm transition-colors hover:border-primary hover:bg-elevated"
-              :class="overdue(p) && 'border-s-4 border-s-error'"
+              class="kords-kcard cursor-pointer border border-default bg-default p-3 text-sm"
+              :class="[overdue(p) && 'kords-kcard-late', canMove && 'cursor-grab active:cursor-grabbing', dragId === p.id && 'opacity-50']"
+              :draggable="canMove"
+              @dragstart="onDragStart($event, p)"
+              @dragend="onDragEnd"
               @click="openCustomer(p.customer_id)"
             >
               <div class="truncate font-semibold text-highlighted">{{ customerOf(p.customer_id) ? customerTitle(customerOf(p.customer_id)!) : "—" }}</div>
@@ -281,7 +342,7 @@ const pagedCards = computed(() =>
           :data="filtered"
           :columns="columns"
           :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
-          :ui="{ root: 'hidden md:block [&_tbody_tr]:cursor-pointer' }"
+          :ui="{ root: 'kords-card hidden shrink-0 overflow-hidden md:block [&_tbody_tr]:cursor-pointer' }"
           @select="(_e, row) => openCustomer(row.original.customer_id)"
         >
           <template #customer-cell="{ row }">
@@ -305,7 +366,7 @@ const pagedCards = computed(() =>
             <span class="text-sm">{{ areaName(customerOf(row.original.customer_id)?.area_id) || "—" }}</span>
           </template>
           <template #stage-cell="{ row }">
-            <UBadge :label="stageName(row.original.stage_id)" :color="stageColor(row.original.stage_id)" variant="subtle" size="sm" class="cds-tag" />
+            <KBadge :label="stageName(row.original.stage_id)" :tone="stageColor(row.original.stage_id)" />
           </template>
           <template #since-cell="{ row }">
             <span class="flex items-center gap-1 text-sm" :class="overdue(row.original) ? 'font-medium text-error' : 'text-muted'">
@@ -335,8 +396,8 @@ const pagedCards = computed(() =>
           <div
             v-for="p in pagedCards"
             :key="p.id"
-            class="cursor-pointer border border-default bg-default p-3 text-sm transition-colors hover:border-primary hover:bg-elevated"
-            :class="overdue(p) && 'border-s-4 border-s-error'"
+            class="kords-kcard cursor-pointer border border-default bg-default p-3 text-sm"
+            :class="overdue(p) && 'kords-kcard-late'"
             @click="openCustomer(p.customer_id)"
           >
             <div class="flex items-start justify-between gap-2">
@@ -344,7 +405,7 @@ const pagedCards = computed(() =>
                 <div class="truncate font-semibold text-highlighted">{{ customerOf(p.customer_id) ? customerTitle(customerOf(p.customer_id)!) : "—" }}</div>
                 <div class="mt-0.5 truncate text-xs text-toned">{{ p.name }}</div>
               </div>
-              <UBadge :label="stageName(p.stage_id)" :color="stageColor(p.stage_id)" variant="subtle" size="sm" class="cds-tag shrink-0" />
+              <KBadge :label="stageName(p.stage_id)" :tone="stageColor(p.stage_id)" class="shrink-0" />
             </div>
             <div class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span class="flex items-center gap-1" :class="overdue(p) ? 'font-medium text-error' : 'text-muted'">
@@ -379,5 +440,5 @@ const pagedCards = computed(() =>
     </template>
   </UDashboardPanel>
 
-  <ProductStageModal v-model:open="stageModalOpen" :product="stageProduct" @saved="onStageSaved" />
+  <ProductStageModal v-model:open="stageModalOpen" :product="stageProduct" :initial-stage="stageTarget" @saved="onStageSaved" />
 </template>

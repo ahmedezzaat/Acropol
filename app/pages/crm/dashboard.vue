@@ -353,15 +353,15 @@ const dealsByTeam = computed<TeamCount[]>(() => {
 
       <div v-else class="space-y-6">
         <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-          <UPageCard v-if="canLeads" to="/crm/leads">
+          <UPageCard class="kords-card" v-if="canLeads" to="/crm/leads">
             <div class="text-2xl font-bold text-highlighted">{{ leadsData?.length ?? 0 }}</div>
             <div class="text-sm text-muted">{{ t("crm.dashboard.totalLeads") }}</div>
           </UPageCard>
-          <UPageCard v-if="canDeals" to="/crm/deals?assignee=all">
+          <UPageCard class="kords-card" v-if="canDeals" to="/crm/deals?assignee=all">
             <div class="text-2xl font-bold text-highlighted">{{ dealsData?.length ?? 0 }}</div>
             <div class="text-sm text-muted">{{ t("crm.dashboard.totalDeals") }}</div>
           </UPageCard>
-          <UPageCard v-if="canCustomers" to="/crm/customers">
+          <UPageCard class="kords-card" v-if="canCustomers" to="/crm/customers">
             <div class="text-2xl font-bold text-highlighted">{{ customersCount ?? 0 }}</div>
             <div class="text-sm text-muted">{{ t("crm.dashboard.totalCustomers") }}</div>
           </UPageCard>
@@ -369,7 +369,7 @@ const dealsByTeam = computed<TeamCount[]>(() => {
           feature — see crm/deals/[id].vue and layouts/dashboard.vue. -->
         </div>
 
-        <UPageCard v-if="canLeads" :title="t('crm.dashboard.leadsByType')">
+        <UPageCard class="kords-card" v-if="canLeads" :title="t('crm.dashboard.leadsByType')">
           <div v-if="!leadsData?.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
           <div v-else class="flex gap-8">
             <div>
@@ -383,7 +383,7 @@ const dealsByTeam = computed<TeamCount[]>(() => {
           </div>
         </UPageCard>
 
-        <UPageCard v-if="canDeals" :title="t('crm.dashboard.dealsByStage')">
+        <UPageCard class="kords-card" v-if="canDeals" :title="t('crm.dashboard.dealsByStage')">
           <div v-if="!dealsByStage.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
           <template v-else>
             <!-- One hue, lightness stepped by position in the funnel (a
@@ -425,7 +425,7 @@ const dealsByTeam = computed<TeamCount[]>(() => {
         </UPageCard>
 
         <div v-if="canDeals" class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <UPageCard :title="t('crm.dashboard.dealsByAgent')">
+          <UPageCard class="kords-card" :title="t('crm.dashboard.dealsByAgent')">
             <div v-if="!dealsByAgent.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
             <table v-else class="w-full text-sm">
               <thead>
@@ -443,7 +443,7 @@ const dealsByTeam = computed<TeamCount[]>(() => {
             </table>
           </UPageCard>
 
-          <UPageCard :title="t('crm.dashboard.dealsByTeam')">
+          <UPageCard class="kords-card" :title="t('crm.dashboard.dealsByTeam')">
             <div v-if="!dealsByTeam.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
             <table v-else class="w-full text-sm">
               <thead>

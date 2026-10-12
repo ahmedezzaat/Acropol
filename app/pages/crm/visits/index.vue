@@ -249,7 +249,7 @@ function actionColor(a: VisitAction) {
 
       <div class="w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
         <div class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <UTabs v-model="filter" :items="filterTabs" value-key="value" variant="link" :content="false" class="w-max min-w-full" />
+          <UTabs v-model="filter" :items="filterTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs w-max min-w-full" />
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <UInput

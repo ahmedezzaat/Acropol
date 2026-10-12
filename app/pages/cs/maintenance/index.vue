@@ -347,20 +347,10 @@ function openRecord(productId: string) {
 <template>
   <UDashboardPanel>
     <template #header>
-      <UDashboardNavbar>
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
-        <template #title>
-          <span class="flex items-center gap-2">
-            {{ t("cs.maintenance.title") }}
-            <UBadge :label="String(counts.all)" color="neutral" variant="subtle" class="cds-tag" />
-          </span>
-        </template>
-      </UDashboardNavbar>
+      <KPageHeader :title="t('cs.maintenance.title')" :count="counts.all" />
 
       <div class="w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
-        <UTabs v-model="mode" :items="modeTabs" value-key="value" variant="link" size="sm" :content="false" />
+        <UTabs v-model="mode" :items="modeTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs" />
         <div v-if="mode === 'track'" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
           <UTabs v-model="period" :items="periodTabs" value-key="value" variant="pill" size="sm" :content="false" class="w-max min-w-full sm:w-auto sm:min-w-0" />
         </div>
@@ -459,13 +449,10 @@ function openRecord(productId: string) {
                 {{ whenText(row.original) }}
               </div>
               <div class="mt-1 flex flex-wrap items-center gap-1">
-                <UBadge
+                <KBadge
                   v-if="bucket(row.original) !== 'later'"
                   :label="badgeLabel(row.original)"
-                  :color="bucketColor[bucket(row.original)]"
-                  variant="subtle"
-                  size="sm"
-                  class="cds-tag"
+                  :tone="bucketColor[bucket(row.original)]"
                 />
                 <span class="text-xs text-muted">
                   {{ row.original.appointment ? t("cs.maintenance.appointment") : t("cs.maintenance.periodicShort") }}
@@ -564,13 +551,12 @@ function openRecord(productId: string) {
                   {{ r.p.name }}<bdi v-if="r.p.contract_code" dir="ltr" class="ms-1 text-muted">#{{ r.p.contract_code }}</bdi>
                 </div>
               </div>
-              <UBadge
+              <KBadge
                 v-if="bucket(r) !== 'later'"
                 :label="bucket(r) === 'unscheduled' ? t('cs.maintenance.unscheduled') : badgeLabel(r)"
-                :color="bucketColor[bucket(r)]"
-                :variant="bucket(r) === 'unscheduled' ? 'outline' : 'subtle'"
-                size="sm"
-                class="cds-tag shrink-0"
+                :tone="bucketColor[bucket(r)]"
+                :outlined="bucket(r) === 'unscheduled'"
+                class="shrink-0"
               />
             </div>
             <div class="mt-2 flex items-center justify-between gap-2 text-xs">

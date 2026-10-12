@@ -9,7 +9,8 @@ definePageMeta({
 
 const route = useRoute();
 const dealId = route.params.id as string;
-useHead({ htmlAttrs: { class: "carbon" } });
+// The Kords design system look (app/assets/css/kords.css).
+useHead({ htmlAttrs: { class: "kords" } });
 
 const supabase = useSupabaseClient();
 const toast = useToast();
@@ -516,14 +517,29 @@ async function confirmReassign() {
 // already has its products recorded is not asked again.
 const wonProducts = ref<WonProductDraft[]>([]);
 const wonHasProducts = ref(false);
+// ...and its contract file (an upload, unless the deal already has one).
+const contractFile = ref<File | null>(null);
+const hasContract = ref(false);
 async function prepareWonProducts(closeDate: string) {
   wonProducts.value = [
     newWonProduct({ name: deal.value?.title ?? "", contract_date: closeDate, sales_person_id: deal.value?.assigned_to ?? null }),
   ];
-  wonHasProducts.value = await dealHasProducts(supabase, dealId);
+  contractFile.value = null;
+  const [products, contract] = await Promise.all([dealHasProducts(supabase, dealId), dealHasContract(supabase, dealId)]);
+  wonHasProducts.value = products;
+  hasContract.value = contract;
 }
-const wonProductsOk = computed(() => wonHasProducts.value || wonProductsValid(wonProducts.value));
+const wonProductsOk = computed(
+  () => (wonHasProducts.value || wonProductsValid(wonProducts.value)) && (hasContract.value || !!contractFile.value),
+);
+// Stores the contract file, then the products, before the deal moves to Won.
 async function saveWonProducts(customerId: string | null) {
+  if (!hasContract.value && contractFile.value) {
+    const contractError = await uploadDealContract(supabase, dealId, contractFile.value);
+    if (contractError) return contractError;
+    hasContract.value = true;
+    refreshAttachments();
+  }
   if (wonHasProducts.value) return null;
   if (!customerId) return t("crm.deals.noLeadForConversion");
   return await recordDealProducts(supabase, dealId, customerId, wonProducts.value);
@@ -554,6 +570,16 @@ const isOfferSentStage = computed(() => pendingStage.value?.system_key === "offe
 // (which already require picking a reason) — those already capture "why"
 // well enough on their own.
 const noteRequired = computed(() => !isWonStage.value && !pendingStage.value?.reason_category);
+
+// Arriving from a drag-and-drop on the board (?changeStage=<stage id>): open the
+// stage dialog for that stage straight away.
+onMounted(() => {
+  const target = route.query.changeStage;
+  if (typeof target === "string") {
+    selectStage(target);
+    navigateTo({ path: route.path, query: {} }, { replace: true });
+  }
+});
 
 function selectStage(stageId: string) {
   if (!canEdit.value || !deal.value || stageId === deal.value.stage_id) return;
@@ -1095,11 +1121,11 @@ const openStages = computed(() => pipelineStages.value.filter((s) => !s.is_close
 const closedStages = computed(() => pipelineStages.value.filter((s) => s.is_closed));
 const currentOpenIndex = computed(() => openStages.value.findIndex((s) => s.id === deal.value?.stage_id));
 function stepClass(index: number) {
-  if (index === currentOpenIndex.value) return "border-primary bg-primary font-semibold text-inverted";
+  if (index === currentOpenIndex.value) return "kords-step bg-primary font-semibold text-inverted shadow-[0_8px_24px_-12px_rgba(33,25,81,0.6)]";
   // A closed deal has been through every open stage.
   if (currentOpenIndex.value === -1 || index < currentOpenIndex.value)
-    return "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20";
-  return "border-default bg-default text-muted hover:bg-elevated";
+    return "kords-step bg-primary/10 text-primary hover:bg-primary/15";
+  return "kords-step bg-[#f5f5f7] text-[#6e6e73] hover:bg-primary/10";
 }
 function closeColor(stage: Stage): "success" | "error" | "neutral" {
   if (stage.system_key === "won") return "success";
@@ -1128,7 +1154,7 @@ function isPastDue(iso: string | null) {
 </script>
 
 <template>
-  <UDashboardPanel>
+  <UDashboardPanel :ui="{ body: 'kords-canvas' }">
     <template #header>
       <UDashboardNavbar :title="deal?.title ?? t('crm.deals.title')">
         <template #leading>
@@ -1149,7 +1175,7 @@ function isPastDue(iso: string | null) {
         <!-- Main column -->
         <div class="space-y-6 lg:col-span-2">
           <!-- Deal summary -->
-          <UPageCard>
+          <UPageCard class="kords-card kords-card-dark">
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div class="min-w-0">
                 <h2 class="truncate text-xl font-semibold text-highlighted">{{ contactName }}</h2>
@@ -1177,11 +1203,7 @@ function isPastDue(iso: string | null) {
               <div>
                 <dt class="text-xs text-muted">{{ t("crm.deals.assignedTo") }}</dt>
                 <dd class="mt-1 flex items-center gap-1.5 text-sm font-medium text-highlighted">
-                  <UAvatar
-                    :text="deal.assigned_to ? profileLabel(deal.assigned_to).charAt(0).toUpperCase() : undefined"
-                    :icon="deal.assigned_to ? undefined : 'i-lucide-user-round'"
-                    size="2xs"
-                  />
+                  <KAvatar :name="deal.assigned_to ? profileLabel(deal.assigned_to) : null" kind="user" size="2xs" />
                   <span class="truncate">{{ profileLabel(deal.assigned_to) }}</span>
                 </dd>
               </div>
@@ -1243,8 +1265,8 @@ function isPastDue(iso: string | null) {
           </UPageCard>
 
           <!-- Pipeline stepper -->
-          <UPageCard>
-            <div class="grid grid-cols-2 gap-1.5 sm:flex sm:gap-0 sm:overflow-x-auto">
+          <UPageCard class="kords-card">
+            <div class="grid grid-cols-2 gap-1.5 sm:flex sm:gap-2 sm:overflow-x-auto">
               <button
                 v-for="(stage, index) in openStages"
                 :key="stage.id"
@@ -1277,7 +1299,7 @@ function isPastDue(iso: string | null) {
           </UPageCard>
 
           <!-- Trips & inspections -->
-          <UPageCard v-if="canSeeVisits" :title="t('crm.visits.dealCardTitle')">
+          <UPageCard class="kords-card" v-if="canSeeVisits" :title="t('crm.visits.dealCardTitle')">
             <div class="space-y-2">
               <NuxtLink
                 v-for="v in dealVisits"
@@ -1306,7 +1328,7 @@ function isPastDue(iso: string | null) {
           </UPageCard>
 
           <!-- Upcoming -->
-          <UPageCard v-if="upcomingActivities.length" :title="t('crm.deals.timeline.upcomingTitle')">
+          <UPageCard class="kords-card" v-if="upcomingActivities.length" :title="t('crm.deals.timeline.upcomingTitle')">
             <div class="space-y-2">
               <div
                 v-for="activity in upcomingActivities"
@@ -1347,7 +1369,7 @@ function isPastDue(iso: string | null) {
           </UPageCard>
 
           <!-- Timeline -->
-          <UPageCard>
+          <UPageCard class="kords-card">
             <template #header>
               <h2 class="font-semibold text-highlighted">{{ t("crm.deals.timeline.title") }}</h2>
             </template>
@@ -1417,7 +1439,7 @@ function isPastDue(iso: string | null) {
 
         <!-- Sidebar -->
         <div class="space-y-6">
-          <UPageCard :title="t('crm.deals.contactTitle')">
+          <UPageCard class="kords-card" :title="t('crm.deals.contactTitle')">
             <div v-if="customer" class="space-y-1 text-sm">
               <p class="font-medium text-highlighted">{{ customer.name }}</p>
               <p v-if="customer.company" class="text-muted">{{ customer.company }}</p>
@@ -1492,7 +1514,7 @@ function isPastDue(iso: string | null) {
             </div>
           </UPageCard>
 
-          <UPageCard :title="t('common.details')">
+          <UPageCard class="kords-card" :title="t('common.details')">
             <div class="space-y-4">
               <UFormField :label="t('crm.deals.dealTitle')">
                 <UInput v-model="deal.title" :disabled="!canEdit" class="w-full" />
@@ -1532,7 +1554,7 @@ function isPastDue(iso: string | null) {
           <!-- Quotes card temporarily hidden — see layouts/dashboard.vue for
           the matching hide of the sidebar's Quotes nav entry. -->
 
-          <UPageCard v-if="attachments?.length" :title="t('crm.deals.attachmentsTitle')">
+          <UPageCard class="kords-card" v-if="attachments?.length" :title="t('crm.deals.attachmentsTitle')">
             <ul class="divide-y divide-default">
               <li v-for="attachment in attachments" :key="attachment.id" class="py-2">
                 <button
@@ -1569,6 +1591,9 @@ function isPastDue(iso: string | null) {
         </UFormField>
         <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
           <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
+        </UFormField>
+        <UFormField v-if="reassignIsWon && !hasContract" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
+          <UFileUpload v-model="contractFile" class="w-full" />
         </UFormField>
         <WonProductsFields
           v-if="reassignIsWon && !wonHasProducts"
@@ -1610,6 +1635,9 @@ function isPastDue(iso: string | null) {
           </UFormField>
           <UFormField :label="t('crm.deals.wonDate')" required>
             <UInput v-model="pendingCloseDate" type="date" class="w-full" />
+          </UFormField>
+          <UFormField v-if="!hasContract" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
+            <UFileUpload v-model="contractFile" class="w-full" />
           </UFormField>
           <WonProductsFields v-if="!wonHasProducts" v-model="wonProducts" :defaults="{ contract_date: pendingCloseDate, sales_person_id: deal?.assigned_to ?? null }" />
         </template>
@@ -1732,6 +1760,9 @@ function isPastDue(iso: string | null) {
           </UFormField>
           <UFormField :label="t('crm.deals.wonDate')" required>
             <UInput v-model="completeCloseDate" type="date" class="w-full" />
+          </UFormField>
+          <UFormField v-if="completeStageChanged && !hasContract" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
+            <UFileUpload v-model="contractFile" class="w-full" />
           </UFormField>
           <WonProductsFields
             v-if="completeStageChanged && !wonHasProducts"

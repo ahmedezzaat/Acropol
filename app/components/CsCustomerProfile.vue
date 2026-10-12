@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// The whole customer record (header, contact details, products with their funnel
-// and maintenance, linked CRM deals). It sits in the details pane of the
-// customers list; the parent re-creates it for each customer (:key).
+// The whole customer record: an identity card with the contact details on one
+// side, the products (funnel, warranty, maintenance) on the other. It is the body
+// of /cs/customers/:id; the page re-creates it for each customer (:key).
 const props = defineProps<{ customerId: string }>();
-const emit = defineEmits<{ back: []; changed: []; deleted: [] }>();
+const emit = defineEmits<{ changed: []; deleted: [] }>();
 const customerId = props.customerId;
 
 const supabase = useSupabaseClient();
@@ -264,6 +264,16 @@ function isOverdue(p: CsProduct) {
   const days = daysInCurrent(p);
   return limit !== null && days !== null && days > limit;
 }
+
+// A slim summary above the products: how many are done, how many are late, and
+// the soonest maintenance appointment.
+const completedCount = computed(() => products.value.filter((p) => !!stageById(p.stage_id)?.is_final).length);
+const overdueCount = computed(() => products.value.filter((p) => isOverdue(p)).length);
+const nextMaintenance = computed(() => {
+  const times = products.value.filter((p) => !p.maintenance_declined_at && p.next_maintenance_at).map((p) => p.next_maintenance_at!);
+  return times.sort()[0] ?? null;
+});
+const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(nextMaintenance.value).getTime() < Date.now());
 </script>
 
 <template>
@@ -273,46 +283,36 @@ function isOverdue(p: CsProduct) {
     </div>
     <p v-else-if="!customer" class="py-16 text-center text-sm text-muted">{{ t("cs.profile.notFound") }}</p>
 
-    <div v-else class="mx-auto w-full max-w-4xl space-y-6">
-      <!-- ===== Header ===== -->
-      <section class="border border-default bg-default">
-        <div class="flex flex-wrap items-center gap-4 p-4 @lg:p-5">
-          <UButton
-            icon="i-lucide-arrow-right"
-            color="neutral"
-            variant="ghost"
-            class="lg:hidden rtl:rotate-0 ltr:rotate-180"
-            :aria-label="t('cs.profile.back')"
-            @click="emit('back')"
-          />
-          <UAvatar
-            :text="isCompanyCustomer(customer) ? undefined : customerTitle(customer).trim().charAt(0).toUpperCase()"
+    <div v-else class="mx-auto grid w-full max-w-6xl gap-5 @4xl:grid-cols-[21rem_minmax(0,1fr)] @4xl:items-start">
+      <!-- ===== Side: who the customer is ===== -->
+      <aside class="space-y-4">
+        <section class="kords-card p-5 text-center">
+          <KAvatar
+            :name="isCompanyCustomer(customer) ? null : customerTitle(customer)"
+            kind="contact"
             :icon="isCompanyCustomer(customer) ? 'i-lucide-building-2' : undefined"
             size="3xl"
+            class="mx-auto"
           />
-          <div class="min-w-0 flex-1 basis-56">
-            <h2 class="text-xl font-semibold text-highlighted sm:text-2xl">{{ customerTitle(customer) }}</h2>
-            <p v-if="customerSubtitle(customer)" class="text-sm text-toned">{{ customerSubtitle(customer) }}</p>
-            <div class="mt-2 flex flex-wrap items-center gap-1.5">
-              <UBadge
-                :label="t(`crm.leads.type.${isCompanyCustomer(customer) ? 'company' : 'individual'}`)"
-                color="neutral"
-                variant="subtle"
-                size="sm"
-                class="cds-tag"
-              />
-              <UBadge v-if="areaName(customer.area_id)" :label="areaName(customer.area_id)" icon="i-lucide-map-pin" color="neutral" variant="outline" size="sm" class="cds-tag" />
-              <span class="text-xs text-muted">{{ t("cs.profile.customerSince", { date: customerSince }) }}</span>
-            </div>
+          <h2 class="mt-3 text-xl font-semibold text-highlighted">{{ customerTitle(customer) }}</h2>
+          <p v-if="customerSubtitle(customer)" class="text-sm text-toned">{{ customerSubtitle(customer) }}</p>
+          <div class="mt-2.5 flex flex-wrap items-center justify-center gap-1.5">
+            <KBadge :label="t(`crm.leads.type.${isCompanyCustomer(customer) ? 'company' : 'individual'}`)" tone="neutral" />
+            <KBadge v-if="areaName(customer.area_id)" :label="areaName(customer.area_id)" icon="i-lucide-map-pin" tone="neutral" outlined />
           </div>
-          <div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
+          <p class="mt-2 text-xs text-muted">{{ t("cs.profile.customerSince", { date: customerSince }) }}</p>
+
+          <!-- Quick contact -->
+          <div class="mt-4 flex items-center justify-center gap-2">
             <UButton
               v-if="customer.phone"
               :to="`tel:${customer.phone}`"
               icon="i-lucide-phone"
               color="neutral"
               variant="outline"
-              :label="t('crm.deals.callContact')"
+              class="rounded-full"
+              :aria-label="t('crm.deals.callContact')"
+              :title="t('crm.deals.callContact')"
             />
             <UButton
               v-if="toWhatsAppLink(customer.phone)"
@@ -322,7 +322,9 @@ function isOverdue(p: CsProduct) {
               icon="i-simple-icons-whatsapp"
               color="neutral"
               variant="outline"
-              :label="t('cs.profile.whatsapp')"
+              class="rounded-full"
+              :aria-label="t('cs.profile.whatsapp')"
+              :title="t('cs.profile.whatsapp')"
             />
             <UButton
               v-if="customer.email"
@@ -330,7 +332,9 @@ function isOverdue(p: CsProduct) {
               icon="i-lucide-mail"
               color="neutral"
               variant="outline"
+              class="rounded-full"
               :aria-label="t('common.email')"
+              :title="t('common.email')"
             />
             <UButton
               :to="`/cs/print/${customerId}`"
@@ -338,118 +342,126 @@ function isOverdue(p: CsProduct) {
               icon="i-lucide-printer"
               color="neutral"
               variant="outline"
+              class="rounded-full"
               :aria-label="t('cs.print.printCustomer')"
               :title="t('cs.print.printCustomer')"
             />
-            <UButton v-if="canAssign" icon="i-lucide-user-plus" color="neutral" variant="outline" :label="t('cs.customers.assign')" @click="openAssign" />
-            <UButton v-if="canEdit" icon="i-lucide-pencil" :label="t('cs.customers.edit')" @click="openEdit" />
-            <UButton
-              v-if="canDelete"
-              icon="i-lucide-trash"
-              color="error"
-              variant="outline"
-              :aria-label="t('cs.customers.delete')"
-              @click="askDeleteCustomer"
-            />
           </div>
-        </div>
+
+          <div v-if="canEdit || canAssign || canDelete" class="mt-4 space-y-2 border-t border-default pt-4">
+            <UButton v-if="canEdit" icon="i-lucide-pencil" :label="t('cs.customers.edit')" block @click="openEdit" />
+            <UButton v-if="canAssign" icon="i-lucide-user-plus" color="neutral" variant="outline" :label="t('cs.customers.assign')" block @click="openAssign" />
+            <UButton v-if="canDelete" icon="i-lucide-trash" color="error" variant="ghost" :label="t('cs.customers.delete')" block @click="askDeleteCustomer" />
+          </div>
+        </section>
 
         <!-- Contact details -->
-        <dl class="grid border-t border-default text-sm @lg:grid-cols-2 @lg:[&>div:nth-child(odd)]:border-e">
-          <div class="flex items-start justify-between gap-3 px-4 py-3 @lg:px-5">
-            <div class="min-w-0">
-              <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>
-              <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ customer.phone || "—" }}</bdi></dd>
+        <section class="kords-card p-5">
+          <h3 class="mb-3 text-sm font-semibold text-highlighted">{{ t("cs.profile.contactInfo") }}</h3>
+          <dl class="space-y-3.5 text-sm">
+            <div class="flex items-start gap-3">
+              <UIcon name="i-lucide-phone" class="mt-0.5 size-4 shrink-0 text-muted" />
+              <div class="min-w-0 flex-1">
+                <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>
+                <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ customer.phone || "—" }}</bdi></dd>
+              </div>
+              <UButton v-if="customer.phone" icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(customer.phone)" />
             </div>
-            <UButton
-              v-if="customer.phone"
-              icon="i-lucide-copy"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              :aria-label="t('cs.profile.copy')"
-              @click="copyText(customer.phone)"
-            />
-          </div>
-          <div v-if="customer.extra_phones?.length" class="border-t border-default px-4 py-3 @lg:col-span-2 @lg:px-5">
-          <dt class="text-xs text-muted">{{ t("common.extraPhones") }}</dt>
-          <dd class="mt-1 flex flex-wrap gap-x-5 gap-y-1.5">
-            <span v-for="p in customer.extra_phones" :key="p" class="inline-flex items-center gap-1.5 font-medium text-highlighted">
-              <bdi dir="ltr">{{ p }}</bdi>
-              <UButton icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(p)" />
-              <a
-                v-if="toWhatsAppLink(p)"
-                :href="toWhatsAppLink(p)!"
-                target="_blank"
-                rel="noopener noreferrer"
-                :aria-label="t('crm.deals.chatOnWhatsApp')"
-                class="text-[#25D366] hover:opacity-80"
-              >
-                <UIcon name="i-simple-icons-whatsapp" class="size-4" />
-              </a>
-            </span>
-          </dd>
-        </div>
-        <div class="flex items-start justify-between gap-3 border-t border-default px-4 py-3 @lg:px-5 @lg:[&:nth-child(2)]:border-t-0">
-            <div class="min-w-0">
-              <dt class="text-xs text-muted">{{ t("common.email") }}</dt>
-              <dd class="break-all font-medium text-highlighted">{{ customer.email || "—" }}</dd>
+            <div v-if="customer.extra_phones?.length" class="flex items-start gap-3">
+              <UIcon name="i-lucide-phone-plus" class="mt-0.5 size-4 shrink-0 text-muted" />
+              <div class="min-w-0 flex-1">
+                <dt class="text-xs text-muted">{{ t("common.extraPhones") }}</dt>
+                <dd class="mt-0.5 space-y-1">
+                  <span v-for="p in customer.extra_phones" :key="p" class="flex items-center gap-1.5 font-medium text-highlighted">
+                    <bdi dir="ltr">{{ p }}</bdi>
+                    <UButton icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(p)" />
+                    <a
+                      v-if="toWhatsAppLink(p)"
+                      :href="toWhatsAppLink(p)!"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      :aria-label="t('crm.deals.chatOnWhatsApp')"
+                      class="text-[#25D366] hover:opacity-80"
+                    >
+                      <UIcon name="i-simple-icons-whatsapp" class="size-4" />
+                    </a>
+                  </span>
+                </dd>
+              </div>
             </div>
-            <UButton
-              v-if="customer.email"
-              icon="i-lucide-copy"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              :aria-label="t('cs.profile.copy')"
-              @click="copyText(customer.email)"
-            />
-          </div>
-          <div class="border-t border-default px-4 py-3 @lg:px-5">
-            <dt class="text-xs text-muted">{{ t("cs.customers.area") }}</dt>
-            <dd class="font-medium text-highlighted">{{ areaName(customer.area_id) || "—" }}</dd>
-          </div>
-          <div class="flex items-start justify-between gap-3 border-t border-default px-4 py-3 @lg:px-5">
-            <div class="min-w-0">
-              <dt class="text-xs text-muted">{{ t("cs.customers.agent") }}</dt>
-              <dd class="font-medium text-highlighted">{{ salesPersonName(customer.cs_agent_id ?? null) || "—" }}</dd>
+            <div class="flex items-start gap-3">
+              <UIcon name="i-lucide-mail" class="mt-0.5 size-4 shrink-0 text-muted" />
+              <div class="min-w-0 flex-1">
+                <dt class="text-xs text-muted">{{ t("common.email") }}</dt>
+                <dd class="break-all font-medium text-highlighted">{{ customer.email || "—" }}</dd>
+              </div>
+              <UButton v-if="customer.email" icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(customer.email)" />
             </div>
-            <UButton v-if="canAssign" icon="i-lucide-user-plus" size="xs" color="neutral" variant="soft" :label="t('cs.customers.assign')" @click="openAssign" />
-          </div>
-          <div class="border-t border-default px-4 py-3 @lg:px-5">
-            <dt class="flex items-center justify-between gap-2 text-xs text-muted">
-              {{ t("cs.customers.address") }}
-              <a
-                v-if="mapsLink"
-                :href="mapsLink"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="flex items-center gap-1 text-primary hover:underline"
-              >
-                <UIcon name="i-lucide-map" class="size-3.5" />{{ t("cs.profile.openMap") }}
-              </a>
-            </dt>
-            <dd class="mt-0.5 whitespace-pre-line font-medium text-highlighted">{{ customer.address || "—" }}</dd>
-          </div>
-          <div v-if="hasPermission('crm_leads', 'view') && customer.converted_from_lead_id" class="border-t border-default px-4 py-3 @lg:col-span-2 @lg:px-5">
-            <NuxtLink :to="`/crm/leads?id=${customer.converted_from_lead_id}`" class="flex items-center gap-1.5 text-primary hover:underline">
-              <UIcon name="i-lucide-user-plus" class="size-4" />{{ t("cs.profile.fromLead") }}
-            </NuxtLink>
-          </div>
-        </dl>
-      </section>
+            <div class="flex items-start gap-3">
+              <UIcon name="i-lucide-map-pin" class="mt-0.5 size-4 shrink-0 text-muted" />
+              <div class="min-w-0 flex-1">
+                <dt class="flex items-center justify-between gap-2 text-xs text-muted">
+                  {{ t("cs.customers.address") }}
+                  <a v-if="mapsLink" :href="mapsLink" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1 text-primary hover:underline">
+                    <UIcon name="i-lucide-map" class="size-3.5" />{{ t("cs.profile.openMap") }}
+                  </a>
+                </dt>
+                <dd class="whitespace-pre-line font-medium text-highlighted">{{ customer.address || "—" }}</dd>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <UIcon name="i-lucide-user-round-check" class="mt-0.5 size-4 shrink-0 text-muted" />
+              <div class="min-w-0 flex-1">
+                <dt class="text-xs text-muted">{{ t("cs.customers.agent") }}</dt>
+                <dd class="flex items-center gap-1.5 font-medium text-highlighted">
+                  <KAvatar v-if="salesPersonName(customer.cs_agent_id ?? null)" :name="salesPersonName(customer.cs_agent_id ?? null)" kind="user" size="2xs" />
+                  {{ salesPersonName(customer.cs_agent_id ?? null) || "—" }}
+                </dd>
+              </div>
+            </div>
+          </dl>
+          <NuxtLink
+            v-if="hasPermission('crm_leads', 'view') && customer.converted_from_lead_id"
+            :to="`/crm/leads?id=${customer.converted_from_lead_id}`"
+            class="mt-4 flex items-center gap-1.5 border-t border-default pt-3 text-sm text-primary hover:underline"
+          >
+            <UIcon name="i-lucide-user-plus" class="size-4" />{{ t("cs.profile.fromLead") }}
+          </NuxtLink>
+        </section>
 
-      <!-- ===== Products ===== -->
-      <section class="space-y-3">
-        <div class="flex items-center justify-between gap-2">
-          <h3 class="flex items-center gap-2 text-lg font-semibold text-highlighted">
-            {{ t("cs.profile.products") }}
-            <UBadge :label="String(products.length)" color="neutral" variant="subtle" class="cds-tag" />
-          </h3>
+        <!-- CRM context -->
+        <section v-if="canSeeDeals && deals?.length" class="kords-card overflow-hidden">
+          <h3 class="px-5 pt-5 pb-2 text-sm font-semibold text-highlighted">{{ t("cs.profile.linkedDeals") }}</h3>
+          <ul class="divide-y divide-default">
+            <li v-for="d in deals" :key="d.id">
+              <NuxtLink :to="`/crm/deals/${d.id}`" class="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm transition-colors hover:bg-elevated">
+                <span class="font-medium text-highlighted">{{ d.title || "—" }}</span>
+                <span v-if="formatMoney(d.value)" class="font-semibold text-success">{{ formatMoney(d.value) }}</span>
+              </NuxtLink>
+            </li>
+          </ul>
+        </section>
+      </aside>
+
+      <!-- ===== Main: the products ===== -->
+      <section class="min-w-0 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="text-lg font-semibold text-highlighted">{{ t("cs.profile.products") }}</h3>
+            <KBadge :label="String(products.length)" tone="neutral" />
+            <KBadge v-if="completedCount" :label="t('cs.profile.completedCount', { count: completedCount })" tone="success" />
+            <KBadge v-if="overdueCount" :label="t('cs.profile.overdueCount', { count: overdueCount })" tone="error" icon="i-lucide-triangle-alert" />
+            <KBadge
+              v-if="nextMaintenance"
+              :label="`${t('cs.maintenance.next')}: ${formatDateTime(nextMaintenance)}`"
+              :tone="nextMaintenanceLate ? 'error' : 'warning'"
+              icon="i-lucide-wrench"
+            />
+          </div>
           <UButton v-if="canEdit" icon="i-lucide-plus" :label="t('cs.profile.addProduct')" @click="openAddProduct" />
         </div>
 
-        <div v-if="!products.length" class="flex flex-col items-center gap-3 border border-dashed border-default p-10 text-center">
+        <div v-if="!products.length" class="kords-card flex flex-col items-center gap-3 p-10 text-center">
           <UIcon name="i-lucide-package-plus" class="size-8 text-muted" />
           <p class="text-sm text-muted">{{ t("cs.profile.noProducts") }}</p>
           <UButton v-if="canEdit" icon="i-lucide-plus" :label="t('cs.profile.addProduct')" @click="openAddProduct" />
@@ -464,90 +476,76 @@ function isOverdue(p: CsProduct) {
           :category-name="categoryName(p.category_id)"
           :sales-person-name="salesPersonName(p.sales_person_id)"
         >
-      <template #actions>
-        <UButton
-          :to="`/cs/print/${customerId}?product=${p.id}`"
-          target="_blank"
-          icon="i-lucide-printer"
-          size="sm"
-          color="neutral"
-          variant="outline"
-          :aria-label="t('cs.print.menu')"
-          :title="t('cs.print.menu')"
-        />
-        <div v-if="canEdit" class="flex shrink-0 items-center gap-1">
-          <UButton icon="i-lucide-workflow" size="sm" :label="t('cs.installations.updateProgress')" @click="openStage(p)" />
-          <UDropdownMenu :items="productMenu(p)">
-            <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="outline" :aria-label="t('cs.profile.moreActions')" />
-          </UDropdownMenu>
-        </div>
-      </template>
-      <template #extra>
-      <!-- Next maintenance -->
-      <div
-        v-if="canSchedule(p)"
-        class="flex flex-wrap items-center justify-between gap-3 border p-3"
-        :class="maintenanceLate(p) ? 'border-error/40 bg-error/5' : 'border-default bg-muted'"
-      >
-        <div class="flex min-w-0 items-start gap-2.5">
-          <UIcon name="i-lucide-wrench" class="mt-0.5 size-4 shrink-0" :class="maintenanceLate(p) ? 'text-error' : 'text-muted'" />
-          <div class="min-w-0 text-sm">
-            <div class="text-xs text-muted">{{ t("cs.maintenance.next") }}</div>
-            <div v-if="p.maintenance_declined_at" class="font-medium text-error">{{ t("cs.maintenance.declinedNote") }}</div>
-            <div v-else-if="p.next_maintenance_at" class="font-medium" :class="maintenanceLate(p) ? 'text-error' : 'text-highlighted'">
-              {{ formatDateTime(p.next_maintenance_at) }}
+          <template #actions>
+            <div class="flex shrink-0 items-center gap-1">
+              <UButton
+                :to="`/cs/print/${customerId}?product=${p.id}`"
+                target="_blank"
+                icon="i-lucide-printer"
+                size="sm"
+                color="neutral"
+                variant="outline"
+                :aria-label="t('cs.print.menu')"
+                :title="t('cs.print.menu')"
+              />
+              <template v-if="canEdit">
+                <UButton icon="i-lucide-workflow" size="sm" :label="t('cs.installations.updateProgress')" @click="openStage(p)" />
+                <UDropdownMenu :items="productMenu(p)">
+                  <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="outline" :aria-label="t('cs.profile.moreActions')" />
+                </UDropdownMenu>
+              </template>
             </div>
-            <div v-else class="text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
-            <p v-if="p.next_maintenance_note" class="mt-0.5 whitespace-pre-line text-toned">{{ p.next_maintenance_note }}</p>
-            <p v-if="intervalOf(p)" class="mt-1 text-xs text-muted">
-              {{ t("cs.maintenance.periodic", { months: intervalOf(p) }) }}
-              <template v-if="periodicDue(p)">· {{ t("cs.maintenance.dueOn", { date: formatDate(periodicDue(p)) }) }}</template>
-              <template v-if="p.last_maintenance_on">· {{ t("cs.maintenance.lastDone") }}: {{ formatDate(p.last_maintenance_on) }}</template>
-            </p>
-          </div>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <UButton
-            v-if="canMaintenance"
-            :to="`/cs/maintenance/${p.id}`"
-            icon="i-lucide-clipboard-list"
-            size="sm"
-            color="neutral"
-            variant="ghost"
-            :label="t('cs.maintenance.record')"
-          />
-          <template v-if="!p.maintenance_declined_at">
-          <UButton v-if="p.next_maintenance_at && canDoMaintenance" icon="i-lucide-check" size="sm" color="success" variant="soft" :label="t('cs.maintenance.markDone')" @click="openDone(p)" />
-          <UButton
-            v-if="canScheduleMaintenance"
-            :icon="p.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
-            size="sm"
-            color="neutral"
-            variant="outline"
-            :label="t(p.next_maintenance_at ? 'cs.maintenance.reschedule' : 'cs.maintenance.schedule')"
-            @click="openMaintenance(p)"
-          />
           </template>
-        </div>
-      </div>
-      </template>
-        </ProductCard>
-      </section>
-
-      <!-- ===== CRM context ===== -->
-      <section v-if="canSeeDeals && deals?.length" class="border border-default bg-default">
-        <h3 class="border-b border-default px-4 py-3 text-sm font-semibold text-highlighted">{{ t("cs.profile.linkedDeals") }}</h3>
-        <ul class="divide-y divide-default">
-          <li v-for="d in deals" :key="d.id">
-            <NuxtLink
-              :to="`/crm/deals/${d.id}`"
-              class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm transition-colors hover:bg-elevated"
+          <template #extra>
+            <!-- Next maintenance -->
+            <div
+              v-if="canSchedule(p)"
+              class="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border p-3"
+              :class="maintenanceLate(p) ? 'border-error/40 bg-error/5' : 'border-default bg-muted'"
             >
-              <span class="font-medium text-highlighted">{{ d.title || "—" }}</span>
-              <span v-if="formatMoney(d.value)" class="font-semibold text-success">{{ formatMoney(d.value) }}</span>
-            </NuxtLink>
-          </li>
-        </ul>
+              <div class="flex min-w-0 items-start gap-2.5">
+                <UIcon name="i-lucide-wrench" class="mt-0.5 size-4 shrink-0" :class="maintenanceLate(p) ? 'text-error' : 'text-muted'" />
+                <div class="min-w-0 text-sm">
+                  <div class="text-xs text-muted">{{ t("cs.maintenance.next") }}</div>
+                  <div v-if="p.maintenance_declined_at" class="font-medium text-error">{{ t("cs.maintenance.declinedNote") }}</div>
+                  <div v-else-if="p.next_maintenance_at" class="font-medium" :class="maintenanceLate(p) ? 'text-error' : 'text-highlighted'">
+                    {{ formatDateTime(p.next_maintenance_at) }}
+                  </div>
+                  <div v-else class="text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
+                  <p v-if="p.next_maintenance_note" class="mt-0.5 whitespace-pre-line text-toned">{{ p.next_maintenance_note }}</p>
+                  <p v-if="intervalOf(p)" class="mt-1 text-xs text-muted">
+                    {{ t("cs.maintenance.periodic", { months: intervalOf(p) }) }}
+                    <template v-if="periodicDue(p)">· {{ t("cs.maintenance.dueOn", { date: formatDate(periodicDue(p)) }) }}</template>
+                    <template v-if="p.last_maintenance_on">· {{ t("cs.maintenance.lastDone") }}: {{ formatDate(p.last_maintenance_on) }}</template>
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <UButton
+                  v-if="canMaintenance"
+                  :to="`/cs/maintenance/${p.id}`"
+                  icon="i-lucide-clipboard-list"
+                  size="sm"
+                  color="neutral"
+                  variant="ghost"
+                  :label="t('cs.maintenance.record')"
+                />
+                <template v-if="!p.maintenance_declined_at">
+                  <UButton v-if="p.next_maintenance_at && canDoMaintenance" icon="i-lucide-check" size="sm" color="success" variant="soft" :label="t('cs.maintenance.markDone')" @click="openDone(p)" />
+                  <UButton
+                    v-if="canScheduleMaintenance"
+                    :icon="p.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
+                    size="sm"
+                    color="neutral"
+                    variant="outline"
+                    :label="t(p.next_maintenance_at ? 'cs.maintenance.reschedule' : 'cs.maintenance.schedule')"
+                    @click="openMaintenance(p)"
+                  />
+                </template>
+              </div>
+            </div>
+          </template>
+        </ProductCard>
       </section>
     </div>
   </div>
@@ -591,15 +589,11 @@ function isOverdue(p: CsProduct) {
     </template>
   </UModal>
 
-  <UModal v-model:open="deleteOpen" :title="t('cs.profile.deleteProduct')">
-    <template #body>
-      <div class="space-y-4">
-        <p class="text-sm text-muted">{{ t("cs.profile.deleteConfirm", { name: deleteTarget?.name ?? "" }) }}</p>
-        <div class="flex gap-2">
-          <UButton color="neutral" variant="outline" :label="t('common.cancel')" class="flex-1 justify-center" @click="closeDelete" />
-          <UButton color="error" :label="t('common.delete')" :loading="deleting" class="flex-1 justify-center" @click="confirmDelete" />
-        </div>
-      </div>
-    </template>
-  </UModal>
+  <KDeleteConfirmation
+    v-model:open="deleteOpen"
+    :title="t('cs.profile.deleteProduct')"
+    :message="t('cs.profile.deleteConfirm', { name: deleteTarget?.name ?? '' })"
+    :loading="deleting"
+    @confirm="confirmDelete"
+  />
 </template>

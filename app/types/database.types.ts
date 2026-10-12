@@ -552,6 +552,7 @@ export type Database = {
           file_name: string;
           storage_path: string;
           uploaded_by: string | null;
+          kind: string | null;
           created_at: string;
         };
         Insert: {
@@ -560,6 +561,7 @@ export type Database = {
           file_name: string;
           storage_path: string;
           uploaded_by?: string | null;
+          kind?: string | null;
           created_at?: string;
         };
         Update: {
@@ -568,6 +570,7 @@ export type Database = {
           file_name?: string;
           storage_path?: string;
           uploaded_by?: string | null;
+          kind?: string | null;
           created_at?: string;
         };
         Relationships: [
@@ -1178,6 +1181,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      deals_with_activity: {
+        Args: Record<string, never>;
+        Returns: string[];
+      };
       cs_assignable_agents: {
         Args: Record<string, never>;
         Returns: { id: string; full_name: string | null; email: string }[];

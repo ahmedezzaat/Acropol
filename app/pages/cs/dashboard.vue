@@ -249,7 +249,7 @@ const nextAppointments = computed(() => {
 });
 
 function openCustomer(id: string) {
-  navigateTo({ path: "/cs/customers", query: { id } });
+  navigateTo(`/cs/customers/${id}`);
 }
 </script>
 
@@ -264,7 +264,7 @@ function openCustomer(id: string) {
 
       <div class="w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
         <div v-if="pipelines.length > 1" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <UTabs v-model="pipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" class="w-max min-w-full" />
+          <UTabs v-model="pipelineId" :items="pipelineTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs w-max min-w-full" />
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-48" />
@@ -281,46 +281,22 @@ function openCustomer(id: string) {
       <div v-else class="space-y-6">
         <!-- KPIs -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <UPageCard to="/cs/customers">
-            <div class="text-2xl font-bold text-highlighted">{{ filteredCustomers.length }}</div>
-            <div class="text-sm text-muted">{{ t("cs.dashboard.customers") }}</div>
-          </UPageCard>
-          <UPageCard to="/cs/installations">
-            <div class="text-2xl font-bold text-highlighted">{{ total }}</div>
-            <div class="text-sm text-muted">{{ t("cs.dashboard.installations") }}</div>
-          </UPageCard>
-          <UPageCard to="/cs/installations">
-            <div class="text-2xl font-bold text-highlighted">{{ inProgress }}</div>
-            <div class="text-sm text-muted">{{ t("cs.dashboard.inProgress") }}</div>
-          </UPageCard>
-          <UPageCard to="/cs/installations">
-            <div class="text-2xl font-bold text-success">{{ completed }}</div>
-            <div class="text-sm text-muted">{{ t("cs.dashboard.completed", { rate: completionRate }) }}</div>
-          </UPageCard>
-          <UPageCard>
-            <div class="text-2xl font-bold" :class="stuck.length ? 'text-error' : 'text-highlighted'">{{ stuck.length }}</div>
-            <div class="text-sm text-muted">{{ t("cs.dashboard.stuck") }}</div>
-          </UPageCard>
+          <KStatsCard to="/cs/customers" icon="i-lucide-users" :title="t('cs.dashboard.customers')" :value="filteredCustomers.length" />
+          <KStatsCard to="/cs/installations" icon="i-lucide-package" :title="t('cs.dashboard.installations')" :value="total" />
+          <KStatsCard to="/cs/installations" icon="i-lucide-loader" :title="t('cs.dashboard.inProgress')" :value="inProgress" />
+          <KStatsCard to="/cs/installations" icon="i-lucide-circle-check" tone="success" :title="t('cs.dashboard.completed', { rate: completionRate })" :value="completed" />
+          <KStatsCard icon="i-lucide-triangle-alert" :tone="stuck.length ? 'error' : 'default'" :title="t('cs.dashboard.stuck')" :value="stuck.length" />
         </div>
 
         <!-- Warranty and payment -->
         <div class="grid grid-cols-3 gap-4">
-          <UPageCard>
-            <div class="text-2xl font-bold" :class="unpaid ? 'text-error' : 'text-highlighted'">{{ unpaid }}</div>
-            <div class="text-sm text-muted">{{ t("cs.dashboard.unpaid") }}</div>
-          </UPageCard>
-          <UPageCard>
-            <div class="text-2xl font-bold text-success">{{ inWarranty }}</div>
-            <div class="text-sm text-muted">{{ t("cs.dashboard.inWarranty") }}</div>
-          </UPageCard>
-          <UPageCard>
-            <div class="text-2xl font-bold text-highlighted">{{ outWarranty }}</div>
-            <div class="text-sm text-muted">{{ t("cs.dashboard.outWarranty") }}</div>
-          </UPageCard>
+          <KStatsCard icon="i-lucide-banknote" :tone="unpaid ? 'error' : 'default'" :title="t('cs.dashboard.unpaid')" :value="unpaid" />
+          <KStatsCard icon="i-lucide-shield-check" tone="success" :title="t('cs.dashboard.inWarranty')" :value="inWarranty" />
+          <KStatsCard icon="i-lucide-shield" :title="t('cs.dashboard.outWarranty')" :value="outWarranty" />
         </div>
 
         <!-- Maintenance -->
-        <UPageCard v-if="canMaintenance" :title="t('cs.dashboard.maintenance')" :description="t('cs.dashboard.maintenanceHint')">
+        <UPageCard class="kords-card" v-if="canMaintenance" :title="t('cs.dashboard.maintenance')" :description="t('cs.dashboard.maintenanceHint')">
           <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <div>
               <div class="text-2xl font-bold" :class="maintenanceStats.overdue ? 'text-error' : 'text-highlighted'">{{ maintenanceStats.overdue }}</div>
@@ -369,7 +345,7 @@ function openCustomer(id: string) {
         </UPageCard>
 
         <!-- Funnel -->
-        <UPageCard :title="t('cs.dashboard.funnel')">
+        <UPageCard class="kords-card" :title="t('cs.dashboard.funnel')">
           <div v-if="!total" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
           <div v-else class="space-y-3">
             <div v-for="row in byStage" :key="row.stage.id" class="space-y-1">
@@ -388,7 +364,7 @@ function openCustomer(id: string) {
         </UPageCard>
 
         <!-- Contracts per month -->
-        <UPageCard :title="t('cs.dashboard.contractsByMonth')">
+        <UPageCard class="kords-card" :title="t('cs.dashboard.contractsByMonth')">
           <div v-if="!total" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
           <div v-else class="flex h-44 items-stretch gap-1 sm:gap-2" dir="ltr">
             <div v-for="m in byMonth" :key="m.key" class="flex min-w-0 flex-1 flex-col items-center">
@@ -411,7 +387,7 @@ function openCustomer(id: string) {
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <!-- By area -->
-          <UPageCard :title="t('cs.dashboard.byArea')">
+          <UPageCard class="kords-card" :title="t('cs.dashboard.byArea')">
             <div v-if="!byArea.length" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
             <div v-else class="space-y-2.5">
               <div v-for="r in byArea" :key="r.name" class="space-y-1">
@@ -427,7 +403,7 @@ function openCustomer(id: string) {
           </UPageCard>
 
           <!-- By product category -->
-          <UPageCard :title="t('cs.dashboard.byCategory')">
+          <UPageCard class="kords-card" :title="t('cs.dashboard.byCategory')">
             <div v-if="!byCategory.length" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
             <div v-else class="space-y-2.5">
               <div v-for="r in byCategory" :key="r.name" class="space-y-1">
@@ -443,7 +419,7 @@ function openCustomer(id: string) {
           </UPageCard>
 
           <!-- By sales person -->
-          <UPageCard :title="t('cs.dashboard.bySalesPerson')">
+          <UPageCard class="kords-card" :title="t('cs.dashboard.bySalesPerson')">
             <div v-if="!bySalesPerson.length" class="text-sm text-muted">{{ t("cs.dashboard.noData") }}</div>
             <div v-else class="space-y-2.5">
               <div v-for="r in bySalesPerson" :key="r.name" class="space-y-1">
@@ -460,7 +436,7 @@ function openCustomer(id: string) {
         </div>
 
         <!-- Needs attention -->
-        <UPageCard :title="t('cs.dashboard.needsAttention')" :description="t('cs.dashboard.limitHint', { days: STUCK_DAYS })">
+        <UPageCard class="kords-card" :title="t('cs.dashboard.needsAttention')" :description="t('cs.dashboard.limitHint', { days: STUCK_DAYS })">
           <p v-if="!stuck.length" class="text-sm text-muted">{{ t("cs.dashboard.nothingStuck") }}</p>
           <ul v-else class="divide-y divide-default">
             <li v-for="x in stuck.slice(0, 10)" :key="x.p.id">

@@ -141,7 +141,7 @@ function dealTitle(id: string | null) {
 // Customer Service owns the product record; only its people can open it.
 const canOpenProducts = computed(() => hasAnyModulePermission("cs_customers"));
 function openProduct() {
-  if (canOpenProducts.value) navigateTo({ path: "/cs/customers", query: { id: customerId } });
+  if (canOpenProducts.value) navigateTo(`/cs/customers/${customerId}`);
 }
 const warrantyColor = { in_warranty: "success", out_of_warranty: "neutral" } as const;
 const paymentColor = { paid: "success", unpaid: "error" } as const;
@@ -200,7 +200,7 @@ async function remove() {
 
       <div v-else-if="customer" class="mx-auto w-full max-w-6xl space-y-5">
         <!-- ===== Header ===== -->
-        <section class="border border-default bg-default p-4 @container sm:p-5">
+        <section class="kords-card kords-card-dark p-4 @container sm:p-5">
           <div class="flex flex-wrap items-center gap-4">
             <UAvatar
               :text="isCompanyCustomer(customer) ? undefined : customerTitle(customer).trim().charAt(0).toUpperCase()"
