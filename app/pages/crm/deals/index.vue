@@ -14,7 +14,7 @@ useHead({ htmlAttrs: { class: "carbon" } });
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const toast = useToast();
-const { hasPermission } = usePermissions();
+const { hasPermission, loaded: permissionsLoaded } = usePermissions();
 const { t, locale } = useI18n();
 
 interface Pipeline {
@@ -320,7 +320,9 @@ const assigneeFilterOptions = computed(() => [
   { label: t("common.unassigned"), value: UNASSIGNED },
   ...filterableProfiles.value.map((p) => ({ label: p.full_name || p.email, value: p.id })),
 ]);
-// Defaults to the logged-in user, but user.value can still be hydrating
+// Defaults to the logged-in user's own deals — except for someone with
+// crm_deals view_all, who starts on everyone's deals and narrows to one person
+// only by picking them. user.value can still be hydrating
 // when this ref is created (Supabase's session fetch is async even after
 // route middleware has already let the page through) — so set it
 // reactively the first time it's available, rather than only once at setup.
@@ -335,8 +337,8 @@ const openedAsAll = route.query.assignee === "all";
 const assigneeFilter = ref<string | null>(openedAsUnassigned ? UNASSIGNED : null);
 const assigneeFilterInitialized = ref(openedAsUnassigned || openedAsAll);
 watchEffect(() => {
-  if (!assigneeFilterInitialized.value && currentUserId.value) {
-    assigneeFilter.value = currentUserId.value;
+  if (!assigneeFilterInitialized.value && currentUserId.value && permissionsLoaded.value) {
+    assigneeFilter.value = canViewAllDeals.value ? null : currentUserId.value;
     assigneeFilterInitialized.value = true;
   }
 });

@@ -305,3 +305,8 @@ html.kords .kords-chip-on .kords-chip-count {
 html.kords .kords-card-warn {
   border-inline-start: 4px solid var(--ui-warning);
 }
+
+/* A card used as a selectable filter (e.g. the tracking stats): an indigo outline when picked. */
+html.kords .kords-card-selected {
+  box-shadow: 0 0 0 2px #211951, var(--kords-shadow-card);
+}

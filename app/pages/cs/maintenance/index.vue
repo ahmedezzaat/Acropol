@@ -345,17 +345,17 @@ function openRecord(productId: string) {
 </script>
 
 <template>
-  <UDashboardPanel>
+  <UDashboardPanel :ui="{ body: 'kords-canvas' }">
     <template #header>
       <KPageHeader :title="t('cs.maintenance.title')" :count="counts.all" />
 
-      <div class="w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
+      <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
         <UTabs v-model="mode" :items="modeTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs" />
         <div v-if="mode === 'track'" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <UTabs v-model="period" :items="periodTabs" value-key="value" variant="pill" size="sm" :content="false" class="w-max min-w-full sm:w-auto sm:min-w-0" />
+          <UTabs v-model="period" :items="periodTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
         </div>
         <div v-if="mode === 'list'" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <UTabs v-model="tab" :items="tabs" value-key="value" variant="pill" size="sm" :content="false" class="w-max min-w-full sm:w-auto sm:min-w-0" />
+          <UTabs v-model="tab" :items="tabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
         </div>
         <div v-if="mode === 'list'" class="flex flex-wrap items-center gap-2">
           <UInput v-model="search" icon="i-lucide-search" :placeholder="t('cs.maintenance.search')" class="min-w-0 flex-1 basis-56" />
@@ -376,8 +376,8 @@ function openRecord(productId: string) {
             v-for="s in stats"
             :key="s.key"
             type="button"
-            class="border bg-default p-3 text-start transition-colors hover:bg-elevated"
-            :class="statKey === s.key ? 'border-primary ring-1 ring-primary' : 'border-default'"
+            class="kords-card p-4 text-start transition-shadow"
+            :class="statKey === s.key && 'kords-card-selected'"
             @click="statKey = s.key"
           >
             <div class="flex items-center gap-1.5 text-xs text-muted">
@@ -387,9 +387,9 @@ function openRecord(productId: string) {
           </button>
         </div>
 
-        <p v-if="!trackRows.length" class="py-12 text-center text-sm text-muted">{{ t("cs.maintenance.emptyTrack") }}</p>
+        <p v-if="!trackRows.length" class="kords-card py-12 text-center text-sm text-muted">{{ t("cs.maintenance.emptyTrack") }}</p>
         <template v-else>
-          <ul class="divide-y divide-default border border-default bg-default">
+          <ul class="kords-card divide-y divide-default overflow-hidden">
             <li v-for="r in trackPaged" :key="r.key">
               <button
                 type="button"
@@ -408,14 +408,14 @@ function openRecord(productId: string) {
                 <div class="flex shrink-0 flex-col items-end gap-1 text-end">
                   <span class="text-sm font-medium text-highlighted">{{ r.when }}</span>
                   <div class="flex items-center gap-1.5">
-                    <UBadge v-if="r.badge" :label="r.badge" :color="r.badgeColor" variant="subtle" size="sm" class="cds-tag" />
+                    <KBadge v-if="r.badge" :label="r.badge" :tone="r.badgeColor" />
                     <span v-if="r.sub" class="text-xs text-muted">{{ r.sub }}</span>
                   </div>
                 </div>
               </button>
             </li>
           </ul>
-          <div class="flex flex-wrap items-center justify-between gap-2 border-t border-default pt-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <span class="text-sm text-muted">{{ t("cs.maintenance.count", { count: trackRows.length }) }}</span>
             <UPagination
               :page="trackPagination.pageIndex + 1"
@@ -428,7 +428,7 @@ function openRecord(productId: string) {
         </template>
       </div>
 
-      <div v-else-if="!filtered.length" class="flex flex-col items-center gap-2 py-16 text-center">
+      <div v-else-if="!filtered.length" class="kords-card flex flex-col items-center gap-2 py-16 text-center">
         <UIcon name="i-lucide-wrench" class="size-8 text-muted" />
         <p class="text-sm text-muted">{{ t("cs.maintenance.empty") }}</p>
         <p class="max-w-md text-xs text-muted">{{ t("cs.maintenance.hint") }}</p>
@@ -440,7 +440,7 @@ function openRecord(productId: string) {
           :data="filtered"
           :columns="columns"
           :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
-          :ui="{ root: 'hidden md:block [&_tbody_tr]:cursor-pointer' }"
+          :ui="{ root: 'kords-card hidden shrink-0 overflow-hidden md:block [&_tbody_tr]:cursor-pointer' }"
           @select="(_e, row) => openRecord(row.original.p.id)"
         >
           <template #when-cell="{ row }">
@@ -459,8 +459,8 @@ function openRecord(productId: string) {
                 </span>
               </div>
             </div>
-            <UBadge v-else-if="row.original.declined" :label="t('cs.maintenance.declined')" icon="i-lucide-ban" color="error" variant="subtle" size="sm" class="cds-tag" />
-            <UBadge v-else :label="t('cs.maintenance.unscheduled')" color="neutral" variant="outline" size="sm" class="cds-tag" />
+            <KBadge v-else-if="row.original.declined" :label="t('cs.maintenance.declined')" icon="i-lucide-ban" tone="error" />
+            <KBadge v-else :label="t('cs.maintenance.unscheduled')" tone="neutral" outlined />
           </template>
           <template #customer-cell="{ row }">
             <div class="min-w-0">
@@ -540,8 +540,8 @@ function openRecord(productId: string) {
           <div
             v-for="r in pagedCards"
             :key="r.p.id"
-            class="cursor-pointer border border-default bg-default p-3 text-sm transition-colors hover:border-primary hover:bg-elevated"
-            :class="bucket(r) === 'overdue' && 'border-s-4 border-s-error'"
+            class="kords-kcard cursor-pointer border border-default bg-default p-3 text-sm"
+            :class="bucket(r) === 'overdue' && 'kords-kcard-late'"
             @click="openRecord(r.p.id)"
           >
             <div class="flex items-start justify-between gap-2">
@@ -584,7 +584,7 @@ function openRecord(productId: string) {
           </div>
         </div>
 
-        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-default pt-3">
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
           <span class="text-sm text-muted">{{ t("cs.maintenance.count", { count: filtered.length }) }}</span>
           <UPagination
             :page="pagination.pageIndex + 1"
