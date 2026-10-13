@@ -1085,7 +1085,12 @@
       "contractDeleteTitle": "حذف العقد",
       "contractDeleteConfirm": "حذف العقد {name}؟ تبقى منتجاته بدون عقد.",
       "contractDeleted": "تم حذف العقد",
-      "contractMissing": "(بدون كود)"
+      "contractMissing": "(بدون كود)",
+      "visitProducts": "المنتجات التي تمت صيانتها في هذه الزيارة",
+      "visitNote": "ملاحظة الزيارة (للزيارة كلها)",
+      "visitPickProducts": "اختر منتجًا واحدًا على الأقل.",
+      "visitTotal": "الإجمالي {amount}",
+      "contactNoName": "جهة اتصال"
     },
     "installations": {
       "title": "التركيبات",

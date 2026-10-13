@@ -1085,7 +1085,12 @@
       "contractDeleteTitle": "Delete contract",
       "contractDeleteConfirm": "Delete the contract {name}? Its products stay, without a contract.",
       "contractDeleted": "Contract deleted",
-      "contractMissing": "(no code)"
+      "contractMissing": "(no code)",
+      "visitProducts": "Products serviced in this visit",
+      "visitNote": "Visit note (for the whole visit)",
+      "visitPickProducts": "Pick at least one product.",
+      "visitTotal": "Total {amount}",
+      "contactNoName": "Contact"
     },
     "installations": {
       "title": "Installations",

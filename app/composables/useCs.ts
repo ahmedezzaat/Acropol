@@ -78,6 +78,16 @@ export interface CsContract {
   created_at: string;
 }
 
+// A maintenance visit: one trip to a customer that serviced several products.
+export interface CsMaintenanceVisit {
+  id: string;
+  customer_id: string;
+  visit_at: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 // One entry of a product's maintenance log (appointments, visits done, cancellations, notes).
 export interface CsMaintenanceLog {
   id: string;
@@ -88,6 +98,7 @@ export interface CsMaintenanceLog {
   done_on: string | null;
   note: string | null;
   cost: number | null;
+  visit_id: string | null;
   created_by: string | null;
 }
 

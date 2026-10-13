@@ -86,9 +86,15 @@ const { data: logData, refresh: refreshLog } = useAsyncData<CsMaintenanceLog[]>(
   if (error) throw error;
   return (data ?? []) as CsMaintenanceLog[];
 });
+const { data: visitData, refresh: refreshVisits } = useAsyncData<CsMaintenanceVisit[]>(`cs-customer-${customerId}-visits`, async () => {
+  if (!canMaintenance.value) return [];
+  const { data, error } = await supabase.from("maintenance_visits").select("*").eq("customer_id", customerId);
+  if (error) throw error;
+  return (data ?? []) as CsMaintenanceVisit[];
+});
 // Reload this customer's products and tell the list (stage badges, counts).
 async function refreshProducts() {
-  await Promise.all([refreshProductsRaw(), refreshLog(), refreshContracts()]);
+  await Promise.all([refreshProductsRaw(), refreshLog(), refreshContracts(), refreshVisits()]);
   emit("changed");
 }
 const products = computed(() => productData.value?.products ?? []);
@@ -351,12 +357,34 @@ const entryLabel = (e: CsMaintenanceLog) => {
 };
 // The date an entry is about: the visit date, or the appointment time.
 const entryDate = (e: CsMaintenanceLog) => (e.kind === "done" && e.done_on ? e.done_on : (e.scheduled_for ?? e.happened_at));
+// One card per visit (all the products serviced in it) or per single entry made
+// outside a visit (older records, or one made from a product's own page).
+interface HistoryItem {
+  key: string;
+  type: HistoryType | "other";
+  date: string;
+  entries: CsMaintenanceLog[];
+  visit: CsMaintenanceVisit | null;
+}
+const historyItems = computed<HistoryItem[]>(() => {
+  const items: HistoryItem[] = [];
+  const byVisit = new Map<string, CsMaintenanceLog[]>();
+  for (const e of logData.value ?? []) {
+    if (e.visit_id) byVisit.set(e.visit_id, [...(byVisit.get(e.visit_id) ?? []), e]);
+    else items.push({ key: e.id, type: typeOfEntry(e), date: entryDate(e), entries: [e], visit: null });
+  }
+  for (const [id, entries] of byVisit) {
+    items.push({ key: id, type: typeOfEntry(entries[0]!), date: entryDate(entries[0]!), entries, visit: visitData.value?.find((v) => v.id === id) ?? null });
+  }
+  return items;
+});
 const history = computed(() =>
-  [...(logData.value ?? [])]
-    .filter((e) => historyFilter.value === "all" || typeOfEntry(e) === historyFilter.value)
-    .sort((a, b) => new Date(entryDate(b)).getTime() - new Date(entryDate(a)).getTime()),
+  historyItems.value
+    .filter((it) => historyFilter.value === "all" || it.type === historyFilter.value)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
 );
-const historyCount = (k: HistoryType) => (logData.value ?? []).filter((e) => typeOfEntry(e) === k).length;
+const historyCount = (k: HistoryType) => historyItems.value.filter((it) => it.type === k).length;
+const itemTotal = (it: HistoryItem) => it.entries.reduce((sum, e) => sum + (e.cost ?? 0), 0);
 const productNameOf = (id: string) => products.value.find((p) => p.id === id)?.name ?? "—";
 const canAddRecord = computed(
   () => !!products.value.length && (canDoMaintenance.value || canScheduleMaintenance.value || hasPermission("cs_maintenance", "cancel")),
@@ -469,28 +497,56 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
                 <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>
                 <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ customer.phone || "—" }}</bdi></dd>
               </div>
-              <UButton v-if="customer.phone" icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(customer.phone)" />
+              <div v-if="customer.phone" class="flex shrink-0 items-center">
+                <UButton :to="`tel:${customer.phone}`" icon="i-lucide-phone" size="xs" color="neutral" variant="ghost" :aria-label="t('crm.deals.callContact')" :title="t('crm.deals.callContact')" />
+                <UButton
+                  v-if="toWhatsAppLink(customer.phone)"
+                  :to="toWhatsAppLink(customer.phone)!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  icon="i-simple-icons-whatsapp"
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  class="text-[#25D366]"
+                  :aria-label="t('crm.deals.chatOnWhatsApp')"
+                  :title="t('crm.deals.chatOnWhatsApp')"
+                />
+                <UButton icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(customer.phone)" />
+              </div>
             </div>
             <div v-if="customer.extra_phones?.length" class="flex items-start gap-3">
-              <UIcon name="i-lucide-phone-plus" class="mt-0.5 size-4 shrink-0 text-muted" />
+              <UIcon name="i-lucide-contact" class="mt-0.5 size-4 shrink-0 text-muted" />
               <div class="min-w-0 flex-1">
                 <dt class="text-xs text-muted">{{ t("common.extraPhones") }}</dt>
-                <dd class="mt-0.5 space-y-1">
-                  <span v-for="c in toExtraContacts(customer.extra_phones, customer.extra_phone_names)" :key="c.phone" class="flex flex-wrap items-center gap-1.5 font-medium text-highlighted">
-                    <bdi dir="ltr">{{ c.phone }}</bdi>
-                    <span v-if="c.name" class="text-xs font-normal text-muted">· {{ c.name }}</span>
-                    <UButton icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(c.phone)" />
-                    <a
-                      v-if="toWhatsAppLink(c.phone)"
-                      :href="toWhatsAppLink(c.phone)!"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      :aria-label="t('crm.deals.chatOnWhatsApp')"
-                      class="text-[#25D366] hover:opacity-80"
-                    >
-                      <UIcon name="i-simple-icons-whatsapp" class="size-4" />
-                    </a>
-                  </span>
+                <dd class="mt-1.5 space-y-2">
+                  <div
+                    v-for="c in toExtraContacts(customer.extra_phones, customer.extra_phone_names)"
+                    :key="c.phone"
+                    class="flex items-center gap-2.5 rounded-[10px] border border-default p-2"
+                  >
+                    <KAvatar :name="c.name || null" kind="contact" size="sm" />
+                    <div class="min-w-0 flex-1">
+                      <div class="truncate text-sm font-medium text-highlighted">{{ c.name || t("cs.profile.contactNoName") }}</div>
+                      <bdi dir="ltr" class="text-xs text-muted">{{ c.phone }}</bdi>
+                    </div>
+                    <div class="flex shrink-0 items-center">
+                      <UButton :to="`tel:${c.phone}`" icon="i-lucide-phone" size="xs" color="neutral" variant="ghost" :aria-label="t('crm.deals.callContact')" />
+                      <UButton
+                        v-if="toWhatsAppLink(c.phone)"
+                        :to="toWhatsAppLink(c.phone)!"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        icon="i-simple-icons-whatsapp"
+                        size="xs"
+                        color="neutral"
+                        variant="ghost"
+                        class="text-[#25D366]"
+                        :aria-label="t('crm.deals.chatOnWhatsApp')"
+                      />
+                      <UButton icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(c.phone)" />
+                    </div>
+                  </div>
                 </dd>
               </div>
             </div>
@@ -705,7 +761,7 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
               <h3 class="text-lg font-semibold text-highlighted">{{ t("cs.profile.maintenanceHistory") }}</h3>
-              <KBadge :label="String((logData ?? []).length)" tone="neutral" />
+              <KBadge :label="String(historyItems.length)" tone="neutral" />
             </div>
             <UButton v-if="canAddRecord" icon="i-lucide-plus" :label="t('cs.profile.addMaintenanceRecord')" @click="openRecord" />
           </div>
@@ -729,18 +785,30 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
 
           <p v-if="!history.length" class="kords-card p-8 text-center text-sm text-muted">{{ t("cs.profile.noMaintenance") }}</p>
           <ul v-else class="space-y-2">
-            <li v-for="e in history" :key="e.id" class="kords-card p-4 text-sm">
+            <li v-for="it in history" :key="it.key" class="kords-card p-4 text-sm">
               <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <div class="flex flex-wrap items-center gap-2">
-                  <KBadge :label="entryLabel(e)" :tone="entryTone[typeOfEntry(e)]" />
-                  <span class="font-medium text-highlighted">{{ e.kind === "done" && e.done_on ? formatDate(e.done_on) : formatDateTime(entryDate(e)) }}</span>
+                  <KBadge :label="entryLabel(it.entries[0]!)" :tone="entryTone[it.type]" />
+                  <span class="font-medium text-highlighted">
+                    {{ it.entries[0]!.kind === "done" && it.entries[0]!.done_on ? formatDate(it.entries[0]!.done_on) : formatDateTime(it.date) }}
+                  </span>
+                  <span v-if="it.entries.length > 1" class="text-xs text-muted">{{ t("cs.profile.contractProducts", { count: it.entries.length }) }}</span>
                 </div>
-                <span v-if="money(e.cost)" class="font-semibold text-highlighted">{{ money(e.cost) }}</span>
+                <span v-if="itemTotal(it) && it.entries.length > 1" class="text-xs font-semibold text-muted">
+                  {{ t("cs.profile.visitTotal", { amount: money(itemTotal(it)) ?? "" }) }}
+                </span>
               </div>
-              <div class="mt-1 text-xs text-muted">
-                {{ productNameOf(e.product_id) }}<template v-if="salesPersonName(e.created_by)"> · {{ salesPersonName(e.created_by) }}</template>
-              </div>
-              <p v-if="e.note" class="mt-2 whitespace-pre-line text-toned">{{ e.note }}</p>
+              <ul class="mt-2 divide-y divide-default">
+                <li v-for="e in it.entries" :key="e.id" class="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2">
+                  <div class="min-w-0">
+                    <div class="font-medium text-highlighted">{{ productNameOf(e.product_id) }}</div>
+                    <p v-if="e.note" class="mt-0.5 whitespace-pre-line text-toned">{{ e.note }}</p>
+                  </div>
+                  <span v-if="money(e.cost)" class="shrink-0 font-semibold text-highlighted">{{ money(e.cost) }}</span>
+                </li>
+              </ul>
+              <p v-if="it.visit?.note" class="mt-1 rounded-[7px] bg-muted p-2 text-xs text-toned">{{ it.visit.note }}</p>
+              <div v-if="salesPersonName(it.entries[0]!.created_by)" class="mt-1 text-xs text-muted">{{ salesPersonName(it.entries[0]!.created_by) }}</div>
             </li>
           </ul>
         </section>

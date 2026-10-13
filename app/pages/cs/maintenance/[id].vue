@@ -53,7 +53,7 @@ const { data: customer } = await useAsyncData<CsCustomer | null>(`cs-mrec-${prod
   if (!product.value) return null;
   const { data } = await supabase
     .from("customers")
-    .select("id, name, company, phone, email, address, area_id, customer_type")
+    .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, customer_type")
     .eq("id", product.value.customer_id)
     .maybeSingle();
   return (data ?? null) as CsCustomer | null;
@@ -268,7 +268,25 @@ async function onSaved() {
           <dl v-if="customer" class="mt-4 grid gap-x-6 gap-y-3 border-t border-default pt-4 text-sm sm:grid-cols-3">
             <div>
               <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>
-              <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ customer.phone || "—" }}</bdi></dd>
+              <dd class="flex items-center gap-1 font-medium text-highlighted">
+                <bdi dir="ltr">{{ customer.phone || "—" }}</bdi>
+                <template v-if="customer.phone">
+                  <UButton :to="`tel:${customer.phone}`" icon="i-lucide-phone" size="xs" color="neutral" variant="ghost" :aria-label="t('crm.deals.callContact')" :title="t('crm.deals.callContact')" />
+                  <UButton
+                    v-if="toWhatsAppLink(customer.phone)"
+                    :to="toWhatsAppLink(customer.phone)!"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    icon="i-simple-icons-whatsapp"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    class="text-[#25D366]"
+                    :aria-label="t('crm.deals.chatOnWhatsApp')"
+                    :title="t('crm.deals.chatOnWhatsApp')"
+                  />
+                </template>
+              </dd>
             </div>
             <div>
               <dt class="text-xs text-muted">{{ t("cs.customers.area") }}</dt>
@@ -277,6 +295,38 @@ async function onSaved() {
             <div class="sm:col-span-3">
               <dt class="text-xs text-muted">{{ t("cs.customers.address") }}</dt>
               <dd class="font-medium text-highlighted">{{ customer.address || "—" }}</dd>
+            </div>
+            <!-- Additional contacts: who to ask for on each number -->
+            <div v-if="customer.extra_phones?.length" class="sm:col-span-3">
+              <dt class="text-xs text-muted">{{ t("common.extraPhones") }}</dt>
+              <dd class="mt-1.5 grid gap-2 sm:grid-cols-2">
+                <div
+                  v-for="c in toExtraContacts(customer.extra_phones, customer.extra_phone_names)"
+                  :key="c.phone"
+                  class="flex items-center gap-2.5 rounded-[10px] border border-default p-2"
+                >
+                  <KAvatar :name="c.name || null" kind="contact" size="sm" />
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-sm font-medium text-highlighted">{{ c.name || t("cs.profile.contactNoName") }}</div>
+                    <bdi dir="ltr" class="text-xs text-muted">{{ c.phone }}</bdi>
+                  </div>
+                  <div class="flex shrink-0 items-center">
+                    <UButton :to="`tel:${c.phone}`" icon="i-lucide-phone" size="xs" color="neutral" variant="ghost" :aria-label="t('crm.deals.callContact')" />
+                    <UButton
+                      v-if="toWhatsAppLink(c.phone)"
+                      :to="toWhatsAppLink(c.phone)!"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      icon="i-simple-icons-whatsapp"
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      class="text-[#25D366]"
+                      :aria-label="t('crm.deals.chatOnWhatsApp')"
+                    />
+                  </div>
+                </div>
+              </dd>
             </div>
           </dl>
         </div>

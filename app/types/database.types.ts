@@ -929,6 +929,12 @@ export type Database = {
         };
         Relationships: [];
       };
+      maintenance_visits: {
+        Row: { id: string; customer_id: string; visit_at: string | null; note: string | null; created_by: string | null; created_at: string };
+        Insert: { id?: string; customer_id: string; visit_at?: string | null; note?: string | null; created_by?: string | null; created_at?: string };
+        Update: { id?: string; customer_id?: string; visit_at?: string | null; note?: string | null; created_by?: string | null; created_at?: string };
+        Relationships: [];
+      };
       product_maintenance_log: {
         Row: {
           id: string;
@@ -939,6 +945,7 @@ export type Database = {
           done_on: string | null;
           note: string | null;
           cost: number | null;
+          visit_id: string | null;
           created_by: string | null;
         };
         Insert: {
@@ -950,6 +957,7 @@ export type Database = {
           done_on?: string | null;
           note?: string | null;
           cost?: number | null;
+          visit_id?: string | null;
           created_by?: string | null;
         };
         Update: {
@@ -961,6 +969,7 @@ export type Database = {
           done_on?: string | null;
           note?: string | null;
           cost?: number | null;
+          visit_id?: string | null;
           created_by?: string | null;
         };
         Relationships: [];
