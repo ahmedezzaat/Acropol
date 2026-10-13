@@ -93,7 +93,7 @@ type Schema = {
   address?: string;
   assigned_to?: string | null;
 };
-const extraPhones = ref<string[]>([]);
+const extraPhones = ref<ExtraContact[]>([]);
 const state = reactive<Partial<Schema>>({
   name: "",
   company: "",
@@ -109,7 +109,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     name: event.data.name,
     company: event.data.company || null,
     phone: trimOrNull(event.data.phone),
-    extra_phones: extraPhones.value.map((p) => p.trim()).filter((p) => p.length > 0),
+    ...fromExtraContacts(extraPhones.value),
     email: event.data.email || null,
     address: event.data.address || null,
   };

@@ -306,7 +306,7 @@ const pagedCards = computed(() =>
               @click="openCustomer(p.customer_id)"
             >
               <div class="truncate font-semibold text-highlighted">{{ customerOf(p.customer_id) ? customerTitle(customerOf(p.customer_id)!) : "—" }}</div>
-              <div class="mt-0.5 truncate text-xs text-toned">{{ p.name }}</div>
+              <div class="mt-0.5 truncate text-xs text-toned">{{ p.name }}<template v-if="(p.quantity ?? 1) > 1"> × {{ p.quantity }}</template></div>
               <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                 <span v-if="areaName(customerOf(p.customer_id)?.area_id)" class="flex items-center gap-1">
                   <UIcon name="i-lucide-map-pin" class="size-3.5" />{{ areaName(customerOf(p.customer_id)?.area_id) }}
@@ -355,7 +355,7 @@ const pagedCards = computed(() =>
           </template>
           <template #product-cell="{ row }">
             <div class="min-w-0">
-              <div class="truncate text-sm">{{ row.original.name }}</div>
+              <div class="truncate text-sm">{{ row.original.name }}<template v-if="(row.original.quantity ?? 1) > 1"> × {{ row.original.quantity }}</template></div>
               <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                 <span v-if="categoryName(row.original.category_id)">{{ categoryName(row.original.category_id) }}</span>
                 <bdi v-if="row.original.contract_code" dir="ltr">#{{ row.original.contract_code }}</bdi>
@@ -403,7 +403,7 @@ const pagedCards = computed(() =>
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <div class="truncate font-semibold text-highlighted">{{ customerOf(p.customer_id) ? customerTitle(customerOf(p.customer_id)!) : "—" }}</div>
-                <div class="mt-0.5 truncate text-xs text-toned">{{ p.name }}</div>
+                <div class="mt-0.5 truncate text-xs text-toned">{{ p.name }}<template v-if="(p.quantity ?? 1) > 1"> × {{ p.quantity }}</template></div>
               </div>
               <KBadge :label="stageName(p.stage_id)" :tone="stageColor(p.stage_id)" class="shrink-0" />
             </div>

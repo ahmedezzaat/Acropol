@@ -48,6 +48,8 @@ export interface CsProduct {
   category_id: string | null;
   contract_date: string | null;
   contract_code: string | null;
+  quantity: number;
+  contract_id?: string | null;
   next_maintenance_at: string | null;
   next_maintenance_note: string | null;
   last_maintenance_on: string | null;
@@ -62,6 +64,31 @@ export interface CsProduct {
   pipeline_id: string;
   stage_id: string;
   created_at: string;
+}
+
+// A contract: the won deal (deal_id) or one recorded in Customer Service. It holds
+// one or more of the customer's products.
+export interface CsContract {
+  id: string;
+  customer_id: string;
+  deal_id: string | null;
+  code: string | null;
+  signed_on: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+// One entry of a product's maintenance log (appointments, visits done, cancellations, notes).
+export interface CsMaintenanceLog {
+  id: string;
+  product_id: string;
+  kind: "scheduled" | "rescheduled" | "done" | "cancelled" | "note" | "declined" | "resumed";
+  happened_at: string;
+  scheduled_for: string | null;
+  done_on: string | null;
+  note: string | null;
+  cost: number | null;
+  created_by: string | null;
 }
 
 export interface CsStageDate {
@@ -87,6 +114,7 @@ export interface WarrantyPolicy {
 
 export interface CsCustomer {
   extra_phones?: string[];
+  extra_phone_names?: string[];
   cs_agent_id?: string | null;
   id: string;
   name: string;

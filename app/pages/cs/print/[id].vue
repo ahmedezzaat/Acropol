@@ -21,7 +21,7 @@ await Promise.all([loadAreas(true), loadPipelines(true)]);
 const { data: customer, status } = await useAsyncData(`cs-print-${customerId}`, async () => {
   const { data } = await supabase
     .from("customers")
-    .select("id, name, company, phone, extra_phones, email, address, area_id, created_at, customer_type")
+    .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, created_at, customer_type")
     .eq("id", customerId)
     .maybeSingle();
   return (data ?? null) as CsCustomer | null;
@@ -119,7 +119,7 @@ onMounted(() => {
         <div v-if="customerSubtitle(customer)" class="muted">{{ customerSubtitle(customer) }}</div>
         <dl class="grid">
           <div><dt>{{ t("common.phone") }}</dt><dd dir="ltr">{{ customer.phone || "—" }}</dd></div>
-          <div v-if="customer.extra_phones?.length"><dt>{{ t("common.extraPhones") }}</dt><dd dir="ltr">{{ customer.extra_phones.join(" ، ") }}</dd></div>
+          <div v-if="customer.extra_phones?.length"><dt>{{ t("common.extraPhones") }}</dt><dd dir="ltr">{{ toExtraContacts(customer.extra_phones, customer.extra_phone_names).map((c) => (c.name ? `${c.phone} (${c.name})` : c.phone)).join(" ، ") }}</dd></div>
           <div><dt>{{ t("common.email") }}</dt><dd dir="ltr">{{ customer.email || "—" }}</dd></div>
           <div><dt>{{ t("cs.customers.area") }}</dt><dd>{{ areaName(customer.area_id) || "—" }}</dd></div>
           <div><dt>{{ t("crm.leads.leadType") }}</dt><dd>{{ t(`crm.leads.type.${isCompanyCustomer(customer) ? "company" : "individual"}`) }}</dd></div>
@@ -129,7 +129,7 @@ onMounted(() => {
 
       <section v-for="p in products" :key="p.id" class="block product">
         <h2>
-          {{ t("cs.print.product") }}: {{ p.name }}
+          {{ t("cs.print.product") }}: {{ p.name }}<template v-if="(p.quantity ?? 1) > 1"> × {{ p.quantity }}</template>
           <span v-if="p.contract_code" class="code" dir="ltr">#{{ p.contract_code }}</span>
         </h2>
 

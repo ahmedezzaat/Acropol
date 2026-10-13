@@ -24,7 +24,7 @@ const type = ref<"individual" | "company">("individual");
 const name = ref("");
 const company = ref("");
 const phone = ref("");
-const extraPhones = ref<string[]>([]);
+const extraPhones = ref<ExtraContact[]>([]);
 const email = ref("");
 const address = ref("");
 const areaId = ref<string | null>(null);
@@ -45,7 +45,7 @@ watch(open, async (isOpen) => {
   name.value = c?.name ?? "";
   company.value = c?.company ?? "";
   phone.value = c?.phone ?? "";
-  extraPhones.value = [...(c?.extra_phones ?? [])];
+  extraPhones.value = toExtraContacts(c?.extra_phones, c?.extra_phone_names);
   email.value = c?.email ?? "";
   address.value = c?.address ?? "";
   areaId.value = c?.area_id ?? null;
@@ -85,7 +85,7 @@ async function save() {
     // Individuals carry no company name — that is what makes a customer an individual.
     company: type.value === "company" ? company.value.trim() || null : null,
     phone: trimOrNull(phone.value),
-    extra_phones: extraPhones.value.map((p) => p.trim()).filter((p) => p.length > 0),
+    ...fromExtraContacts(extraPhones.value),
     email: email.value.trim() || null,
     address: address.value.trim() || null,
     area_id: areaId.value,
@@ -104,9 +104,20 @@ async function save() {
   }
   // New customer: record the products they bought, if any were entered.
   if (!props.customer && boughtProducts.value.length) {
+    // One contract for everything bought (its code and date are shared by the products).
+    const first = boughtProducts.value[0]!;
+    const { data: contract, error: contractError } = await supabase
+      .from("contracts")
+      .insert({ customer_id: data.id, code: first.contract_code.trim() || null, signed_on: first.contract_date || null })
+      .select("id")
+      .single();
+    if (contractError) {
+      toast.add({ title: t("cs.customers.productsFailed"), description: contractError.message, color: "warning" });
+    }
     const { error: productsError } = await supabase.from("customer_products").insert(
       boughtProducts.value.map((p) => ({
         customer_id: data.id,
+        contract_id: contract?.id ?? null,
         name: p.name.trim(),
         category_id: p.category_id,
         contract_code: p.contract_code.trim() || null,
@@ -116,6 +127,7 @@ async function save() {
         warranty_details: p.warranty_details.trim() || null,
         payment_status: p.payment_status,
         notes: p.notes.trim() || null,
+        quantity: p.quantity,
       })),
     );
     if (productsError) {

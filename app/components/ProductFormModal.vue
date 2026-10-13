@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Add (or edit) a product on a customer: its name, category and contract date. A new product starts in the first stage of the chosen
 // pipeline. (Instruments are not entered here; saving never touches them.)
-const props = defineProps<{ customerId: string; product?: CsProduct | null }>();
+const props = defineProps<{ customerId: string; product?: CsProduct | null; contracts?: CsContract[]; defaultContractId?: string | null }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
@@ -22,9 +22,14 @@ const pipelineId = ref<string | undefined>(undefined);
 const saving = ref(false);
 
 const name = ref("");
+const quantity = ref(1);
 const categoryId = ref<string | null>(null);
-const contractCode = ref("");
-const contractDate = ref("");
+// Which contract the product belongs to: one of the customer's, none, or a new one
+// (created together with the product).
+const NEW_CONTRACT = "__new__";
+const contractId = ref<string | null>(null);
+const newContractCode = ref("");
+const newContractDate = ref("");
 const operationDate = ref("");
 const warrantyStatus = ref<string | null>(null);
 const warrantyDetails = ref("");
@@ -46,16 +51,31 @@ watch(open, async (isOpen) => {
   const p = props.product;
   pipelineId.value = p?.pipeline_id ?? pipelines.value[0]?.id;
   name.value = p?.name ?? "";
+  quantity.value = p?.quantity ?? 1;
   categoryId.value = p?.category_id ?? null;
-  contractCode.value = p?.contract_code ?? "";
+  contractId.value = p ? (p.contract_id ?? null) : (props.defaultContractId ?? props.contracts?.[0]?.id ?? (props.contracts?.length ? null : NEW_CONTRACT));
+  newContractCode.value = "";
+  newContractDate.value = todayIso();
   salesPersonId.value = p?.sales_person_id ?? null;
-  contractDate.value = p?.contract_date ?? "";
   operationDate.value = p?.operation_date ?? "";
   warrantyStatus.value = p?.warranty_status ?? null;
   warrantyDetails.value = p?.warranty_details ?? "";
   paymentStatus.value = p?.payment_status ?? null;
   notes.value = p?.notes ?? "";
 });
+
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const contractItems = computed(() => [
+  { label: t("cs.profile.noContract"), value: null as string | null },
+  ...(props.contracts ?? []).map((c) => ({
+    label: `${c.code || t("cs.profile.contractMissing")}${c.signed_on ? ` · ${c.signed_on}` : ""}`,
+    value: c.id as string | null,
+  })),
+  { label: `+ ${t("cs.profile.newContract")}`, value: NEW_CONTRACT as string | null },
+]);
 
 const pipelineItems = computed(() => pipelines.value.map((x) => ({ label: x.name, value: x.id })));
 const firstStageId = computed(() => stagesOf(pipelineId.value)[0]?.id);
@@ -106,7 +126,7 @@ const paymentItems = computed(() => [
   { label: t("cs.profile.no"), value: "unpaid" },
 ]);
 
-const valid = computed(() => name.value.trim().length > 0 && (editing.value || (!!pipelineId.value && !!firstStageId.value)));
+const valid = computed(() => name.value.trim().length > 0 && Number.isInteger(quantity.value) && quantity.value >= 1 && (editing.value || (!!pipelineId.value && !!firstStageId.value)));
 
 async function save() {
   if (!valid.value) return;
@@ -114,10 +134,9 @@ async function save() {
 
   const details = {
     name: name.value.trim(),
+    quantity: quantity.value,
     category_id: categoryId.value,
-    contract_code: contractCode.value.trim() || null,
     sales_person_id: salesPersonId.value,
-    contract_date: contractDate.value || null,
     operation_date: operationDate.value || null,
     warranty_status: warrantyStatus.value,
     warranty_details: warrantyDetails.value.trim() || null,
@@ -125,13 +144,28 @@ async function save() {
     notes: notes.value.trim() || null,
   };
 
+  // A new contract is created first, together with the product.
+  let chosenContract: string | null = contractId.value === NEW_CONTRACT ? null : contractId.value;
+  if (contractId.value === NEW_CONTRACT) {
+    const { data: created, error: contractError } = await supabase
+      .from("contracts")
+      .insert({ customer_id: props.customerId, code: newContractCode.value.trim() || null, signed_on: newContractDate.value || null })
+      .select("id")
+      .single();
+    if (contractError || !created) return fail(contractError?.message);
+    chosenContract = created.id;
+  }
+
   if (props.product) {
-    const { error } = await supabase.from("customer_products").update(details).eq("id", props.product.id);
+    const { error } = await supabase
+      .from("customer_products")
+      .update({ ...details, contract_id: chosenContract })
+      .eq("id", props.product.id);
     if (error) return fail(error.message);
   } else {
     const { error } = await supabase
       .from("customer_products")
-      .insert({ ...details, customer_id: props.customerId, pipeline_id: pipelineId.value! });
+      .insert({ ...details, customer_id: props.customerId, pipeline_id: pipelineId.value!, contract_id: chosenContract });
     if (error) return fail(error.message);
   }
 
@@ -151,9 +185,14 @@ function fail(message?: string) {
   <UModal v-model:open="open" :title="t(editing ? 'cs.profile.editProduct' : 'cs.profile.addProduct')">
     <template #body>
       <div class="space-y-4">
-        <UFormField :label="t('cs.profile.productName')" required>
-          <UInput v-model="name" :placeholder="t('cs.profile.productNameHint')" class="w-full" />
-        </UFormField>
+        <div class="grid gap-3 sm:grid-cols-[1fr_7rem]">
+          <UFormField :label="t('cs.profile.productName')" required>
+            <UInput v-model="name" :placeholder="t('cs.profile.productNameHint')" class="w-full" />
+          </UFormField>
+          <UFormField :label="t('cs.profile.quantity')" required>
+            <UInput v-model.number="quantity" type="number" :min="1" step="1" class="w-full" />
+          </UFormField>
+        </div>
         <!-- Where a new product starts: always the funnel's first stage. -->
         <p v-if="!editing && firstStageName" class="flex items-center gap-1.5 text-sm text-muted">
           <UIcon name="i-lucide-flag" class="size-4" />
@@ -169,13 +208,19 @@ function fail(message?: string) {
           <USelect :model-value="categoryId" :items="categoryItems" value-key="value" class="w-full" @update:model-value="onCategoryChange" />
         </UFormField>
 
-        <div class="grid gap-3 sm:grid-cols-2">
+        <UFormField :label="t('cs.profile.chooseContract')">
+          <USelect :model-value="contractId" :items="contractItems" value-key="value" icon="i-lucide-file-signature" class="w-full" @update:model-value="(v: string | null) => (contractId = v)" />
+        </UFormField>
+        <div v-if="contractId === NEW_CONTRACT" class="grid gap-3 sm:grid-cols-2">
           <UFormField :label="t('cs.profile.contractCode')">
-            <UInput v-model="contractCode" dir="ltr" class="w-full" />
+            <UInput v-model="newContractCode" dir="ltr" class="w-full" />
           </UFormField>
           <UFormField :label="t('cs.profile.contractDate')">
-            <UInput v-model="contractDate" type="date" class="w-full" />
+            <UInput v-model="newContractDate" type="date" class="w-full" />
           </UFormField>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
           <UFormField :label="t('cs.profile.operationDate')">
             <UInput v-model="operationDate" type="date" class="w-full" />
           </UFormField>

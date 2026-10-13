@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export interface WonProductDraft {
   name: string;
   category_id: string | null;
+  quantity: number;
   contract_code: string;
   contract_date: string;
   sales_person_id: string | null;
@@ -19,6 +20,7 @@ export function newWonProduct(defaults: Partial<WonProductDraft> = {}): WonProdu
   return {
     name: "",
     category_id: null,
+    quantity: 1,
     contract_code: "",
     contract_date: "",
     sales_person_id: null,
@@ -32,7 +34,7 @@ export function newWonProduct(defaults: Partial<WonProductDraft> = {}): WonProdu
 
 // A product is complete once it has a name, a category and a contract date.
 export function wonProductValid(p: WonProductDraft) {
-  return p.name.trim().length > 0 && !!p.category_id && !!p.contract_date;
+  return p.name.trim().length > 0 && !!p.category_id && !!p.contract_date && Number.isInteger(p.quantity) && p.quantity >= 1;
 }
 export function wonProductsValid(list: WonProductDraft[]) {
   return list.length > 0 && list.every(wonProductValid);
@@ -58,9 +60,12 @@ export async function recordDealProducts(
 
   const { error } = await supabase.rpc("crm_record_deal_products", {
     p_deal_id: dealId,
+    // The contract (one per deal): its code and date come from the products' shared fields.
+    p_contract: { contract_code: list[0]?.contract_code.trim() ?? "", contract_date: list[0]?.contract_date ?? "" },
     p_products: list.map((p) => ({
       name: p.name.trim(),
       category_id: p.category_id,
+      quantity: p.quantity,
       contract_code: p.contract_code.trim(),
       contract_date: p.contract_date,
       sales_person_id: p.sales_person_id,

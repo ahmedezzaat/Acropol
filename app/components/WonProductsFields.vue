@@ -54,8 +54,17 @@ function choosePolicy(p: WonProductDraft, index: number, choice: number | undefi
   if (policy) p.warranty_details = policy.text;
 }
 
+// One contract holds all the products below: its code and date are entered once
+// and copied onto every product (the first product is where they are read from).
+function setContract(field: "contract_code" | "contract_date", value: string) {
+  for (const p of list.value) p[field] = value;
+}
 function add() {
-  list.value = [...list.value, newWonProduct({ ...props.defaults, name: "" })];
+  const first = list.value[0];
+  list.value = [
+    ...list.value,
+    newWonProduct({ ...props.defaults, name: "", ...(first ? { contract_code: first.contract_code, contract_date: first.contract_date } : {}) }),
+  ];
 }
 function remove(index: number) {
   list.value = list.value.filter((_, i) => i !== index);
@@ -73,15 +82,36 @@ function remove(index: number) {
       :description="t('crm.deals.wonProducts.hint')"
     />
 
+    <!-- The contract: once for all the products -->
+    <div v-if="list.length" class="space-y-3 border border-primary/30 bg-primary/5 p-3">
+      <div class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+        <UIcon name="i-lucide-file-signature" class="size-4" />{{ t("cs.profile.contract") }}
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <UFormField :label="t('cs.profile.contractDate')" required>
+          <UInput :model-value="list[0]!.contract_date" type="date" class="w-full" @update:model-value="(v: string | number) => setContract('contract_date', String(v))" />
+        </UFormField>
+        <UFormField :label="t('cs.profile.contractCode')">
+          <UInput :model-value="list[0]!.contract_code" dir="ltr" class="w-full" @update:model-value="(v: string | number) => setContract('contract_code', String(v))" />
+        </UFormField>
+      </div>
+      <p class="text-xs text-muted">{{ t("cs.profile.contractHint") }}</p>
+    </div>
+
     <div v-for="(p, index) in list" :key="index" class="space-y-3 border border-default bg-default p-3">
       <div class="flex items-center justify-between gap-2">
         <span class="text-sm font-semibold text-highlighted">{{ t("crm.deals.wonProducts.product", { n: index + 1 }) }}</span>
         <UButton v-if="list.length > 1 || optional" icon="i-lucide-trash" size="xs" color="error" variant="ghost" :aria-label="t('common.delete')" @click="remove(index)" />
       </div>
 
-      <UFormField :label="t('cs.profile.productName')" required>
-        <UInput v-model="p.name" class="w-full" />
-      </UFormField>
+      <div class="grid gap-3 sm:grid-cols-[1fr_7rem]">
+        <UFormField :label="t('cs.profile.productName')" required>
+          <UInput v-model="p.name" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('cs.profile.quantity')" required>
+          <UInput v-model.number="p.quantity" type="number" :min="1" step="1" class="w-full" />
+        </UFormField>
+      </div>
       <div class="grid gap-3 sm:grid-cols-2">
         <UFormField :label="t('cs.profile.category')" required>
           <USelect
@@ -94,12 +124,6 @@ function remove(index: number) {
         </UFormField>
         <UFormField :label="t('cs.profile.salesPerson')">
           <USelect v-model="p.sales_person_id" :items="personItems" value-key="value" class="w-full" />
-        </UFormField>
-        <UFormField :label="t('cs.profile.contractDate')" required>
-          <UInput v-model="p.contract_date" type="date" class="w-full" />
-        </UFormField>
-        <UFormField :label="t('cs.profile.contractCode')">
-          <UInput v-model="p.contract_code" dir="ltr" class="w-full" />
         </UFormField>
         <UFormField :label="t('cs.profile.warrantyLabel')">
           <USelect

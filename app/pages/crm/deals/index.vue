@@ -1228,7 +1228,7 @@ function openDeal(deal: Deal) {
                 </div>
               </div>
               <UProgress
-                :model-value="stageAgeDays(deal)"
+                :model-value="Math.min(stageAgeDays(deal), STAGE_AGE_CAP_DAYS)"
                 :max="STAGE_AGE_CAP_DAYS"
                 :color="stageAgeColor(deal)"
                 size="xs"
@@ -1292,7 +1292,7 @@ function openDeal(deal: Deal) {
               </a>
             </div>
             <UProgress
-              :model-value="stageAgeDays(deal)"
+              :model-value="Math.min(stageAgeDays(deal), STAGE_AGE_CAP_DAYS)"
               :max="STAGE_AGE_CAP_DAYS"
               :color="stageAgeColor(deal)"
               size="xs"
@@ -1406,7 +1406,7 @@ function openDeal(deal: Deal) {
           <template #stageAge-cell="{ row }">
             <div class="w-28">
               <UProgress
-                :model-value="stageAgeDays(row.original)"
+                :model-value="Math.min(stageAgeDays(row.original), STAGE_AGE_CAP_DAYS)"
                 :max="STAGE_AGE_CAP_DAYS"
                 :color="stageAgeColor(row.original)"
                 size="xs"

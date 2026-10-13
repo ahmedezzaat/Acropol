@@ -36,7 +36,7 @@ const { data: customer, refresh: refreshCustomer, status } = useAsyncData<CsCust
   async () => {
     const { data, error } = await supabase
       .from("customers")
-      .select("id, name, company, phone, extra_phones, email, address, area_id, converted_from_lead_id, created_at, customer_type, cs_agent_id")
+      .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, converted_from_lead_id, created_at, customer_type, cs_agent_id")
       .eq("id", customerId)
       .maybeSingle();
     if (error) throw error;
@@ -75,12 +75,83 @@ const { data: productData, refresh: refreshProductsRaw } = useAsyncData<{
     };
   },
 );
+// The maintenance history of all of this customer's products (done visits,
+// appointments, cancellations), for people allowed to see maintenance.
+const { data: logData, refresh: refreshLog } = useAsyncData<CsMaintenanceLog[]>(`cs-customer-${customerId}-mlog`, async () => {
+  if (!canMaintenance.value) return [];
+  const { data: ps } = await supabase.from("customer_products").select("id").eq("customer_id", customerId);
+  const ids = (ps ?? []).map((p) => p.id);
+  if (!ids.length) return [];
+  const { data, error } = await supabase.from("product_maintenance_log").select("*").in("product_id", ids);
+  if (error) throw error;
+  return (data ?? []) as CsMaintenanceLog[];
+});
 // Reload this customer's products and tell the list (stage badges, counts).
 async function refreshProducts() {
-  await refreshProductsRaw();
+  await Promise.all([refreshProductsRaw(), refreshLog(), refreshContracts()]);
   emit("changed");
 }
 const products = computed(() => productData.value?.products ?? []);
+
+// The customer's contracts (a won deal, or one recorded here); products are grouped under them.
+const { data: contractData, refresh: refreshContracts } = useAsyncData<CsContract[]>(`cs-customer-${customerId}-contracts`, async () => {
+  const { data, error } = await supabase
+    .from("contracts")
+    .select("*")
+    .eq("customer_id", customerId)
+    .order("signed_on", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CsContract[];
+});
+const contracts = computed(() => contractData.value ?? []);
+// Every contract (even an empty one) with its products, then the products that have none.
+const groups = computed(() => {
+  const list: { contract: CsContract | null; products: CsProduct[] }[] = contracts.value.map((c) => ({
+    contract: c,
+    products: products.value.filter((p) => p.contract_id === c.id),
+  }));
+  const loose = products.value.filter((p) => !p.contract_id || !contracts.value.some((c) => c.id === p.contract_id));
+  if (loose.length) list.push({ contract: null, products: loose });
+  return list;
+});
+
+// ---- Contracts
+const contractOpen = ref(false);
+const editingContract = ref<CsContract | null>(null);
+function openAddContract() {
+  editingContract.value = null;
+  contractOpen.value = true;
+}
+function openEditContract(c: CsContract) {
+  editingContract.value = c;
+  contractOpen.value = true;
+}
+async function onContractSaved() {
+  await Promise.all([refreshContracts(), refreshProductsRaw()]);
+  emit("changed");
+}
+const deleteContractOpen = ref(false);
+const deleteContractTarget = ref<CsContract | null>(null);
+const deletingContract = ref(false);
+function askDeleteContract(c: CsContract) {
+  deleteContractTarget.value = c;
+  deleteContractOpen.value = true;
+}
+async function confirmDeleteContract() {
+  if (!deleteContractTarget.value) return;
+  deletingContract.value = true;
+  const { error } = await supabase.from("contracts").delete().eq("id", deleteContractTarget.value.id);
+  deletingContract.value = false;
+  if (error) {
+    toast.add({ title: t("cs.profile.contractSaveFailed"), description: error.message, color: "error" });
+    return;
+  }
+  deleteContractOpen.value = false;
+  toast.add({ title: t("cs.profile.contractDeleted"), color: "success" });
+  await onContractSaved();
+}
+const contractTitle = (c: CsContract) => c.code || t("cs.profile.contractMissing");
 const dates = computed(() => dateIndex(productData.value?.dates ?? []));
 function itemsOf(productId: string) {
   return (productData.value?.items ?? []).filter((i) => i.product_id === productId);
@@ -192,12 +263,15 @@ function openEdit() {
 // ---- Products
 const productModalOpen = ref(false);
 const editingProduct = ref<CsProduct | null>(null);
-function openAddProduct() {
+const defaultContractId = ref<string | null>(null);
+function openAddProduct(contractId: string | null = null) {
   editingProduct.value = null;
+  defaultContractId.value = contractId;
   productModalOpen.value = true;
 }
 function openEditProduct(p: CsProduct) {
   editingProduct.value = p;
+  defaultContractId.value = null;
   productModalOpen.value = true;
 }
 
@@ -263,6 +337,36 @@ function isOverdue(p: CsProduct) {
   const limit = stageLimitDays(stageById(p.stage_id));
   const days = daysInCurrent(p);
   return limit !== null && days !== null && days > limit;
+}
+
+// ---- Maintenance history: filter by type, newest first, add an entry.
+type HistoryType = "done" | "scheduled" | "cancelled";
+const historyFilter = ref<HistoryType | "all">("all");
+const typeOfEntry = (e: CsMaintenanceLog): HistoryType | "other" =>
+  e.kind === "done" ? "done" : e.kind === "scheduled" || e.kind === "rescheduled" ? "scheduled" : e.kind === "cancelled" || e.kind === "declined" ? "cancelled" : "other";
+const entryTone = { done: "success", scheduled: "info", cancelled: "error", other: "neutral" } as const;
+const entryLabel = (e: CsMaintenanceLog) => {
+  const k = typeOfEntry(e);
+  return k === "other" ? t("cs.profile.otherEntry") : t(`cs.maintenance.stat.${k === "cancelled" ? "declined" : k}`);
+};
+// The date an entry is about: the visit date, or the appointment time.
+const entryDate = (e: CsMaintenanceLog) => (e.kind === "done" && e.done_on ? e.done_on : (e.scheduled_for ?? e.happened_at));
+const history = computed(() =>
+  [...(logData.value ?? [])]
+    .filter((e) => historyFilter.value === "all" || typeOfEntry(e) === historyFilter.value)
+    .sort((a, b) => new Date(entryDate(b)).getTime() - new Date(entryDate(a)).getTime()),
+);
+const historyCount = (k: HistoryType) => (logData.value ?? []).filter((e) => typeOfEntry(e) === k).length;
+const productNameOf = (id: string) => products.value.find((p) => p.id === id)?.name ?? "—";
+const canAddRecord = computed(
+  () => !!products.value.length && (canDoMaintenance.value || canScheduleMaintenance.value || hasPermission("cs_maintenance", "cancel")),
+);
+const recordOpen = ref(false);
+function openRecord() {
+  recordOpen.value = true;
+}
+function money(v: number | null) {
+  return v === null ? null : `${Number(v).toLocaleString("en-US")} ${t("common.currency")}`;
 }
 
 // A slim summary above the products: how many are done, how many are late, and
@@ -372,12 +476,13 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
               <div class="min-w-0 flex-1">
                 <dt class="text-xs text-muted">{{ t("common.extraPhones") }}</dt>
                 <dd class="mt-0.5 space-y-1">
-                  <span v-for="p in customer.extra_phones" :key="p" class="flex items-center gap-1.5 font-medium text-highlighted">
-                    <bdi dir="ltr">{{ p }}</bdi>
-                    <UButton icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(p)" />
+                  <span v-for="c in toExtraContacts(customer.extra_phones, customer.extra_phone_names)" :key="c.phone" class="flex flex-wrap items-center gap-1.5 font-medium text-highlighted">
+                    <bdi dir="ltr">{{ c.phone }}</bdi>
+                    <span v-if="c.name" class="text-xs font-normal text-muted">· {{ c.name }}</span>
+                    <UButton icon="i-lucide-copy" size="xs" color="neutral" variant="ghost" :aria-label="t('cs.profile.copy')" @click="copyText(c.phone)" />
                     <a
-                      v-if="toWhatsAppLink(p)"
-                      :href="toWhatsAppLink(p)!"
+                      v-if="toWhatsAppLink(c.phone)"
+                      :href="toWhatsAppLink(c.phone)!"
                       target="_blank"
                       rel="noopener noreferrer"
                       :aria-label="t('crm.deals.chatOnWhatsApp')"
@@ -458,109 +563,206 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
               icon="i-lucide-wrench"
             />
           </div>
-          <UButton v-if="canEdit" icon="i-lucide-plus" :label="t('cs.profile.addProduct')" @click="openAddProduct" />
+          <div v-if="canEdit" class="flex flex-wrap items-center gap-2">
+            <UButton icon="i-lucide-file-plus" color="neutral" variant="outline" :label="t('cs.profile.addContract')" @click="openAddContract" />
+            <UButton icon="i-lucide-plus" :label="t('cs.profile.addProduct')" @click="openAddProduct(null)" />
+          </div>
         </div>
 
-        <div v-if="!products.length" class="kords-card flex flex-col items-center gap-3 p-10 text-center">
+        <div v-if="!products.length && !contracts.length" class="kords-card flex flex-col items-center gap-3 p-10 text-center">
           <UIcon name="i-lucide-package-plus" class="size-8 text-muted" />
           <p class="text-sm text-muted">{{ t("cs.profile.noProducts") }}</p>
-          <UButton v-if="canEdit" icon="i-lucide-plus" :label="t('cs.profile.addProduct')" @click="openAddProduct" />
+          <UButton v-if="canEdit" icon="i-lucide-plus" :label="t('cs.profile.addProduct')" @click="openAddProduct(null)" />
         </div>
 
-        <ProductCard
-          v-for="p in products"
-          :key="p.id"
-          :product="p"
-          :dates="dates"
-          :items="itemsOf(p.id)"
-          :category-name="categoryName(p.category_id)"
-          :sales-person-name="salesPersonName(p.sales_person_id)"
-        >
-          <template #actions>
-            <div class="flex shrink-0 items-center gap-1">
-              <UButton
-                :to="`/cs/print/${customerId}?product=${p.id}`"
-                target="_blank"
-                icon="i-lucide-printer"
-                size="sm"
-                color="neutral"
-                variant="outline"
-                :aria-label="t('cs.print.menu')"
-                :title="t('cs.print.menu')"
-              />
-              <template v-if="canEdit">
-                <UButton icon="i-lucide-workflow" size="sm" :label="t('cs.installations.updateProgress')" @click="openStage(p)" />
-                <UDropdownMenu :items="productMenu(p)">
-                  <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="outline" :aria-label="t('cs.profile.moreActions')" />
-                </UDropdownMenu>
-              </template>
-            </div>
-          </template>
-          <template #extra>
-            <!-- Next maintenance -->
-            <div
-              v-if="canSchedule(p)"
-              class="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border p-3"
-              :class="maintenanceLate(p) ? 'border-error/40 bg-error/5' : 'border-default bg-muted'"
-            >
-              <div class="flex min-w-0 items-start gap-2.5">
-                <UIcon name="i-lucide-wrench" class="mt-0.5 size-4 shrink-0" :class="maintenanceLate(p) ? 'text-error' : 'text-muted'" />
-                <div class="min-w-0 text-sm">
-                  <div class="text-xs text-muted">{{ t("cs.maintenance.next") }}</div>
-                  <div v-if="p.maintenance_declined_at" class="font-medium text-error">{{ t("cs.maintenance.declinedNote") }}</div>
-                  <div v-else-if="p.next_maintenance_at" class="font-medium" :class="maintenanceLate(p) ? 'text-error' : 'text-highlighted'">
-                    {{ formatDateTime(p.next_maintenance_at) }}
-                  </div>
-                  <div v-else class="text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
-                  <p v-if="p.next_maintenance_note" class="mt-0.5 whitespace-pre-line text-toned">{{ p.next_maintenance_note }}</p>
-                  <p v-if="intervalOf(p)" class="mt-1 text-xs text-muted">
-                    {{ t("cs.maintenance.periodic", { months: intervalOf(p) }) }}
-                    <template v-if="periodicDue(p)">· {{ t("cs.maintenance.dueOn", { date: formatDate(periodicDue(p)) }) }}</template>
-                    <template v-if="p.last_maintenance_on">· {{ t("cs.maintenance.lastDone") }}: {{ formatDate(p.last_maintenance_on) }}</template>
-                  </p>
+        <template v-for="g in groups" :key="g.contract?.id ?? 'none'">
+          <!-- The contract this group of products belongs to -->
+          <div v-if="g.contract" class="kords-card flex flex-wrap items-center justify-between gap-3 p-4">
+            <div class="flex min-w-0 items-center gap-3">
+              <span class="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
+                <UIcon name="i-lucide-file-signature" class="size-5" />
+              </span>
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-semibold text-highlighted"><bdi dir="ltr">{{ contractTitle(g.contract) }}</bdi></span>
+                  <KBadge v-if="g.contract.deal_id" :label="t('cs.profile.fromDeal')" tone="success" icon="i-lucide-handshake" />
+                  <KBadge :label="t('cs.profile.contractProducts', { count: g.products.length })" tone="neutral" />
+                </div>
+                <div class="text-xs text-muted">
+                  {{ g.contract.signed_on ? formatDate(g.contract.signed_on) : "—" }}
+                  <template v-if="g.contract.notes"> · {{ g.contract.notes }}</template>
                 </div>
               </div>
-              <div class="flex flex-wrap items-center gap-2">
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <UButton
+                v-if="g.contract.deal_id && canSeeDeals"
+                :to="`/crm/deals/${g.contract.deal_id}`"
+                icon="i-lucide-external-link"
+                size="sm"
+                color="neutral"
+                variant="ghost"
+                :label="t('cs.profile.openDeal')"
+              />
+              <UButton v-if="canEdit" icon="i-lucide-plus" size="sm" color="neutral" variant="soft" :label="t('cs.profile.addProduct')" @click="openAddProduct(g.contract.id)" />
+              <UButton v-if="canEdit" icon="i-lucide-pencil" size="sm" color="neutral" variant="outline" :aria-label="t('cs.profile.editContract')" :title="t('cs.profile.editContract')" @click="openEditContract(g.contract)" />
+              <UButton
+                v-if="canEdit && !g.contract.deal_id && !g.products.length"
+                icon="i-lucide-trash"
+                size="sm"
+                color="error"
+                variant="ghost"
+                :aria-label="t('cs.profile.deleteContract')"
+                @click="askDeleteContract(g.contract)"
+              />
+            </div>
+          </div>
+          <h4 v-else class="pt-2 text-sm font-semibold text-muted">{{ t("cs.profile.productsWithoutContract") }}</h4>
+
+          <ProductCard
+            v-for="p in g.products"
+            :key="p.id"
+            :product="p"
+            :dates="dates"
+            :items="itemsOf(p.id)"
+            :category-name="categoryName(p.category_id)"
+            :sales-person-name="salesPersonName(p.sales_person_id)"
+          >
+            <template #actions>
+              <div class="flex shrink-0 items-center gap-1">
                 <UButton
-                  v-if="canMaintenance"
-                  :to="`/cs/maintenance/${p.id}`"
-                  icon="i-lucide-clipboard-list"
+                  :to="`/cs/print/${customerId}?product=${p.id}`"
+                  target="_blank"
+                  icon="i-lucide-printer"
                   size="sm"
                   color="neutral"
-                  variant="ghost"
-                  :label="t('cs.maintenance.record')"
+                  variant="outline"
+                  :aria-label="t('cs.print.menu')"
+                  :title="t('cs.print.menu')"
                 />
-                <template v-if="!p.maintenance_declined_at">
-                  <UButton v-if="p.next_maintenance_at && canDoMaintenance" icon="i-lucide-check" size="sm" color="success" variant="soft" :label="t('cs.maintenance.markDone')" @click="openDone(p)" />
-                  <UButton
-                    v-if="canScheduleMaintenance"
-                    :icon="p.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
-                    size="sm"
-                    color="neutral"
-                    variant="outline"
-                    :label="t(p.next_maintenance_at ? 'cs.maintenance.reschedule' : 'cs.maintenance.schedule')"
-                    @click="openMaintenance(p)"
-                  />
+                <template v-if="canEdit">
+                  <UButton icon="i-lucide-workflow" size="sm" :label="t('cs.installations.updateProgress')" @click="openStage(p)" />
+                  <UDropdownMenu :items="productMenu(p)">
+                    <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="outline" :aria-label="t('cs.profile.moreActions')" />
+                  </UDropdownMenu>
                 </template>
               </div>
+            </template>
+            <template #extra>
+              <!-- Next maintenance -->
+              <div
+                v-if="canSchedule(p)"
+                class="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border p-3"
+                :class="maintenanceLate(p) ? 'border-error/40 bg-error/5' : 'border-default bg-muted'"
+              >
+                <div class="flex min-w-0 items-start gap-2.5">
+                  <UIcon name="i-lucide-wrench" class="mt-0.5 size-4 shrink-0" :class="maintenanceLate(p) ? 'text-error' : 'text-muted'" />
+                  <div class="min-w-0 text-sm">
+                    <div class="text-xs text-muted">{{ t("cs.maintenance.next") }}</div>
+                    <div v-if="p.maintenance_declined_at" class="font-medium text-error">{{ t("cs.maintenance.declinedNote") }}</div>
+                    <div v-else-if="p.next_maintenance_at" class="font-medium" :class="maintenanceLate(p) ? 'text-error' : 'text-highlighted'">
+                      {{ formatDateTime(p.next_maintenance_at) }}
+                    </div>
+                    <div v-else class="text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
+                    <p v-if="p.next_maintenance_note" class="mt-0.5 whitespace-pre-line text-toned">{{ p.next_maintenance_note }}</p>
+                    <p v-if="intervalOf(p)" class="mt-1 text-xs text-muted">
+                      {{ t("cs.maintenance.periodic", { months: intervalOf(p) }) }}
+                      <template v-if="periodicDue(p)">· {{ t("cs.maintenance.dueOn", { date: formatDate(periodicDue(p)) }) }}</template>
+                      <template v-if="p.last_maintenance_on">· {{ t("cs.maintenance.lastDone") }}: {{ formatDate(p.last_maintenance_on) }}</template>
+                    </p>
+                  </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <UButton
+                    v-if="canMaintenance"
+                    :to="`/cs/maintenance/${p.id}`"
+                    icon="i-lucide-clipboard-list"
+                    size="sm"
+                    color="neutral"
+                    variant="ghost"
+                    :label="t('cs.maintenance.record')"
+                  />
+                  <template v-if="!p.maintenance_declined_at">
+                    <UButton v-if="p.next_maintenance_at && canDoMaintenance" icon="i-lucide-check" size="sm" color="success" variant="soft" :label="t('cs.maintenance.markDone')" @click="openDone(p)" />
+                    <UButton
+                      v-if="canScheduleMaintenance"
+                      :icon="p.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
+                      size="sm"
+                      color="neutral"
+                      variant="outline"
+                      :label="t(p.next_maintenance_at ? 'cs.maintenance.reschedule' : 'cs.maintenance.schedule')"
+                      @click="openMaintenance(p)"
+                    />
+                  </template>
+                </div>
+              </div>
+            </template>
+          </ProductCard>
+        </template>
+
+        <!-- ===== Maintenance history ===== -->
+        <section v-if="canMaintenance" class="space-y-3 pt-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <h3 class="text-lg font-semibold text-highlighted">{{ t("cs.profile.maintenanceHistory") }}</h3>
+              <KBadge :label="String((logData ?? []).length)" tone="neutral" />
             </div>
-          </template>
-        </ProductCard>
+            <UButton v-if="canAddRecord" icon="i-lucide-plus" :label="t('cs.profile.addMaintenanceRecord')" @click="openRecord" />
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" class="kords-chip" :class="historyFilter === 'all' && 'kords-chip-on'" @click="historyFilter = 'all'">
+              {{ t("cs.profile.allTypes") }}
+            </button>
+            <button
+              v-for="k in (['done', 'scheduled', 'cancelled'] as const)"
+              :key="k"
+              type="button"
+              class="kords-chip"
+              :class="historyFilter === k && 'kords-chip-on'"
+              @click="historyFilter = k"
+            >
+              {{ t(`cs.maintenance.stat.${k === 'cancelled' ? 'declined' : k}`) }}
+              <span class="kords-chip-count">{{ historyCount(k) }}</span>
+            </button>
+          </div>
+
+          <p v-if="!history.length" class="kords-card p-8 text-center text-sm text-muted">{{ t("cs.profile.noMaintenance") }}</p>
+          <ul v-else class="space-y-2">
+            <li v-for="e in history" :key="e.id" class="kords-card p-4 text-sm">
+              <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <KBadge :label="entryLabel(e)" :tone="entryTone[typeOfEntry(e)]" />
+                  <span class="font-medium text-highlighted">{{ e.kind === "done" && e.done_on ? formatDate(e.done_on) : formatDateTime(entryDate(e)) }}</span>
+                </div>
+                <span v-if="money(e.cost)" class="font-semibold text-highlighted">{{ money(e.cost) }}</span>
+              </div>
+              <div class="mt-1 text-xs text-muted">
+                {{ productNameOf(e.product_id) }}<template v-if="salesPersonName(e.created_by)"> · {{ salesPersonName(e.created_by) }}</template>
+              </div>
+              <p v-if="e.note" class="mt-2 whitespace-pre-line text-toned">{{ e.note }}</p>
+            </li>
+          </ul>
+        </section>
       </section>
     </div>
   </div>
 
   <CsAssignModal v-if="customer" v-model:open="assignOpen" :customer-id="customerId" :current-agent-id="customer.cs_agent_id ?? null" @saved="onAssigned" />
   <CustomerFormModal v-model:open="editOpen" :customer="customer" @saved="onCustomerSaved" />
+  <ContractFormModal v-model:open="contractOpen" :customer-id="customerId" :contract="editingContract" @saved="onContractSaved" />
   <ProductFormModal
     v-model:open="productModalOpen"
     :customer-id="customerId"
     :product="editingProduct"
+    :contracts="contracts"
+    :default-contract-id="defaultContractId"
     @saved="refreshProducts"
   />
   <ProductStageModal v-model:open="stageModalOpen" :product="stageProduct" @saved="refreshProducts" />
   <MaintenanceModal v-model:open="maintenanceOpen" :product="maintenanceProduct" @saved="refreshProducts" />
   <MaintenanceDoneModal v-model:open="doneOpen" :product="doneProduct" @saved="refreshProducts" />
+  <MaintenanceRecordModal v-model:open="recordOpen" :customer-id="customerId" :products="products" @saved="refreshProducts" />
 
   <UModal v-model:open="deleteCustomerOpen" :title="t('cs.customers.deleteTitle')">
     <template #body>
@@ -588,6 +790,14 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
       </div>
     </template>
   </UModal>
+
+  <KDeleteConfirmation
+    v-model:open="deleteContractOpen"
+    :title="t('cs.profile.contractDeleteTitle')"
+    :message="t('cs.profile.contractDeleteConfirm', { name: deleteContractTarget ? contractTitle(deleteContractTarget) : '' })"
+    :loading="deletingContract"
+    @confirm="confirmDeleteContract"
+  />
 
   <KDeleteConfirmation
     v-model:open="deleteOpen"

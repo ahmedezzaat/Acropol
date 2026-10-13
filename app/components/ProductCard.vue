@@ -54,6 +54,7 @@ function isOverdue(prod: CsProduct) {
       <h4 class="font-semibold text-highlighted">
         {{ p.name }}
         <bdi v-if="p.contract_code" dir="ltr" class="ms-1 text-xs font-normal text-muted">#{{ p.contract_code }}</bdi>
+        <KBadge v-if="(p.quantity ?? 1) > 1" :label="`× ${p.quantity}`" tone="primary" class="ms-1.5 align-middle" />
       </h4>
       <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
         <KBadge :label="stageName(p.stage_id)" :tone="stageColor(p.stage_id)" />

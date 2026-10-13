@@ -159,6 +159,7 @@ export type Database = {
           company: string | null;
           phone: string | null;
           extra_phones: string[];
+          extra_phone_names: string[];
           email: string | null;
           address: string | null;
           converted_from_lead_id: string | null;
@@ -176,6 +177,7 @@ export type Database = {
           company?: string | null;
           phone?: string | null;
           extra_phones?: string[];
+          extra_phone_names?: string[];
           email?: string | null;
           address?: string | null;
           converted_from_lead_id?: string | null;
@@ -192,6 +194,7 @@ export type Database = {
           company?: string | null;
           phone?: string | null;
           extra_phones?: string[];
+          extra_phone_names?: string[];
           email?: string | null;
           address?: string | null;
           converted_from_lead_id?: string | null;
@@ -771,6 +774,8 @@ export type Database = {
           engineer_phone: string | null;
           contract_date: string | null;
           contract_code: string | null;
+          quantity: number;
+          contract_id: string | null;
           next_maintenance_at: string | null;
           next_maintenance_note: string | null;
           last_maintenance_on: string | null;
@@ -797,6 +802,8 @@ export type Database = {
           engineer_phone?: string | null;
           contract_date?: string | null;
           contract_code?: string | null;
+          quantity?: number;
+          contract_id?: string | null;
           next_maintenance_at?: string | null;
           next_maintenance_note?: string | null;
           last_maintenance_on?: string | null;
@@ -823,6 +830,8 @@ export type Database = {
           engineer_phone?: string | null;
           contract_date?: string | null;
           contract_code?: string | null;
+          quantity?: number;
+          contract_id?: string | null;
           next_maintenance_at?: string | null;
           next_maintenance_note?: string | null;
           last_maintenance_on?: string | null;
@@ -881,6 +890,42 @@ export type Database = {
           max_stay_days?: number | null;
           max_stay_hours?: number | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      contracts: {
+        Row: {
+          id: string;
+          customer_id: string;
+          deal_id: string | null;
+          code: string | null;
+          signed_on: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          customer_id: string;
+          deal_id?: string | null;
+          code?: string | null;
+          signed_on?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          customer_id?: string;
+          deal_id?: string | null;
+          code?: string | null;
+          signed_on?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -953,6 +998,7 @@ export type Database = {
           product_id: string;
           name: string;
           quantity?: number;
+          contract_id?: string | null;
           unit?: string | null;
           sort_order?: number;
           created_at?: string;
@@ -962,6 +1008,7 @@ export type Database = {
           product_id?: string;
           name?: string;
           quantity?: number;
+          contract_id?: string | null;
           unit?: string | null;
           sort_order?: number;
           created_at?: string;

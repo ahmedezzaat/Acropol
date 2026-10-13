@@ -20,6 +20,7 @@ interface Customer {
   company: string | null;
   phone: string | null;
   extra_phones: string[];
+  extra_phone_names?: string[];
   email: string | null;
   address: string | null;
   assigned_to: string | null;
@@ -62,8 +63,13 @@ const { data: customerPayload, status } = await useAsyncData(`crm-customer-${cus
   if (error) throw error;
   return data;
 });
+// The extra phones are edited as { phone, name } rows.
+const extraContacts = ref<ExtraContact[]>([]);
 watchEffect(() => {
-  if (customerPayload.value) customer.value = customerPayload.value;
+  if (customerPayload.value) {
+    customer.value = customerPayload.value;
+    extraContacts.value = toExtraContacts(customerPayload.value.extra_phones, customerPayload.value.extra_phone_names);
+  }
 });
 
 const { data: profiles } = await useAsyncData<Profile[]>(`crm-customer-${customerId}-profiles`, async () => {
@@ -153,7 +159,7 @@ async function save() {
     name: customer.value.name,
     company: customer.value.company,
     phone: trimOrNull(customer.value.phone),
-    extra_phones: (customer.value.extra_phones ?? []).map((p) => p.trim()).filter((p) => p.length > 0),
+    ...fromExtraContacts(extraContacts.value),
     email: customer.value.email,
     address: customer.value.address,
   };
@@ -252,9 +258,12 @@ async function remove() {
                 <PhoneInput v-model="customer.phone" :disabled="!canEdit" />
               </UFormField>
               <UFormField :label="t('common.extraPhones')">
-                <ExtraPhones v-if="canEdit" v-model="customer.extra_phones" />
+                <ExtraPhones v-if="canEdit" v-model="extraContacts" />
                 <div v-else class="space-y-1 text-sm">
-                  <bdi v-for="p in customer.extra_phones" :key="p" dir="ltr" class="block">{{ p }}</bdi>
+                  <div v-for="c in toExtraContacts(customer.extra_phones, customer.extra_phone_names)" :key="c.phone" class="flex items-center gap-2">
+                    <bdi dir="ltr">{{ c.phone }}</bdi>
+                    <span v-if="c.name" class="text-muted">· {{ c.name }}</span>
+                  </div>
                   <span v-if="!customer.extra_phones?.length" class="text-muted">—</span>
                 </div>
               </UFormField>

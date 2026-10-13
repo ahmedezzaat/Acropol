@@ -75,12 +75,31 @@ function rowOf(p: CsProduct): Row {
   return { p, months, due, at, appointment, declined };
 }
 
-const rows = computed<Row[]>(() =>
+const allRows = computed<Row[]>(() =>
   (allProducts.value ?? [])
     .filter((p) => !!stageById(p.stage_id)?.is_final)
     .map(rowOf)
     .sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity)),
 );
+
+// ---- Product category chips (multi-select): none picked = every category.
+// "none" stands for products without a category. Everything below (tabs and
+// counts, the tracking tiles and lists) works on the picked categories only.
+const categoryFilter = ref<string[]>([]);
+function toggleCategory(id: string) {
+  categoryFilter.value = categoryFilter.value.includes(id) ? categoryFilter.value.filter((x) => x !== id) : [...categoryFilter.value, id];
+}
+const inCategories = (p: CsProduct) => !categoryFilter.value.length || categoryFilter.value.includes(p.category_id ?? "none");
+const categoryChips = computed(() => {
+  const counts = new Map<string, number>();
+  for (const r of allRows.value) counts.set(r.p.category_id ?? "none", (counts.get(r.p.category_id ?? "none") ?? 0) + 1);
+  const named = [...counts.keys()]
+    .filter((id) => id !== "none")
+    .map((id) => ({ id, label: categoryOf(id)?.name ?? "—", count: counts.get(id)! }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  return [...named, ...(counts.has("none") ? [{ id: "none", label: t("cs.profile.noCategory"), count: counts.get("none")! }] : [])];
+});
+const rows = computed(() => allRows.value.filter((r) => inCategories(r.p)));
 
 // ---- Time buckets (local time)
 const startOfToday = () => {
@@ -180,9 +199,13 @@ const { data: logs, refresh: refreshLogs } = await useAsyncData<LogRow[]>(
 const statKey = ref<"overdue" | "scheduled" | "done" | "declined">("overdue");
 // Overdue is a standing state, so it counts everything overdue right now, whatever the period.
 const overdueRows = computed(() => rows.value.filter((r) => r.at !== null && r.at < startOfToday()));
-const scheduledLogs = computed(() => (logs.value ?? []).filter((l) => l.kind === "scheduled" || l.kind === "rescheduled"));
-const declinedLogs = computed(() => (logs.value ?? []).filter((l) => l.kind === "declined"));
-const doneLogs = computed(() => (logs.value ?? []).filter((l) => l.kind === "done"));
+const logsInCategories = computed(() => (logs.value ?? []).filter((l) => {
+  const p = (allProducts.value ?? []).find((x) => x.id === l.product_id);
+  return !!p && inCategories(p);
+}));
+const scheduledLogs = computed(() => logsInCategories.value.filter((l) => l.kind === "scheduled" || l.kind === "rescheduled"));
+const declinedLogs = computed(() => logsInCategories.value.filter((l) => l.kind === "declined"));
+const doneLogs = computed(() => logsInCategories.value.filter((l) => l.kind === "done"));
 const stats = computed(() => [
   { key: "overdue" as const, icon: "i-lucide-triangle-alert", value: overdueRows.value.length, tone: overdueRows.value.length ? "text-error" : "text-highlighted" },
   { key: "scheduled" as const, icon: "i-lucide-calendar-clock", value: scheduledLogs.value.length, tone: "text-highlighted" },
@@ -219,7 +242,7 @@ const trackRows = computed<TrackRow[]>(() => {
   const list = statKey.value === "scheduled" ? scheduledLogs.value : statKey.value === "declined" ? declinedLogs.value : doneLogs.value;
   return list
     .map((l) => ({ l, p: productOf(l.product_id) }))
-    .filter((x): x is { l: LogRow; p: CsProduct } => !!x.p)
+    .filter((x): x is { l: LogRow; p: CsProduct } => !!x.p && inCategories(x.p))
     .sort((a, b) => (b.l.done_on ?? b.l.happened_at).localeCompare(a.l.done_on ?? a.l.happened_at))
     .map(({ l, p }) =>
       statKey.value === "declined"
@@ -254,7 +277,7 @@ const trackRows = computed<TrackRow[]>(() => {
     );
 });
 const trackPagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([statKey, period], () => (trackPagination.value = { ...trackPagination.value, pageIndex: 0 }));
+watch([statKey, period, categoryFilter], () => (trackPagination.value = { ...trackPagination.value, pageIndex: 0 }));
 const trackPaged = computed(() =>
   trackRows.value.slice(trackPagination.value.pageIndex * trackPagination.value.pageSize, (trackPagination.value.pageIndex + 1) * trackPagination.value.pageSize),
 );
@@ -299,7 +322,7 @@ const columns = computed<TableColumn<Row>[]>(() => [
   { id: "actions", header: "" },
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([search, areaFilter, tab], () => {
+watch([search, areaFilter, tab, categoryFilter], () => {
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
@@ -356,6 +379,25 @@ function openRecord(productId: string) {
         </div>
         <div v-if="mode === 'list'" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
           <UTabs v-model="tab" :items="tabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
+        </div>
+        <!-- Product category: pick one or several (list and tracking) -->
+        <div v-if="categoryChips.length > 1" class="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+          <button type="button" class="kords-chip" :class="!categoryFilter.length && 'kords-chip-on'" @click="categoryFilter = []">
+            {{ t("cs.customers.allCategories") }}
+          </button>
+          <button
+            v-for="c in categoryChips"
+            :key="c.id"
+            type="button"
+            class="kords-chip"
+            :class="categoryFilter.includes(c.id) && 'kords-chip-on'"
+            :aria-pressed="categoryFilter.includes(c.id)"
+            @click="toggleCategory(c.id)"
+          >
+            <UIcon v-if="categoryFilter.includes(c.id)" name="i-lucide-check" class="size-3.5" />
+            {{ c.label }}
+            <span class="kords-chip-count">{{ c.count }}</span>
+          </button>
         </div>
         <div v-if="mode === 'list'" class="flex flex-wrap items-center gap-2">
           <UInput v-model="search" icon="i-lucide-search" :placeholder="t('cs.maintenance.search')" class="min-w-0 flex-1 basis-56" />

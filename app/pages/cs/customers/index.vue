@@ -20,7 +20,7 @@ const { areas, stages, pipelines, stageColor, stageName, stageLabelFull, loadAre
 const { data: customers, refresh, status } = await useAsyncData<CsCustomer[]>("cs-customers", async () => {
   const { data, error } = await supabase
     .from("customers")
-    .select("id, name, company, phone, extra_phones, email, address, area_id, created_at, customer_type, cs_agent_id")
+    .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, created_at, customer_type, cs_agent_id")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as CsCustomer[];
@@ -301,7 +301,9 @@ async function onCreated(id: string) {
             <div class="text-sm">
               <bdi v-if="row.original.phone" dir="ltr" class="text-highlighted">{{ row.original.phone }}</bdi>
               <span v-else class="text-muted">—</span>
-              <div v-if="row.original.extra_phones?.length" class="text-xs text-muted">+{{ row.original.extra_phones.length }}</div>
+              <div v-if="row.original.extra_phones?.length" class="text-xs text-muted">
+                +{{ row.original.extra_phones.length }}<template v-if="row.original.extra_phone_names?.some((n) => n)"> · {{ row.original.extra_phone_names.filter((n) => n).join("، ") }}</template>
+              </div>
             </div>
           </template>
           <template #area-cell="{ row }">
