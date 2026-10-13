@@ -108,10 +108,10 @@ export function useVisits() {
   // deal picker and to label visits.
   async function loadDeals(force = false) {
     if (dealLabels.value.length && !force) return;
-    const [{ data: deals }, { data: leads }, { data: customers }] = await Promise.all([
+    const [{ data: deals }, { data: leads }, customers] = await Promise.all([
       supabase.from("deals").select("id, title, lead_id, customer_id").order("created_at", { ascending: false }),
       supabase.from("leads").select("id, name"),
-      supabase.from("customers").select("id, name"),
+      fetchAll<{ id: string; name: string }>((from, to) => supabase.from("customers").select("id, name").order("id").range(from, to) as never),
     ]);
     const leadName = new Map((leads ?? []).map((l) => [l.id, l.name]));
     const customerName = new Map((customers ?? []).map((c) => [c.id, c.name]));

@@ -17,21 +17,19 @@ const canMaintenance = computed(() => hasAnyModulePermission("cs_maintenance"));
 // own limit (Settings); stages with no limit fall back to this many days.
 const STUCK_DAYS = 30;
 
-const { data: customers, status } = await useAsyncData<CsCustomer[]>("cs-dash-customers", async () => {
-  const { data, error } = await supabase.from("customers").select("id, name, company, phone, email, address, area_id, created_at");
-  if (error) throw error;
-  return (data ?? []) as CsCustomer[];
-});
-const { data: products } = await useAsyncData<CsProduct[]>("cs-dash-products", async () => {
-  const { data, error } = await supabase.from("customer_products").select("*");
-  if (error) throw error;
-  return (data ?? []) as CsProduct[];
-});
-const { data: stageDates } = await useAsyncData<CsStageDate[]>("cs-dash-dates", async () => {
-  const { data, error } = await supabase.from("customer_product_stage_dates").select("product_id, stage_id, reached_on");
-  if (error) throw error;
-  return (data ?? []) as CsStageDate[];
-});
+const { data: customers, status } = await useAsyncData<CsCustomer[]>("cs-dash-customers", async () =>
+  fetchAll<CsCustomer>((from, to) =>
+    supabase.from("customers").select("id, name, company, phone, email, address, area_id, created_at").order("id").range(from, to) as never,
+  ),
+);
+const { data: products } = await useAsyncData<CsProduct[]>("cs-dash-products", async () =>
+  fetchAll<CsProduct>((from, to) => supabase.from("customer_products").select("*").order("id").range(from, to) as never),
+);
+const { data: stageDates } = await useAsyncData<CsStageDate[]>("cs-dash-dates", async () =>
+  fetchAll<CsStageDate>((from, to) =>
+    supabase.from("customer_product_stage_dates").select("product_id, stage_id, reached_on").order("product_id").order("stage_id").range(from, to) as never,
+  ),
+);
 const dates = computed(() => dateIndex(stageDates.value ?? []));
 const { data: categories } = await useAsyncData<{ id: string; name: string; maintenance_interval_months: number | null }[]>("cs-dash-categories", async () => {
   const { data } = await supabase.from("product_categories").select("id, name, maintenance_interval_months").order("sort_order");

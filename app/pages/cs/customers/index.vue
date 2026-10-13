@@ -17,23 +17,40 @@ const { areas, stages, pipelines, stageColor, stageName, stageLabelFull, loadAre
 
 // Customer service sees every customer: the ones a won deal created in the CRM
 // and the ones added here directly.
-const { data: customers, refresh, status } = await useAsyncData<CsCustomer[]>("cs-customers", async () => {
-  const { data, error } = await supabase
-    .from("customers")
-    .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, created_at, customer_type, cs_agent_id")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as CsCustomer[];
-});
+const { data: customers, refresh, status } = await useAsyncData<CsCustomer[]>("cs-customers", async () =>
+  fetchAll<CsCustomer>((from, to) =>
+    supabase
+      .from("customers")
+      .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, created_at, customer_type, cs_agent_id")
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, to) as never,
+  ),
+);
 
 const { data: products, refresh: refreshProducts } = await useAsyncData<Pick<CsProduct, "customer_id" | "stage_id" | "category_id">[]>(
   "cs-customers-products",
-  async () => {
-    const { data, error } = await supabase.from("customer_products").select("customer_id, stage_id, category_id");
-    if (error) throw error;
-    return (data ?? []) as Pick<CsProduct, "customer_id" | "stage_id" | "category_id">[];
-  },
+  async () =>
+    fetchAll<Pick<CsProduct, "customer_id" | "stage_id" | "category_id">>((from, to) =>
+      supabase.from("customer_products").select("customer_id, stage_id, category_id").order("id").range(from, to) as never,
+    ),
 );
+// Contract codes of every customer (shown in the list, and searchable).
+const { data: contractRows, refresh: refreshContracts } = await useAsyncData<{ customer_id: string; code: string | null }[]>("cs-customers-contracts", async () =>
+  fetchAll<{ customer_id: string; code: string | null }>((from, to) =>
+    supabase.from("contracts").select("customer_id, code").order("signed_on", { ascending: false, nullsFirst: false }).order("id").range(from, to) as never,
+  ),
+);
+const contractsByCustomer = computed(() => {
+  const map = new Map<string, string[]>();
+  for (const c of contractRows.value ?? []) {
+    const code = c.code?.trim();
+    if (code) map.set(c.customer_id, [...(map.get(c.customer_id) ?? []), code]);
+  }
+  return map;
+});
+const contractsOf = (customerId: string) => contractsByCustomer.value.get(customerId) ?? [];
+
 const { data: categories } = await useAsyncData<{ id: string; name: string }[]>("cs-customers-categories", async () => {
   const { data, error } = await supabase.from("product_categories").select("id, name").order("sort_order");
   if (error) throw error;
@@ -121,7 +138,7 @@ const filtered = computed(() =>
     }
     if (search.value) {
       const q = search.value.toLowerCase();
-      const hay = `${c.name} ${c.company ?? ""} ${c.email ?? ""} ${c.address ?? ""}`.toLowerCase();
+      const hay = `${c.name} ${c.company ?? ""} ${c.email ?? ""} ${c.address ?? ""} ${contractsOf(c.id).join(" ")}`.toLowerCase();
       if (!hay.includes(q) && !phoneMatches(c.phone, search.value) && !(c.extra_phones ?? []).some((p) => phoneMatches(p, search.value))) return false;
     }
     return true;
@@ -161,8 +178,55 @@ const agentName = (id: string | null) => {
   return u ? u.full_name || u.email : null;
 };
 
+// ---- Merge: tick two or more customers (people allowed to edit and delete them).
+const UCheckbox = resolveComponent("UCheckbox");
+const canDelete = computed(() => hasPermission("cs_customers", "delete"));
+const canMerge = computed(() => canDelete.value && hasPermission("cs_customers", "edit"));
+const rowSelection = ref<Record<string, boolean>>({});
+const selectedCustomers = computed(() => filtered.value.filter((c) => rowSelection.value[c.id]));
+const productCounts = computed(() => {
+  const counts: Record<string, number> = {};
+  for (const p of products.value ?? []) counts[p.customer_id] = (counts[p.customer_id] ?? 0) + 1;
+  return counts;
+});
+const deleteOpen = ref(false);
+function openBulkDelete() {
+  deleteOpen.value = true;
+}
+const mergeOpen = ref(false);
+function openMerge() {
+  mergeOpen.value = true;
+}
+function clearSelection() {
+  rowSelection.value = {};
+}
+async function onMerged() {
+  clearSelection();
+  await Promise.all([refresh(), refreshProducts(), refreshContracts()]);
+}
+
 const columns = computed<TableColumn<CsCustomer>[]>(() => [
-  { id: "created", header: t("cs.customers.created") },
+  ...(canDelete.value
+    ? [
+        {
+          id: "select",
+          header: ({ table }: { table: any }) =>
+            h(UCheckbox, {
+              modelValue: table.getIsSomePageRowsSelected() ? "indeterminate" : table.getIsAllPageRowsSelected(),
+              "onUpdate:modelValue": (value: boolean | "indeterminate") => table.toggleAllPageRowsSelected(!!value),
+              "aria-label": t("common.selectAll"),
+            }),
+          cell: ({ row }: { row: any }) =>
+            h(UCheckbox, {
+              modelValue: row.getIsSelected(),
+              "onUpdate:modelValue": (value: boolean | "indeterminate") => row.toggleSelected(!!value),
+              "aria-label": t("common.selectRow"),
+              onClick: (e: Event) => e.stopPropagation(),
+            }),
+        },
+      ]
+    : []),
+  { id: "contracts", header: t("cs.profile.contracts") },
   { id: "customer", header: t("cs.installations.customer") },
   { id: "contact", header: t("cs.customers.contact") },
   { id: "area", header: t("cs.customers.area") },
@@ -174,6 +238,7 @@ const columns = computed<TableColumn<CsCustomer>[]>(() => [
 
 const pagination = ref({ pageIndex: 0, pageSize: 50 });
 watch([search, areaFilter, stageFilter, categoryFilter, agentFilter, typeFilter], () => {
+  rowSelection.value = {};
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
@@ -196,7 +261,7 @@ function openCreate() {
   createOpen.value = true;
 }
 async function onCreated(id: string) {
-  await Promise.all([refresh(), refreshProducts()]);
+  await Promise.all([refresh(), refreshProducts(), refreshContracts()]);
   openCustomer(id);
 }
 </script>
@@ -269,7 +334,15 @@ async function onCreated(id: string) {
         </div>
 
         <!-- Desktop: table -->
+        <div v-if="canDelete && selectedCustomers.length" class="hidden items-center gap-3 md:flex">
+          <span class="text-sm text-muted">{{ t("cs.customers.mergeSelected", { count: selectedCustomers.length }) }}</span>
+          <UButton v-if="canMerge" icon="i-lucide-git-merge" size="sm" :label="t('cs.customers.merge')" :disabled="selectedCustomers.length < 2" @click="openMerge" />
+          <UButton icon="i-lucide-trash" size="sm" color="error" variant="soft" :label="t('common.delete')" @click="openBulkDelete" />
+          <UButton icon="i-lucide-x" size="sm" color="neutral" variant="ghost" :label="t('cs.customers.clearSelection')" @click="clearSelection" />
+        </div>
         <UTable
+          v-model:row-selection="rowSelection"
+          :get-row-id="(row: CsCustomer) => row.id"
           v-model:pagination="pagination"
           :data="filtered"
           :columns="columns"
@@ -277,11 +350,14 @@ async function onCreated(id: string) {
           :ui="{ root: 'kords-card hidden shrink-0 overflow-hidden md:block [&_tbody_tr]:cursor-pointer' }"
           @select="(_e, row) => openCustomer(row.original.id)"
         >
-          <template #created-cell="{ row }">
-            <div class="whitespace-nowrap text-sm">
-              <div class="text-highlighted">{{ formatDate((row.original.created_at ?? "").slice(0, 10)) }}</div>
-              <div class="text-xs text-muted">{{ ago(row.original.created_at) }}</div>
+          <template #contracts-cell="{ row }">
+            <div v-if="contractsOf(row.original.id).length" class="flex max-w-56 flex-wrap items-center gap-1">
+              <KBadge v-for="code in contractsOf(row.original.id).slice(0, 3)" :key="code" :label="code" tone="primary" class="font-mono" />
+              <span v-if="contractsOf(row.original.id).length > 3" class="text-xs text-muted" :title="contractsOf(row.original.id).join(' ، ')">
+                +{{ contractsOf(row.original.id).length - 3 }}
+              </span>
             </div>
+            <span v-else class="text-sm text-muted">—</span>
           </template>
           <template #customer-cell="{ row }">
             <div class="flex min-w-0 items-center gap-3">
@@ -358,4 +434,6 @@ async function onCreated(id: string) {
   </UDashboardPanel>
 
   <CustomerFormModal v-model:open="createOpen" @saved="onCreated" />
+  <CustomerBulkDeleteModal v-model:open="deleteOpen" :customers="selectedCustomers" :product-counts="productCounts" @deleted="onMerged" />
+  <CustomerMergeModal v-model:open="mergeOpen" :customers="selectedCustomers" :product-counts="productCounts" @merged="onMerged" />
 </template>

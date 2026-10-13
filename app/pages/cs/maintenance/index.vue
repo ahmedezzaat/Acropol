@@ -28,16 +28,14 @@ const { areas, stageById, formatDate, formatDateTime, maintenanceDue, loadAreas,
 
 // Only products that reached the completed stage (تم التشغيل) — those are the
 // ones maintenance starts for. Loaded whole, then narrowed by stage below.
-const { data: allProducts, refresh, status } = await useAsyncData<CsProduct[]>("cs-maintenance", async () => {
-  const { data, error } = await supabase.from("customer_products").select("*");
-  if (error) throw error;
-  return (data ?? []) as CsProduct[];
-});
-const { data: customers } = await useAsyncData<CsCustomer[]>("cs-maintenance-customers", async () => {
-  const { data, error } = await supabase.from("customers").select("id, name, company, phone, email, address, area_id");
-  if (error) throw error;
-  return (data ?? []) as CsCustomer[];
-});
+const { data: allProducts, refresh, status } = await useAsyncData<CsProduct[]>("cs-maintenance", async () =>
+  fetchAll<CsProduct>((from, to) => supabase.from("customer_products").select("*").order("id").range(from, to) as never),
+);
+const { data: customers } = await useAsyncData<CsCustomer[]>("cs-maintenance-customers", async () =>
+  fetchAll<CsCustomer>((from, to) =>
+    supabase.from("customers").select("id, name, company, phone, email, address, area_id").order("id").range(from, to) as never,
+  ),
+);
 const { data: categories } = await useAsyncData<{ id: string; name: string; maintenance_interval_months: number | null }[]>(
   "cs-maintenance-categories",
   async () => {
@@ -183,15 +181,21 @@ const { data: logs, refresh: refreshLogs } = await useAsyncData<LogRow[]>(
   async () => {
     const { from, to } = range.value;
     const [booked, done] = await Promise.all([
-      supabase
-        .from("product_maintenance_log")
-        .select("*")
-        .in("kind", ["scheduled", "rescheduled", "declined"])
-        .gte("happened_at", new Date(from).toISOString())
-        .lt("happened_at", new Date(to).toISOString()),
-      supabase.from("product_maintenance_log").select("*").eq("kind", "done").gte("done_on", dayStr(from)).lt("done_on", dayStr(to)),
+      fetchAll<LogRow>((a, b) =>
+        supabase
+          .from("product_maintenance_log")
+          .select("*")
+          .in("kind", ["scheduled", "rescheduled", "declined"])
+          .gte("happened_at", new Date(from).toISOString())
+          .lt("happened_at", new Date(to).toISOString())
+          .order("id")
+          .range(a, b) as never,
+      ),
+      fetchAll<LogRow>((a, b) =>
+        supabase.from("product_maintenance_log").select("*").eq("kind", "done").gte("done_on", dayStr(from)).lt("done_on", dayStr(to)).order("id").range(a, b) as never,
+      ),
     ]);
-    return [...(booked.data ?? []), ...(done.data ?? [])] as LogRow[];
+    return [...booked, ...done];
   },
   { watch: [period] },
 );

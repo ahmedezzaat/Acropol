@@ -31,11 +31,9 @@ const { data: quotes, status } = await useAsyncData<Quote[]>("crm-quotes", async
   return data ?? [];
 });
 
-const { data: customers } = await useAsyncData<Customer[]>("crm-quotes-customers", async () => {
-  const { data, error } = await supabase.from("customers").select("id, name");
-  if (error) throw error;
-  return data ?? [];
-});
+const { data: customers } = await useAsyncData<Customer[]>("crm-quotes-customers", async () =>
+  fetchAll<Customer>((from, to) => supabase.from("customers").select("id, name").order("id").range(from, to) as never),
+);
 
 function customerName(id: string | null) {
   return customers.value?.find((c) => c.id === id)?.name ?? "—";

@@ -16,26 +16,23 @@ const { areas, pipelines, stagesOf, stageName, stageColor, stageLimitDays, dateI
 
 // The funnels (التركيبات and any others set up in Settings): every customer's
 // product as a list, newest first.
-const { data: products, refresh, status } = await useAsyncData<CsProduct[]>("cs-installations", async () => {
-  const { data, error } = await supabase
-    .from("customer_products")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as CsProduct[];
-});
-const { data: stageDates, refresh: refreshDates } = await useAsyncData<CsStageDate[]>("cs-installations-dates", async () => {
-  const { data, error } = await supabase.from("customer_product_stage_dates").select("product_id, stage_id, reached_on");
-  if (error) throw error;
-  return (data ?? []) as CsStageDate[];
-});
+const { data: products, refresh, status } = await useAsyncData<CsProduct[]>("cs-installations", async () =>
+  fetchAll<CsProduct>((from, to) =>
+    supabase.from("customer_products").select("*").order("created_at", { ascending: false }).order("id").range(from, to) as never,
+  ),
+);
+const { data: stageDates, refresh: refreshDates } = await useAsyncData<CsStageDate[]>("cs-installations-dates", async () =>
+  fetchAll<CsStageDate>((from, to) =>
+    supabase.from("customer_product_stage_dates").select("product_id, stage_id, reached_on").order("product_id").order("stage_id").range(from, to) as never,
+  ),
+);
 const dates = computed(() => dateIndex(stageDates.value ?? []));
 
-const { data: customers } = await useAsyncData<CsCustomer[]>("cs-installations-customers", async () => {
-  const { data, error } = await supabase.from("customers").select("id, name, company, phone, email, address, area_id");
-  if (error) throw error;
-  return (data ?? []) as CsCustomer[];
-});
+const { data: customers } = await useAsyncData<CsCustomer[]>("cs-installations-customers", async () =>
+  fetchAll<CsCustomer>((from, to) =>
+    supabase.from("customers").select("id, name, company, phone, email, address, area_id").order("id").range(from, to) as never,
+  ),
+);
 const { data: categories } = await useAsyncData<{ id: string; name: string }[]>("cs-installations-categories", async () => {
   const { data } = await supabase.from("product_categories").select("id, name");
   return data ?? [];

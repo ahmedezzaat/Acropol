@@ -34,14 +34,10 @@ const canAssign = computed(() => hasPermission("crm_customers", "assign"));
 
 const { data: customers, refresh, status } = await useAsyncData<Customer[]>(
   "crm-customers",
-  async () => {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, name, company, phone, email, assigned_to")
-      .order("name");
-    if (error) throw error;
-    return data ?? [];
-  },
+  async () =>
+    fetchAll<Customer>((from, to) =>
+      supabase.from("customers").select("id, name, company, phone, email, assigned_to").order("name").order("id").range(from, to) as never,
+    ),
 );
 
 const { data: profiles } = await useAsyncData<Profile[]>("crm-customers-profiles", async () => {

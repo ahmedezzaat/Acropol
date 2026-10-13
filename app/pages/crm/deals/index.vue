@@ -128,11 +128,9 @@ const { data: deals, refresh, status } = await useAsyncData<Deal[]>("crm-deals",
   return data ?? [];
 });
 
-const { data: customers, refresh: refreshCustomers } = await useAsyncData<Customer[]>("crm-deals-customers", async () => {
-  const { data, error } = await supabase.from("customers").select("id, name, phone").order("name");
-  if (error) throw error;
-  return data ?? [];
-});
+const { data: customers, refresh: refreshCustomers } = await useAsyncData<Customer[]>("crm-deals-customers", async () =>
+  fetchAll<Customer>((from, to) => supabase.from("customers").select("id, name, phone").order("name").order("id").range(from, to) as never),
+);
 
 // Latest note per deal, for the Kanban card and list view — fetched newest
 // first so the first row seen per deal_id is already its latest note.

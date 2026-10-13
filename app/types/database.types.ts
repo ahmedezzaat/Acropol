@@ -1241,6 +1241,14 @@ export type Database = {
         Args: Record<string, never>;
         Returns: string[];
       };
+      cs_delete_customers: {
+        Args: { p_ids: string[]; p_with_products?: boolean };
+        Returns: unknown;
+      };
+      cs_merge_customers: {
+        Args: { p_keep: string; p_merge: string[] };
+        Returns: number;
+      };
       cs_assignable_agents: {
         Args: Record<string, never>;
         Returns: { id: string; full_name: string | null; email: string }[];
