@@ -1257,7 +1257,11 @@
       "evDeclined": "Maintenance cancelled (customer declined)",
       "evResumed": "Maintenance resumed",
       "visitPlan": "What the next visit will do",
-      "partsToChange": "Parts to change"
+      "partsToChange": "Parts to change",
+      "lastFrom": "Last done maintenance from",
+      "lastTo": "Last done maintenance to",
+      "neverMaintained": "No maintenance done yet",
+      "clearDates": "Clear"
     },
     "print": {
       "title": "Customer and product details",

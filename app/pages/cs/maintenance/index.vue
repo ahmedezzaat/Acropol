@@ -288,6 +288,16 @@ const trackPaged = computed(() =>
 
 const search = ref("");
 const areaFilter = ref<string | null>(null);
+// Filter by the date of the last maintenance (done visit): a range, or products
+// that have never had one.
+const lastFrom = ref("");
+const lastTo = ref("");
+const neverMaintained = ref(false);
+function clearLastDates() {
+  lastFrom.value = "";
+  lastTo.value = "";
+  neverMaintained.value = false;
+}
 const areaItems = computed(() => [
   { label: t("cs.customers.allAreas"), value: null },
   ...areas.value.map((a) => ({ label: a.name, value: a.id })),
@@ -298,6 +308,13 @@ const filtered = computed(() =>
     if (tab.value !== "all" && bucket(r) !== tab.value) return false;
     const c = customerOf(r.p.customer_id);
     if (areaFilter.value && c?.area_id !== areaFilter.value) return false;
+    const last = r.p.last_maintenance_on;
+    if (neverMaintained.value && last) return false;
+    if (!neverMaintained.value && (lastFrom.value || lastTo.value)) {
+      if (!last) return false;
+      if (lastFrom.value && last < lastFrom.value) return false;
+      if (lastTo.value && last > lastTo.value) return false;
+    }
     if (search.value) {
       const q = search.value.toLowerCase();
       const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${r.p.name} ${r.p.contract_code ?? ""} ${r.p.next_maintenance_note ?? ""}`.toLowerCase();
@@ -326,7 +343,7 @@ const columns = computed<TableColumn<Row>[]>(() => [
   { id: "actions", header: "" },
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([search, areaFilter, tab, categoryFilter], () => {
+watch([search, areaFilter, tab, categoryFilter, lastFrom, lastTo, neverMaintained], () => {
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
@@ -406,6 +423,23 @@ function openRecord(productId: string) {
         <div v-if="mode === 'list'" class="flex flex-wrap items-center gap-2">
           <UInput v-model="search" icon="i-lucide-search" :placeholder="t('cs.maintenance.search')" class="min-w-0 flex-1 basis-56" />
           <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-44" />
+          <UFormField :label="t('cs.maintenance.lastFrom')" size="xs" class="w-40">
+            <UInput v-model="lastFrom" type="date" :disabled="neverMaintained" class="w-full" />
+          </UFormField>
+          <UFormField :label="t('cs.maintenance.lastTo')" size="xs" class="w-40">
+            <UInput v-model="lastTo" type="date" :disabled="neverMaintained" class="w-full" />
+          </UFormField>
+          <USwitch v-model="neverMaintained" :label="t('cs.maintenance.neverMaintained')" class="self-end pb-2" />
+          <UButton
+            v-if="lastFrom || lastTo || neverMaintained"
+            icon="i-lucide-x"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            class="self-end"
+            :label="t('cs.maintenance.clearDates')"
+            @click="clearLastDates"
+          />
         </div>
       </div>
     </template>
