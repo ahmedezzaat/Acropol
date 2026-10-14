@@ -15,7 +15,7 @@ useHead({ htmlAttrs: { class: "kords" } });
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
-const { t, locale } = useI18n();
+const { t, te, locale } = useI18n();
 
 interface Deal {
   id: string;
@@ -48,6 +48,8 @@ interface LeadContact {
   phone2: string | null;
   email: string | null;
   source: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 interface Quote {
@@ -133,6 +135,18 @@ const { data: dealVisits, refresh: refreshVisits } = await useAsyncData<Visit[]>
   if (error) throw error;
   return (data ?? []) as Visit[];
 });
+// Notes written along the way on those visits (the reason it was rejected, what was found when done...).
+const { data: visitEventNotes } = await useAsyncData<{ visit_id: string; action: string; note: string }[]>(
+  `crm-deal-${dealId}-visit-notes`,
+  async () => {
+    const ids = (dealVisits.value ?? []).map((v) => v.id);
+    if (!ids.length) return [];
+    const { data, error } = await supabase.from("field_visit_events").select("visit_id, action, note, created_at").in("visit_id", ids).order("created_at");
+    if (error) return [];
+    return (data ?? []).filter((e) => e.note?.trim()) as { visit_id: string; action: string; note: string }[];
+  },
+);
+const visitNotesOf = (visitId: string) => (visitEventNotes.value ?? []).filter((e) => e.visit_id === visitId);
 const canCreateQuote = computed(() => hasPermission("crm_quotes", "create"));
 const canEditLead = computed(() => hasPermission("crm_leads", "edit"));
 
@@ -215,7 +229,7 @@ const { data: leadContact, refresh: refreshLeadContact } = await useAsyncData<Le
     if (!deal.value?.lead_id) return null;
     const { data, error } = await supabase
       .from("leads")
-      .select("id, name, company_name, lead_type, phone, phone2, email, source")
+      .select("id, name, company_name, lead_type, phone, phone2, email, source, notes, created_at")
       .eq("id", deal.value.lead_id)
       .single();
     if (error) throw error;
@@ -733,7 +747,10 @@ function activityIcon(typeKey: string) {
 }
 
 function activityTypeName(typeKey: string) {
-  return allActivityTypes.value.find((t) => t.key === typeKey)?.name ?? typeKey;
+  const known = allActivityTypes.value.find((t) => t.key === typeKey)?.name;
+  if (known) return known;
+  // A type that was removed from Settings later: use its built-in name when there is one.
+  return te(`crm.deals.timeline.types.${typeKey}`) ? t(`crm.deals.timeline.types.${typeKey}`) : typeKey;
 }
 
 // Follow-up date/time — a calendar popover (defaults to today, opened via
@@ -1069,7 +1086,8 @@ const timelineItems = computed<TimelineItem[]>(() =>
   (activities.value ?? []).map((a) => ({
     date: formatDate(a.created_at, true),
     title: activityTitle(a),
-    description: manualTypeKeys.value.has(a.type) ? (a.content ?? undefined) : undefined,
+    // Every written note shows, whatever its type (even one whose activity type was later removed).
+    description: !SYSTEM_TYPES.includes(a.type) ? (a.content?.trim() || undefined) : undefined,
     icon: activityIcon(a.type),
     actor: a.metadata?.automation_rule_id ? t("crm.deals.timeline.events.automationActor") : profileLabel(a.created_by),
     slot: "activity",
@@ -1092,6 +1110,8 @@ function formatMoney(value: number | null | undefined) {
   return `${value.toLocaleString("en-US", { maximumFractionDigits: 0 })} ${t("common.currency")}`;
 }
 
+// Events the system logs by itself; everything else is something a person wrote or logged.
+const SYSTEM_TYPES: string[] = ["created", "stage_changed", "assigned"];
 const allActivities = computed(() => (activities.value ?? []) as Activity[]);
 
 // A deal entered its current stage at its most recent stage_changed event, or
@@ -1138,8 +1158,8 @@ const timelineFilter = ref<TimelineFilter>("all");
 function filterMatches(type: Activity["type"], filter: TimelineFilter) {
   if (filter === "all") return true;
   if (filter === "notes") return type === "note";
-  if (filter === "system") return ["created", "stage_changed", "assigned"].includes(type);
-  return type !== "note" && manualTypeKeys.value.has(type);
+  if (filter === "system") return SYSTEM_TYPES.includes(type);
+  return type !== "note" && !SYSTEM_TYPES.includes(type);
 }
 const timelineTabs = computed(() =>
   (["all", "notes", "activities", "system"] as const).map((value) => ({
@@ -1301,9 +1321,8 @@ function isPastDue(iso: string | null) {
           <!-- Trips & inspections -->
           <UPageCard class="kords-card" v-if="canSeeVisits" :title="t('crm.visits.dealCardTitle')">
             <div class="space-y-2">
+              <div v-for="v in dealVisits" :key="v.id">
               <NuxtLink
-                v-for="v in dealVisits"
-                :key="v.id"
                 :to="`/crm/visits?open=${v.id}`"
                 class="flex flex-wrap items-center justify-between gap-2 border border-default p-3 transition-colors hover:border-primary hover:bg-elevated"
               >
@@ -1314,6 +1333,11 @@ function isPastDue(iso: string | null) {
                 </span>
                 <UBadge :label="visitStatusLabel(v.status)" :color="visitStatusColors[v.status]" variant="subtle" size="sm" class="cds-tag" />
               </NuxtLink>
+              <div v-if="v.notes?.trim() || visitNotesOf(v.id).length" class="space-y-1 border border-t-0 border-default bg-muted p-2 text-xs text-toned">
+                <p v-if="v.notes?.trim()" class="whitespace-pre-line">{{ v.notes }}</p>
+                <p v-for="(e, i) in visitNotesOf(v.id)" :key="i" class="whitespace-pre-line text-muted">{{ e.note }}</p>
+              </div>
+              </div>
               <p v-if="!dealVisits?.length" class="text-sm text-muted">{{ t("crm.visits.dealCardEmpty") }}</p>
               <UButton
                 v-if="canRequestVisit"
@@ -1366,6 +1390,15 @@ function isPastDue(iso: string | null) {
                 />
               </div>
             </div>
+          </UPageCard>
+
+          <!-- Notes written on the lead this deal came from -->
+          <UPageCard v-if="leadContact?.notes?.trim()" class="kords-card" :title="t('crm.deals.leadNotesTitle')">
+            <p class="whitespace-pre-line text-sm text-toned">{{ leadContact.notes }}</p>
+            <p class="mt-2 text-xs text-muted">
+              {{ t("crm.deals.leadNotesFrom", { date: formatDate(leadContact.created_at) }) }}
+              <ULink v-if="hasPermission('crm_leads', 'view')" :to="`/crm/leads/${leadContact.id}`" class="ms-2 text-primary">{{ t("crm.deals.viewLead") }}</ULink>
+            </p>
           </UPageCard>
 
           <!-- Timeline -->

@@ -773,7 +773,9 @@
       "notes": "Notes and activities",
       "notesAny": "All deals",
       "notesWith": "With a note or logged activity",
-      "notesWithout": "No note or logged activity"
+      "notesWithout": "No note or logged activity",
+      "leadNotesTitle": "Notes from the lead",
+      "leadNotesFrom": "Written on the lead on {date}"
     },
     "quotes": {
       "title": "Quotes",
