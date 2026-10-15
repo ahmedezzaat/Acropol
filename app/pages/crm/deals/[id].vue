@@ -1114,10 +1114,11 @@ function formatMoney(value: number | null | undefined) {
 const SYSTEM_TYPES: string[] = ["created", "stage_changed", "assigned"];
 const allActivities = computed(() => (activities.value ?? []) as Activity[]);
 
-// A deal entered its current stage at its most recent stage_changed event, or
-// when it was created if it has never moved.
+// The time in the current stage counts from the most recent stage change or
+// assignment to a person, or from creation if neither happened.
 const stageEnteredAt = computed(() => {
-  const changes = allActivities.value.filter((a) => a.type === "stage_changed");
+  // Stage changes, and assignments to a person (a new assignee gets a fresh clock).
+  const changes = allActivities.value.filter((a) => a.type === "stage_changed" || (a.type === "assigned" && !!a.metadata?.to));
   const latest = changes.map((a) => a.created_at).sort().at(-1);
   return latest ?? deal.value?.created_at ?? null;
 });

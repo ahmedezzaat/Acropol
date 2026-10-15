@@ -157,20 +157,24 @@ function lastNote(dealId: string) {
   return lastNoteByDeal.value.get(dealId) ?? null;
 }
 
-// Time a deal has spent in its current stage — the most recent
-// stage_changed activity's timestamp is exactly when it entered whatever
-// stage it's on now; a deal that's never moved falls back to its creation
-// date.
+// Time a deal has spent in its current stage with its current owner: it starts
+// at the most recent of the stage change and the last assignment to a person (a
+// new assignee gets a fresh clock). A deal that's never moved nor been assigned
+// falls back to its creation date.
 const { data: stageChangeActivities } = await useAsyncData<{ deal_id: string; created_at: string }[]>(
   "crm-deals-stage-changes",
   async () => {
-    const { data, error } = await supabase
-      .from("deal_activities")
-      .select("deal_id, created_at")
-      .eq("type", "stage_changed")
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return data ?? [];
+    const rows = await fetchAll<{ deal_id: string; type: string; metadata: { to?: string | null } | null; created_at: string }>((from, to) =>
+      supabase
+        .from("deal_activities")
+        .select("deal_id, type, metadata, created_at")
+        .in("type", ["stage_changed", "assigned"])
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to) as never,
+    );
+    // an assignment only counts when it hands the deal to a person (not an unassign)
+    return rows.filter((r) => r.type === "stage_changed" || !!r.metadata?.to).map((r) => ({ deal_id: r.deal_id, created_at: r.created_at }));
   },
 );
 const stageEnteredAtByDeal = computed(() => {

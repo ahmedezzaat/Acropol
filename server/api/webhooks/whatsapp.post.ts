@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { H3Event } from "h3";
 import { serverSupabaseServiceRole } from "#supabase/server";
 
 interface WhatsAppMessage {
@@ -38,12 +39,12 @@ function messageText(m: WhatsAppMessage) {
   );
 }
 
-// WhatsApp Cloud API webhook. Every inbound message creates a lead for the
+// WhatsApp Cloud API (Meta) webhook. Every inbound message creates a lead for the
 // sender — unless that phone number already belongs to a lead or customer,
 // in which case nothing is created (same rule as creating one in the app).
 // The request is authenticated by Meta's X-Hub-Signature-256 HMAC over the
 // raw body, keyed with the app secret, so nobody else can post leads here.
-export default defineEventHandler(async (event) => {
+async function handleMeta(event: H3Event) {
   const { appSecret, defaultAssigneeId } = await getWhatsappConfig(event);
   if (!appSecret) {
     throw createError({ statusCode: 503, statusMessage: "WhatsApp webhook is not configured" });
@@ -94,4 +95,13 @@ export default defineEventHandler(async (event) => {
   }
 
   return { received: true, created, duplicates };
+}
+
+// One URL, two senders. Meta's Cloud API signs every call with
+// X-Hub-Signature-256 and is handled above. Anything else is treated as a WAHA
+// (self-hosted WhatsApp HTTP API) webhook: see server/utils/wahaWebhook.ts and
+// docs/waha-webhook.md.
+export default defineEventHandler(async (event) => {
+  if (getHeader(event, "x-hub-signature-256")) return await handleMeta(event);
+  return await handleWaha(event);
 });
