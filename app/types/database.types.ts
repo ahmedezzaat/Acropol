@@ -929,6 +929,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      whatsapp_connections: {
+        Row: {
+          id: string;
+          waba_id: string;
+          phone_number_id: string;
+          display_phone_number: string | null;
+          verified_name: string | null;
+          coexistence: boolean;
+          access_token: string;
+          subscribed: boolean;
+          connected_by: string | null;
+          connected_at: string;
+        };
+        Insert: {
+          id?: string;
+          waba_id: string;
+          phone_number_id: string;
+          display_phone_number?: string | null;
+          verified_name?: string | null;
+          coexistence?: boolean;
+          access_token: string;
+          subscribed?: boolean;
+          connected_by?: string | null;
+          connected_at?: string;
+        };
+        Update: {
+          id?: string;
+          waba_id?: string;
+          phone_number_id?: string;
+          display_phone_number?: string | null;
+          verified_name?: string | null;
+          coexistence?: boolean;
+          access_token?: string;
+          subscribed?: boolean;
+          connected_by?: string | null;
+          connected_at?: string;
+        };
+        Relationships: [];
+      };
       maintenance_visits: {
         Row: { id: string; customer_id: string; visit_at: string | null; note: string | null; created_by: string | null; created_at: string };
         Insert: { id?: string; customer_id: string; visit_at?: string | null; note?: string | null; created_by?: string | null; created_at?: string };

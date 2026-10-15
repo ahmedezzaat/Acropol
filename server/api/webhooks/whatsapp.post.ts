@@ -14,9 +14,22 @@ interface WhatsAppMessage {
   interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } };
 }
 
+// A message the business itself sent from the WhatsApp Business app (Coexistence).
+// `to` is the customer; there is no profile name in these.
+interface WhatsAppEcho {
+  to: string;
+  id: string;
+  type?: string;
+  text?: { body?: string };
+  image?: { caption?: string };
+  video?: { caption?: string };
+  document?: { caption?: string };
+}
+
 interface WhatsAppValue {
   contacts?: Array<{ wa_id: string; profile?: { name?: string } }>;
   messages?: WhatsAppMessage[];
+  message_echoes?: WhatsAppEcho[];
 }
 
 function verifySignature(rawBody: string, header: string | undefined, appSecret: string) {
@@ -55,7 +68,7 @@ async function handleMeta(event: H3Event) {
     throw createError({ statusCode: 401, statusMessage: "Invalid signature" });
   }
 
-  let payload: { object?: string; entry?: Array<{ changes?: Array<{ value?: WhatsAppValue }> }> };
+  let payload: { object?: string; entry?: Array<{ changes?: Array<{ field?: string; value?: WhatsAppValue }> }> };
   try {
     payload = JSON.parse(rawBody);
   } catch {
@@ -71,6 +84,33 @@ async function handleMeta(event: H3Event) {
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value;
+
+      // Coexistence: a message sent from the WhatsApp Business app on the same
+      // number. Starting a chat from the phone also makes that person a lead.
+      // (History sync and contact sync arrive as other fields and are ignored.)
+      if (change.field === "smb_message_echoes") {
+        for (const echo of value?.message_echoes ?? []) {
+          const digits = String(echo.to ?? "").replace(/\D/g, "");
+          if (digits.length < 7 || digits.length > 15) continue;
+          const text = echo.text?.body ?? echo.image?.caption ?? echo.video?.caption ?? echo.document?.caption ?? null;
+          const result = await ingestLead(
+            adminClient,
+            {
+              name: `+${digits}`,
+              phone: `+${digits}`,
+              source: "whatsapp",
+              notes: text ? `WhatsApp (sent from the app): ${text}` : `WhatsApp (sent from the app): [${echo.type ?? "message"}]`,
+            },
+            assignee,
+          );
+          if (result.status === "created") created++;
+          else duplicates++;
+        }
+        continue;
+      }
+      // Anything else that is not a normal message (history, contacts...) is not a lead.
+      if (change.field && change.field !== "messages") continue;
+
       // Delivery/read receipts arrive as "statuses" with no messages — ignored.
       for (const message of value?.messages ?? []) {
         const profileName = value?.contacts?.find((c) => c.wa_id === message.from)?.profile?.name?.trim();

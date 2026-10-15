@@ -8,6 +8,9 @@ export default defineEventHandler(async (event) => {
     hasAppSecret: !!c.appSecret,
     appSecretHint: c.appSecret ? c.appSecret.slice(-4) : null,
     defaultAssigneeId: c.defaultAssigneeId || null,
+    // Embedded Signup: not secrets (the browser needs them to open the Meta dialog).
+    appId: c.appId,
+    configId: c.configId,
     sources: c.sources,
   };
 });

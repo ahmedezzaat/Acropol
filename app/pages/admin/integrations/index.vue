@@ -58,6 +58,8 @@ const { data: wa, refresh: refreshWa } = await useFetch<{
   hasAppSecret: boolean;
   appSecretHint: string | null;
   defaultAssigneeId: string | null;
+  appId: string;
+  configId: string;
   sources: { verifyToken: string | null; appSecret: string | null; defaultAssigneeId: string | null };
 }>("/api/admin/integrations-config");
 const waVerifyToken = ref(wa.value?.verifyToken ?? "");
@@ -99,6 +101,135 @@ async function saveWa(extra: Record<string, unknown> = {}) {
 }
 function removeSecret() {
   saveWa({ clear_app_secret: true });
+}
+
+// --- WhatsApp Coexistence: connect a number through Meta's Embedded Signup. The
+// number keeps working in the WhatsApp Business app; Acropol receives its
+// messages and makes a lead for every new person.
+interface WaConnection {
+  id: string;
+  waba_id: string;
+  phone_number_id: string;
+  display_phone_number: string | null;
+  verified_name: string | null;
+  coexistence: boolean;
+  subscribed: boolean;
+  connected_at: string;
+}
+const { data: connections, refresh: refreshConnections } = await useFetch<WaConnection[]>("/api/admin/whatsapp/connections");
+const coexAppId = ref(wa.value?.appId ?? "");
+const coexConfigId = ref(wa.value?.configId ?? "");
+watch(wa, (saved) => {
+  coexAppId.value = saved?.appId ?? "";
+  coexConfigId.value = saved?.configId ?? "";
+});
+const savingCoex = ref(false);
+async function saveCoex() {
+  savingCoex.value = true;
+  try {
+    await $fetch("/api/admin/integrations-config", { method: "POST", body: { app_id: coexAppId.value, config_id: coexConfigId.value } });
+    toast.add({ title: t("admin.integrations.waSaved"), color: "success" });
+    await refreshWa();
+  } catch (err: any) {
+    toast.add({ title: t("admin.integrations.waSaveFailed"), description: err?.data?.statusMessage ?? err.message, color: "error" });
+  } finally {
+    savingCoex.value = false;
+  }
+}
+const coexReady = computed(() => !!wa.value?.appId && !!wa.value?.configId && !!wa.value?.hasAppSecret);
+
+let sdkPromise: Promise<void> | null = null;
+function loadFacebookSdk(appId: string) {
+  if (sdkPromise) return sdkPromise;
+  sdkPromise = new Promise<void>((resolve, reject) => {
+    const w = window as any;
+    w.fbAsyncInit = () => {
+      w.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: "v23.0" });
+      resolve();
+    };
+    const script = document.createElement("script");
+    script.src = "https://connect.facebook.net/en_US/sdk.js";
+    script.async = true;
+    script.onerror = () => {
+      sdkPromise = null;
+      reject(new Error("Could not load the Facebook SDK"));
+    };
+    document.head.appendChild(script);
+  });
+  return sdkPromise;
+}
+
+const connecting = ref(false);
+async function connectWhatsapp() {
+  if (!coexReady.value || !wa.value) return;
+  connecting.value = true;
+  // The dialog reports the account and number it created through a window message.
+  let signup: { waba_id?: string; phone_number_id?: string } = {};
+  let cancelled = false;
+  const onMessage = (e: MessageEvent) => {
+    if (!/facebook\.com$/.test(new URL(e.origin).hostname)) return;
+    try {
+      const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+      if (data?.type !== "WA_EMBEDDED_SIGNUP") return;
+      if (data.event === "CANCEL") cancelled = true;
+      else if (data.data?.waba_id || data.data?.phone_number_id) signup = { waba_id: data.data.waba_id, phone_number_id: data.data.phone_number_id };
+    } catch {
+      /* not ours */
+    }
+  };
+  window.addEventListener("message", onMessage);
+  try {
+    await loadFacebookSdk(wa.value.appId);
+    const code = await new Promise<string | null>((resolve) => {
+      (window as any).FB.login(
+        (response: any) => resolve(response?.authResponse?.code ?? null),
+        {
+          config_id: wa.value!.configId,
+          response_type: "code",
+          override_default_response_type: true,
+          extras: { setup: {}, featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" },
+        },
+      );
+    });
+    if (!code || cancelled) {
+      toast.add({ title: t("admin.integrations.coexCancelled"), color: "neutral" });
+      return;
+    }
+    // the finish message can arrive just after the login callback
+    await new Promise((r) => setTimeout(r, 1200));
+    const result = await $fetch<{ subscribed: boolean }>("/api/admin/whatsapp/connect", {
+      method: "POST",
+      body: { code, ...(signup.waba_id ? { waba_id: signup.waba_id } : {}), ...(signup.phone_number_id ? { phone_number_id: signup.phone_number_id } : {}) },
+    });
+    toast.add({ title: t(result.subscribed ? "admin.integrations.coexConnected" : "admin.integrations.coexConnectedNoWebhook"), color: result.subscribed ? "success" : "warning" });
+    await refreshConnections();
+  } catch (err: any) {
+    toast.add({ title: t("admin.integrations.coexFailed"), description: err?.data?.statusMessage ?? err.message, color: "error" });
+  } finally {
+    window.removeEventListener("message", onMessage);
+    connecting.value = false;
+  }
+}
+
+const disconnectTarget = ref<WaConnection | null>(null);
+const disconnectOpen = ref(false);
+const disconnecting = ref(false);
+function askDisconnect(c: WaConnection) {
+  disconnectTarget.value = c;
+  disconnectOpen.value = true;
+}
+async function confirmDisconnect() {
+  if (!disconnectTarget.value) return;
+  disconnecting.value = true;
+  try {
+    await $fetch(`/api/admin/whatsapp/connections/${disconnectTarget.value.id}`, { method: "DELETE" });
+    disconnectOpen.value = false;
+    await refreshConnections();
+  } catch (err: any) {
+    toast.add({ title: t("admin.integrations.coexFailed"), description: err?.data?.statusMessage ?? err.message, color: "error" });
+  } finally {
+    disconnecting.value = false;
+  }
 }
 
 // --- Create key ---
@@ -373,9 +504,72 @@ const curlExample = computed(
             <p class="text-muted">{{ t("admin.integrations.waBehaviour") }}</p>
           </div>
         </UPageCard>
+
+        <!-- WhatsApp Coexistence (Embedded Signup) -->
+        <UPageCard :title="t('admin.integrations.coexTitle')" :description="t('admin.integrations.coexDescription')">
+          <div class="space-y-4 text-sm">
+            <ol class="list-decimal space-y-1 ps-5 text-muted">
+              <li>{{ t("admin.integrations.coexStep1") }}</li>
+              <li>{{ t("admin.integrations.coexStep2") }}</li>
+              <li>{{ t("admin.integrations.coexStep3") }}</li>
+            </ol>
+
+            <div class="grid gap-3 sm:grid-cols-2">
+              <UFormField :label="t('admin.integrations.coexAppId')">
+                <UInput v-model="coexAppId" dir="ltr" class="w-full" />
+              </UFormField>
+              <UFormField :label="t('admin.integrations.coexConfigId')">
+                <UInput v-model="coexConfigId" dir="ltr" class="w-full" />
+              </UFormField>
+            </div>
+            <p v-if="!wa?.hasAppSecret" class="text-xs text-warning">{{ t("admin.integrations.coexNeedSecret") }}</p>
+            <div class="flex flex-wrap items-center gap-2">
+              <UButton color="neutral" variant="outline" :label="t('common.save')" :loading="savingCoex" @click="saveCoex" />
+              <UButton
+                icon="i-simple-icons-whatsapp"
+                :label="t('admin.integrations.coexConnect')"
+                :loading="connecting"
+                :disabled="!coexReady"
+                @click="connectWhatsapp"
+              />
+            </div>
+
+            <div class="space-y-2 border-t border-default pt-4">
+              <h4 class="font-medium text-highlighted">{{ t("admin.integrations.coexConnected2") }}</h4>
+              <p v-if="!connections?.length" class="text-muted">{{ t("admin.integrations.coexNone") }}</p>
+              <div
+                v-for="c in connections"
+                :key="c.id"
+                class="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-default p-3"
+              >
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <bdi dir="ltr" class="font-medium text-highlighted">{{ c.display_phone_number || c.phone_number_id }}</bdi>
+                    <KBadge v-if="c.verified_name" :label="c.verified_name" tone="neutral" />
+                    <KBadge v-if="c.coexistence" :label="t('admin.integrations.coexBadge')" tone="info" />
+                    <KBadge
+                      :label="c.subscribed ? t('admin.integrations.coexReceiving') : t('admin.integrations.coexNotReceiving')"
+                      :tone="c.subscribed ? 'success' : 'warning'"
+                    />
+                  </div>
+                  <div class="text-xs text-muted">{{ formatDate(c.connected_at) }}</div>
+                </div>
+                <UButton color="error" variant="ghost" size="sm" icon="i-lucide-unplug" :label="t('admin.integrations.coexDisconnect')" @click="askDisconnect(c)" />
+              </div>
+            </div>
+          </div>
+        </UPageCard>
       </div>
     </template>
   </UDashboardPanel>
+
+  <KDeleteConfirmation
+    v-model:open="disconnectOpen"
+    :title="t('admin.integrations.coexDisconnect')"
+    :message="t('admin.integrations.coexDisconnectConfirm', { number: disconnectTarget?.display_phone_number || disconnectTarget?.phone_number_id || '' })"
+    :loading="disconnecting"
+    @confirm="confirmDisconnect"
+  />
 
   <UModal v-model:open="createOpen" :title="t('admin.integrations.newKey')">
     <template #body>

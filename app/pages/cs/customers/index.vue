@@ -126,8 +126,23 @@ const typeTabs = computed(() =>
   })),
 );
 
+// Order of the list: by when the customer was added (newest first by default).
+type SortMode = "newest" | "oldest" | "name";
+const sortMode = ref<SortMode>("newest");
+const sortItems = computed(() => [
+  { label: t("cs.customers.sortNewest"), value: "newest" },
+  { label: t("cs.customers.sortOldest"), value: "oldest" },
+  { label: t("cs.customers.sortName"), value: "name" },
+]);
+const sortedCustomers = computed(() => {
+  const list = [...(customers.value ?? [])];
+  const time = (c: CsCustomer) => new Date(c.created_at ?? 0).getTime();
+  if (sortMode.value === "name") return list.sort((a, b) => customerTitle(a).localeCompare(customerTitle(b), "ar"));
+  return list.sort((a, b) => (sortMode.value === "oldest" ? time(a) - time(b) : time(b) - time(a)));
+});
+
 const filtered = computed(() =>
-  (customers.value ?? []).filter((c) => {
+  sortedCustomers.value.filter((c) => {
     if (typeFilter.value !== "all" && (isCompanyCustomer(c) ? "company" : "individual") !== typeFilter.value) return false;
     if (areaFilter.value && c.area_id !== areaFilter.value) return false;
     if (agentFilter.value && (agentFilter.value === "none" ? !!c.cs_agent_id : c.cs_agent_id !== agentFilter.value)) return false;
@@ -237,7 +252,7 @@ const columns = computed<TableColumn<CsCustomer>[]>(() => [
 ]);
 
 const pagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([search, areaFilter, stageFilter, categoryFilter, agentFilter, typeFilter], () => {
+watch([search, areaFilter, stageFilter, categoryFilter, agentFilter, typeFilter, sortMode], () => {
   rowSelection.value = {};
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
@@ -286,6 +301,7 @@ async function onCreated(id: string) {
           <USelect v-model="stageFilter" :items="stageItems" value-key="value" icon="i-lucide-workflow" class="w-44" />
           <USelect v-model="categoryFilter" :items="categoryItems" value-key="value" icon="i-lucide-tags" class="w-40" />
           <USelect v-if="canViewAll" v-model="agentFilter" :items="agentItems" value-key="value" icon="i-lucide-user-round" class="w-40" />
+          <USelect v-model="sortMode" :items="sortItems" value-key="value" icon="i-lucide-arrow-down-wide-narrow" class="w-44" />
           <UButton
             v-if="activeFilterCount"
             icon="i-lucide-x"

@@ -456,7 +456,27 @@
       "waAppSecret": "App secret",
       "waSecretSaved": "A secret is saved. Leave empty to keep it, or type a new one to replace it.",
       "waSecretFromEnv": "The secret comes from the server settings. Enter one here to replace it.",
-      "waRemoveSecret": "Remove secret"
+      "waRemoveSecret": "Remove secret",
+      "coexTitle": "WhatsApp Coexistence",
+      "coexDescription": "Connect your business number once. It keeps working in the WhatsApp Business app on your phone, and Acropol receives every message and makes a lead for each new person.",
+      "coexStep1": "Save the Meta app id, the Embedded Signup configuration id, and the app secret above.",
+      "coexStep2": "Press Connect and sign in to Facebook, then choose your WhatsApp Business app number.",
+      "coexStep3": "On the phone, confirm the connection in the WhatsApp Business app when asked.",
+      "coexAppId": "Meta app id",
+      "coexConfigId": "Embedded Signup configuration id",
+      "coexNeedSecret": "Save the app secret in the WhatsApp section above first.",
+      "coexConnect": "Connect WhatsApp",
+      "coexCancelled": "Connection cancelled",
+      "coexConnected": "WhatsApp connected",
+      "coexConnectedNoWebhook": "Connected, but Acropol could not subscribe to messages. Press Connect again, or check the app in Meta.",
+      "coexFailed": "Couldn't connect WhatsApp",
+      "coexConnected2": "Connected numbers",
+      "coexNone": "No number connected yet.",
+      "coexBadge": "Coexistence",
+      "coexReceiving": "Receiving messages",
+      "coexNotReceiving": "Not receiving",
+      "coexDisconnect": "Disconnect",
+      "coexDisconnectConfirm": "Disconnect {number}? Acropol stops receiving its messages. The number keeps working in the WhatsApp Business app."
     },
     "visitTypes": {
       "title": "Trip & inspection types",
@@ -1003,7 +1023,10 @@
       "bulkWithProducts": "Also delete their products, contracts, visits and maintenance history",
       "bulkDeleteButton": "Delete {count}",
       "bulkDeleted": "{count} customer(s) deleted",
-      "bulkSkipped": "{count} skipped (they have products, or you cannot see them)"
+      "bulkSkipped": "{count} skipped (they have products, or you cannot see them)",
+      "sortNewest": "Newest added first",
+      "sortOldest": "Oldest added first",
+      "sortName": "Name"
     },
     "profile": {
       "back": "Back",

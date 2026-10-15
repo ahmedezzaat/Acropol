@@ -23,12 +23,20 @@ export async function deleteSecret(event: H3Event, key: string) {
 // The WhatsApp webhook settings: entered in Settings -> Integrations, with the
 // environment as a fallback.
 export async function getWhatsappConfig(event: H3Event) {
-  const stored = await readSecrets(event, ["whatsapp_verify_token", "whatsapp_app_secret", "whatsapp_default_assignee_id"]);
+  const stored = await readSecrets(event, [
+    "whatsapp_verify_token",
+    "whatsapp_app_secret",
+    "whatsapp_default_assignee_id",
+    "whatsapp_app_id",
+    "whatsapp_config_id",
+  ]);
   const env = useRuntimeConfig(event).whatsapp;
   return {
     verifyToken: stored.get("whatsapp_verify_token") || env.verifyToken || "",
     appSecret: stored.get("whatsapp_app_secret") || env.appSecret || "",
     defaultAssigneeId: stored.get("whatsapp_default_assignee_id") || env.defaultAssigneeId || "",
+    appId: stored.get("whatsapp_app_id") || env.appId || "",
+    configId: stored.get("whatsapp_config_id") || env.configId || "",
     sources: {
       verifyToken: stored.get("whatsapp_verify_token") ? ("settings" as const) : env.verifyToken ? ("env" as const) : null,
       appSecret: stored.get("whatsapp_app_secret") ? ("settings" as const) : env.appSecret ? ("env" as const) : null,

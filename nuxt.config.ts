@@ -108,6 +108,10 @@ export default defineNuxtConfig({
       appSecret: "",
       // Optional: user id that WhatsApp leads are assigned to on arrival.
       defaultAssigneeId: "",
+      // Embedded Signup (connecting a number from Settings -> Integrations):
+      // the Meta app id and the Embedded Signup configuration id.
+      appId: "",
+      configId: "",
     },
   },
 
