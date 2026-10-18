@@ -16,6 +16,7 @@ interface Profile {
   is_admin: boolean;
   is_active: boolean;
   can_login: boolean;
+  is_technician: boolean;
 }
 
 interface Role {
@@ -28,7 +29,7 @@ const { data: users, refresh: refreshUsers, status: usersStatus } = await useAsy
   async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role_id, is_admin, is_active, can_login")
+      .select("id, email, full_name, role_id, is_admin, is_active, can_login, is_technician")
       .order("email");
     if (error) throw error;
     return data ?? [];
@@ -69,6 +70,7 @@ const createSchema = computed(() =>
     role_id: z.uuid().nullable(),
     is_admin: z.boolean(),
     can_login: z.boolean(),
+    is_technician: z.boolean(),
   }),
 );
 type CreateSchema = {
@@ -78,6 +80,7 @@ type CreateSchema = {
   role_id: string | null;
   is_admin: boolean;
   can_login: boolean;
+  is_technician: boolean;
 };
 const createState = reactive<CreateSchema>({
   email: "",
@@ -86,7 +89,12 @@ const createState = reactive<CreateSchema>({
   role_id: null,
   is_admin: false,
   can_login: true,
+  is_technician: false,
 });
+
+function openCreate() {
+  createOpen.value = true;
+}
 
 async function onCreate(event: FormSubmitEvent<CreateSchema>) {
   creating.value = true;
@@ -104,6 +112,7 @@ async function onCreate(event: FormSubmitEvent<CreateSchema>) {
     createState.role_id = null;
     createState.is_admin = false;
     createState.can_login = true;
+    createState.is_technician = false;
     refreshUsers();
   } catch (err: any) {
     toast.add({
@@ -127,6 +136,7 @@ const editState = reactive({
   is_admin: false,
   is_active: true,
   can_login: true,
+  is_technician: false,
 });
 const editEmailValid = computed(() => z.email().safeParse(editState.email).success);
 
@@ -138,6 +148,7 @@ function openEdit(user: Profile) {
   editState.is_admin = user.is_admin;
   editState.is_active = user.is_active;
   editState.can_login = user.can_login;
+  editState.is_technician = user.is_technician;
   editOpen.value = true;
 }
 
@@ -236,7 +247,7 @@ async function saveReset() {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton icon="i-lucide-plus" :label="t('admin.users.newUser')" @click="createOpen = true" />
+          <UButton icon="i-lucide-plus" :label="t('admin.users.newUser')" @click="openCreate" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -253,6 +264,7 @@ async function saveReset() {
         <template #status-cell="{ row }">
           <div class="flex gap-1">
             <UBadge v-if="row.original.is_admin" :label="t('admin.users.admin')" color="primary" variant="subtle" />
+            <UBadge v-if="row.original.is_technician" :label="t('admin.users.technicianBadge')" icon="i-lucide-wrench" color="info" variant="subtle" />
             <UBadge v-if="!row.original.can_login" :label="t('admin.users.noLoginBadge')" icon="i-lucide-lock" color="warning" variant="subtle" />
             <UBadge
               :label="row.original.is_active ? t('common.active') : t('common.inactive')"
@@ -290,6 +302,7 @@ async function saveReset() {
           <UInput v-model="createState.full_name" class="w-full" />
         </UFormField>
         <UCheckbox v-model="createState.can_login" :label="t('admin.users.canLogin')" />
+        <UCheckbox v-model="createState.is_technician" :label="t('admin.users.isTechnician')" />
         <p v-if="!createState.can_login" class="text-xs text-muted">{{ t("admin.users.noLoginHint") }}</p>
         <UFormField name="email" :label="createState.can_login ? t('common.email') : `${t('common.email')} (${t('admin.users.optional')})`">
           <UInput v-model="createState.email" type="email" class="w-full" />
@@ -321,6 +334,7 @@ async function saveReset() {
         <UCheckbox v-model="editState.is_admin" :label="t('admin.users.administratorFullAccess')" />
         <UCheckbox v-model="editState.is_active" :label="t('admin.users.activeCanSignIn')" />
         <UCheckbox v-model="editState.can_login" :label="t('admin.users.canLogin')" />
+        <UCheckbox v-model="editState.is_technician" :label="t('admin.users.isTechnician')" />
         <p v-if="!editState.can_login" class="text-xs text-muted">{{ t("admin.users.noLoginHint") }}</p>
         <p v-else-if="editTarget && !editTarget.can_login" class="text-xs text-muted">{{ t("admin.users.enableLoginHint") }}</p>
         <UButton :label="t('common.save')" :loading="editing" :disabled="!editEmailValid" block @click="saveEdit" />

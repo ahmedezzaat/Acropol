@@ -6,7 +6,7 @@
 export default defineNuxtRouteMiddleware(async (to) => {
   const requiresAdmin = to.path.startsWith("/admin");
   const meta = to.meta.crmPermission as
-    | { module: string; action?: string }
+    | { module: string; action?: string; anyAction?: string[] }
     | undefined;
   if (!requiresAdmin && !meta) return;
 
@@ -26,9 +26,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
   if (!meta) return;
 
-  const ok = meta.action
-    ? hasPermission(meta.module, meta.action)
-    : hasAnyModulePermission(meta.module);
+  const ok = meta.anyAction
+    ? meta.anyAction.some((a) => hasPermission(meta.module, a))
+    : meta.action
+      ? hasPermission(meta.module, meta.action)
+      : hasAnyModulePermission(meta.module);
 
   if (!ok) return navigateTo("/403");
 });

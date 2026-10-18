@@ -3,7 +3,9 @@
 // once and may service several products in that visit: pick the products, and
 // for each one write what happened and (optionally) its cost. The visit is one of
 // done / scheduled / cancelled, with one date.
-const props = defineProps<{ customerId: string; products: CsProduct[] }>();
+// preselectIds / initialType open the form ready for a known visit (for example
+// "mark this confirmed visit as done" with its products ticked).
+const props = defineProps<{ customerId: string; products: CsProduct[]; preselectIds?: string[]; initialType?: "done" | "scheduled" | "cancelled" }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
@@ -55,9 +57,10 @@ watch(open, (isOpen) => {
   // Start with the products in operation ticked (the ones maintenance is about),
   // or the first product when none has reached that stage yet.
   const operating = props.products.filter((p) => !!stageById(p.stage_id)?.is_final);
-  const start = operating.length ? operating : props.products.slice(0, 1);
+  const preselected = props.preselectIds?.length ? props.products.filter((p) => props.preselectIds!.includes(p.id)) : [];
+  const start = preselected.length ? preselected : operating.length ? operating : props.products.slice(0, 1);
   lines.value = props.products.map((p) => ({ product: p, on: start.some((s) => s.id === p.id), note: "", cost: null }));
-  type.value = typeItems.value[0]?.value ?? "done";
+  type.value = typeItems.value.find((i) => i.value === props.initialType)?.value ?? typeItems.value[0]?.value ?? "done";
   doneOn.value = todayIso();
   when.value = nowLocal();
   visitNote.value = "";
@@ -105,6 +108,8 @@ async function save() {
     scheduled_for: at,
     note: l.note.trim() || null,
     cost: l.cost,
+    // who did a visit: the technician it was assigned to
+    technician_id: type.value === "done" ? (l.product.maintenance_technician_id ?? null) : null,
   }));
   const { error } = await supabase.from("product_maintenance_log").insert(rows);
   if (error) {

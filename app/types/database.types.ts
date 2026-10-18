@@ -26,6 +26,7 @@ export type Database = {
           is_admin: boolean;
           is_active: boolean;
           can_login: boolean;
+          is_technician: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -38,6 +39,7 @@ export type Database = {
           is_admin?: boolean;
           is_active?: boolean;
           can_login?: boolean;
+          is_technician?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -50,6 +52,7 @@ export type Database = {
           is_admin?: boolean;
           is_active?: boolean;
           can_login?: boolean;
+          is_technician?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -781,6 +784,11 @@ export type Database = {
           last_maintenance_on: string | null;
           sales_person_id: string | null;
           maintenance_declined_at: string | null;
+          maintenance_confirmed_at: string | null;
+          maintenance_confirmed_by: string | null;
+          maintenance_confirm_note: string | null;
+          maintenance_technician_id: string | null;
+          maintenance_assigned_at: string | null;
           deal_id: string | null;
           operation_date: string | null;
           warranty_status: string | null;
@@ -809,6 +817,11 @@ export type Database = {
           last_maintenance_on?: string | null;
           sales_person_id?: string | null;
           maintenance_declined_at?: string | null;
+          maintenance_confirmed_at?: string | null;
+          maintenance_confirmed_by?: string | null;
+          maintenance_confirm_note?: string | null;
+          maintenance_technician_id?: string | null;
+          maintenance_assigned_at?: string | null;
           deal_id?: string | null;
           operation_date?: string | null;
           warranty_status?: string | null;
@@ -837,6 +850,11 @@ export type Database = {
           last_maintenance_on?: string | null;
           sales_person_id?: string | null;
           maintenance_declined_at?: string | null;
+          maintenance_confirmed_at?: string | null;
+          maintenance_confirmed_by?: string | null;
+          maintenance_confirm_note?: string | null;
+          maintenance_technician_id?: string | null;
+          maintenance_assigned_at?: string | null;
           deal_id?: string | null;
           operation_date?: string | null;
           warranty_status?: string | null;
@@ -985,6 +1003,7 @@ export type Database = {
           note: string | null;
           cost: number | null;
           visit_id: string | null;
+          technician_id: string | null;
           created_by: string | null;
         };
         Insert: {
@@ -997,6 +1016,7 @@ export type Database = {
           note?: string | null;
           cost?: number | null;
           visit_id?: string | null;
+          technician_id?: string | null;
           created_by?: string | null;
         };
         Update: {
@@ -1009,6 +1029,7 @@ export type Database = {
           note?: string | null;
           cost?: number | null;
           visit_id?: string | null;
+          technician_id?: string | null;
           created_by?: string | null;
         };
         Relationships: [];

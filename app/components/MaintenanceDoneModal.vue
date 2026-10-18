@@ -54,7 +54,7 @@ async function save() {
   }
 
   const log = [
-    { product_id: props.product.id, kind: "done", done_on: doneOn.value, note: doneNote.value.trim() || null, cost: cost.value },
+    { product_id: props.product.id, kind: "done", done_on: doneOn.value, note: doneNote.value.trim() || null, cost: cost.value, technician_id: props.product.maintenance_technician_id ?? null },
     ...(next
       ? [{ product_id: props.product.id, kind: "scheduled", scheduled_for: next, note: nextNote.value.trim() || null }]
       : []),

@@ -7,6 +7,7 @@ const bodySchema = z.object({
   is_admin: z.boolean().optional(),
   is_active: z.boolean().optional(),
   can_login: z.boolean().optional(),
+  is_technician: z.boolean().optional(),
 });
 
 export default defineEventHandler(async (event) => {

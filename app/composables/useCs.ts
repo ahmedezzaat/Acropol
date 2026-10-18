@@ -50,6 +50,11 @@ export interface CsProduct {
   contract_code: string | null;
   quantity: number;
   contract_id?: string | null;
+  maintenance_confirmed_at?: string | null;
+  maintenance_confirmed_by?: string | null;
+  maintenance_confirm_note?: string | null;
+  maintenance_technician_id?: string | null;
+  maintenance_assigned_at?: string | null;
   next_maintenance_at: string | null;
   next_maintenance_note: string | null;
   last_maintenance_on: string | null;
@@ -92,13 +97,14 @@ export interface CsMaintenanceVisit {
 export interface CsMaintenanceLog {
   id: string;
   product_id: string;
-  kind: "scheduled" | "rescheduled" | "done" | "cancelled" | "note" | "declined" | "resumed";
+  kind: "scheduled" | "rescheduled" | "done" | "cancelled" | "note" | "declined" | "resumed" | "confirmed" | "assigned";
   happened_at: string;
   scheduled_for: string | null;
   done_on: string | null;
   note: string | null;
   cost: number | null;
   visit_id: string | null;
+  technician_id?: string | null;
   created_by: string | null;
 }
 

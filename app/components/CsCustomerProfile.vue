@@ -289,6 +289,14 @@ function openStage(p: CsProduct) {
 }
 
 // Maintenance can be scheduled once a product reached the completed stage.
+const confirmOpen = ref(false);
+const confirmProduct = ref<CsProduct | null>(null);
+function openConfirm(p: CsProduct) {
+  confirmProduct.value = p;
+  confirmOpen.value = true;
+}
+const isConfirmed = (p: CsProduct) => !!p.next_maintenance_at && !!p.maintenance_confirmed_at;
+
 const doneOpen = ref(false);
 const doneProduct = ref<CsProduct | null>(null);
 function openDone(p: CsProduct) {
@@ -349,9 +357,11 @@ function isOverdue(p: CsProduct) {
 type HistoryType = "done" | "scheduled" | "cancelled";
 const historyFilter = ref<HistoryType | "all">("all");
 const typeOfEntry = (e: CsMaintenanceLog): HistoryType | "other" =>
-  e.kind === "done" ? "done" : e.kind === "scheduled" || e.kind === "rescheduled" ? "scheduled" : e.kind === "cancelled" || e.kind === "declined" ? "cancelled" : "other";
+  e.kind === "done" ? "done" : e.kind === "scheduled" || e.kind === "rescheduled" || e.kind === "confirmed" || e.kind === "assigned" ? "scheduled" : e.kind === "cancelled" || e.kind === "declined" ? "cancelled" : "other";
 const entryTone = { done: "success", scheduled: "info", cancelled: "error", other: "neutral" } as const;
 const entryLabel = (e: CsMaintenanceLog) => {
+  if (e.kind === "confirmed") return t("cs.maintenance.evConfirmed");
+  if (e.kind === "assigned") return t("cs.maintenance.evAssigned");
   const k = typeOfEntry(e);
   return k === "other" ? t("cs.profile.otherEntry") : t(`cs.maintenance.stat.${k === "cancelled" ? "declined" : k}`);
 };
@@ -716,10 +726,19 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
                   <div class="min-w-0 text-sm">
                     <div class="text-xs text-muted">{{ t("cs.maintenance.next") }}</div>
                     <div v-if="p.maintenance_declined_at" class="font-medium text-error">{{ t("cs.maintenance.declinedNote") }}</div>
-                    <div v-else-if="p.next_maintenance_at" class="font-medium" :class="maintenanceLate(p) ? 'text-error' : 'text-highlighted'">
+                    <div v-else-if="p.next_maintenance_at" class="flex flex-wrap items-center gap-2 font-medium" :class="maintenanceLate(p) ? 'text-error' : 'text-highlighted'">
                       {{ formatDateTime(p.next_maintenance_at) }}
+                      <KBadge
+                        :label="isConfirmed(p) ? t('cs.maintenance.confirmedBadge') : t('cs.maintenance.awaitingConfirmation')"
+                        :tone="isConfirmed(p) ? 'success' : 'warning'"
+                        :outlined="!isConfirmed(p)"
+                        :icon="isConfirmed(p) ? 'i-lucide-phone-call' : 'i-lucide-phone-missed'"
+                      />
                     </div>
                     <div v-else class="text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
+                    <p v-if="isConfirmed(p) && salesPersonName(p.maintenance_technician_id ?? null)" class="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                      <UIcon name="i-lucide-hard-hat" class="size-3.5" />{{ t("cs.maintenance.assignedTo", { name: salesPersonName(p.maintenance_technician_id ?? null) ?? "" }) }}
+                    </p>
                     <p v-if="p.next_maintenance_note" class="mt-0.5 whitespace-pre-line text-toned">{{ p.next_maintenance_note }}</p>
                     <p v-if="intervalOf(p)" class="mt-1 text-xs text-muted">
                       {{ t("cs.maintenance.periodic", { months: intervalOf(p) }) }}
@@ -739,7 +758,18 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
                     :label="t('cs.maintenance.record')"
                   />
                   <template v-if="!p.maintenance_declined_at">
-                    <UButton v-if="p.next_maintenance_at && canDoMaintenance" icon="i-lucide-check" size="sm" color="success" variant="soft" :label="t('cs.maintenance.markDone')" @click="openDone(p)" />
+                    <UButton v-if="p.next_maintenance_at && !isConfirmed(p) && canScheduleMaintenance" icon="i-lucide-phone-call" size="sm" :label="t('cs.maintenance.confirm')" @click="openConfirm(p)" />
+                    <UButton
+                      v-if="p.next_maintenance_at && canDoMaintenance"
+                      icon="i-lucide-check"
+                      size="sm"
+                      color="success"
+                      variant="soft"
+                      :disabled="!isConfirmed(p)"
+                      :title="isConfirmed(p) ? undefined : t('cs.maintenance.confirmFirst')"
+                      :label="t('cs.maintenance.markDone')"
+                      @click="openDone(p)"
+                    />
                     <UButton
                       v-if="canScheduleMaintenance"
                       :icon="p.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
@@ -829,6 +859,7 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
   />
   <ProductStageModal v-model:open="stageModalOpen" :product="stageProduct" @saved="refreshProducts" />
   <MaintenanceModal v-model:open="maintenanceOpen" :product="maintenanceProduct" @saved="refreshProducts" />
+  <MaintenanceConfirmModal v-model:open="confirmOpen" :product="confirmProduct" @saved="refreshProducts" />
   <MaintenanceDoneModal v-model:open="doneOpen" :product="doneProduct" @saved="refreshProducts" />
   <MaintenanceRecordModal v-model:open="recordOpen" :customer-id="customerId" :products="products" @saved="refreshProducts" />
 

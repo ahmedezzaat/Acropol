@@ -147,6 +147,9 @@ export const MODULES: ModuleDef[] = [
           { key: "complete", labelKey: "resources.cs_maintenance.actions.complete" },
           { key: "cancel", labelKey: "resources.cs_maintenance.actions.cancel" },
           { key: "note", labelKey: "resources.cs_maintenance.actions.note" },
+          // The Confirmed visits page: only the visits assigned to me, or every one.
+          { key: "view_confirmed_own", labelKey: "resources.cs_maintenance.actions.view_confirmed_own" },
+          { key: "view_confirmed_all", labelKey: "resources.cs_maintenance.actions.view_confirmed_all" },
         ],
       },
     ],
@@ -179,3 +182,8 @@ export function findResource(resourceKey: string) {
   }
   return undefined;
 }
+
+// The Maintenance permissions that open the Maintenance pages. The two
+// "confirmed visits" permissions open only the Confirmed visits page.
+export const MAINTENANCE_FULL_ACTIONS = ["view", "schedule", "complete", "cancel", "note"];
+export const CONFIRMED_VISIT_ACTIONS = ["view_confirmed_own", "view_confirmed_all"];

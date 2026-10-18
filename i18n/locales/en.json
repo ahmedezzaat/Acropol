@@ -181,7 +181,9 @@
         "schedule": "Schedule / reschedule",
         "complete": "Mark maintenance done",
         "cancel": "Cancel / resume maintenance",
-        "note": "Add notes"
+        "note": "Add notes",
+        "view_confirmed_own": "See my confirmed visits",
+        "view_confirmed_all": "See all confirmed visits"
       }
     }
   },
@@ -242,7 +244,9 @@
       "noLoginHint": "A record-only user (e.g. for migrated data): appears in every user list but can never sign in.",
       "enableLoginHint": "To let them sign in: set a real email, then give them a password with Reset password.",
       "noLoginBadge": "No sign-in",
-      "optional": "optional"
+      "optional": "optional",
+      "isTechnician": "Maintenance technician (can be assigned confirmed visits)",
+      "technicianBadge": "Technician"
     },
     "roles": {
       "title": "Roles",
@@ -1286,7 +1290,35 @@
       "lastFrom": "Last done maintenance from",
       "lastTo": "Last done maintenance to",
       "neverMaintained": "No maintenance done yet",
-      "clearDates": "Clear"
+      "clearDates": "Clear",
+      "confirm": "Confirm visit",
+      "confirmedBadge": "Confirmed",
+      "awaitingConfirmation": "Awaiting confirmation",
+      "confirmTitle": "Confirm the visit",
+      "confirmHint": "Call the customer and agree the visit. Only a confirmed visit can be marked as done.",
+      "confirmWhen": "Visit date and time",
+      "confirmNote": "Who confirmed, and notes",
+      "confirmAlso": "Also confirm the customer's other appointments on the same day",
+      "confirmedSaved": "Visit confirmed",
+      "confirmFailed": "Couldn't confirm the visit",
+      "confirmFirst": "Confirm the visit first",
+      "evConfirmed": "Visit confirmed",
+      "confirmedBy": "Confirmed by {name} on {date}",
+      "filterAll": "All visits",
+      "filterAwaiting": "Awaiting confirmation",
+      "filterConfirmed": "Confirmed",
+      "technician": "Technician",
+      "unassigned": "Unassigned",
+      "assignTitle": "Assign to a technician",
+      "assignNote": "Note for the technician",
+      "assigned": "Visit assigned",
+      "assignFailed": "Couldn't assign the visit",
+      "noTechnicians": "No technicians yet: mark users as technicians in Settings → Users.",
+      "assign": "Assign",
+      "reassign": "Reassign",
+      "evAssigned": "Visit assigned to a technician",
+      "assignedTo": "Technician: {name}",
+      "technicianUnassigned": "No technician yet"
     },
     "print": {
       "title": "Customer and product details",
@@ -1299,6 +1331,16 @@
       "hint": "In the print window choose “Save as PDF” to export. Paper size A4.",
       "menu": "Print / PDF",
       "printCustomer": "Print customer"
+    },
+    "confirmedVisits": {
+      "title": "Confirmed visits",
+      "all": "All",
+      "allTechnicians": "All technicians",
+      "empty": "No confirmed visits match.",
+      "hint": "A visit appears here once the customer has confirmed it by phone (Confirm visit in the maintenance list).",
+      "selected": "{count} visit(s) selected",
+      "count": "{count} visit(s)",
+      "mixed": "Several technicians"
     }
   }
 }

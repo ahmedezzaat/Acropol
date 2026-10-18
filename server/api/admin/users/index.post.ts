@@ -8,6 +8,8 @@ const bodySchema = z.object({
   is_admin: z.boolean().optional(),
   // false: a record-only user (e.g. for migrated data) that can never sign in.
   can_login: z.boolean().optional(),
+  // A technician carries out maintenance visits (can be assigned to them).
+  is_technician: z.boolean().optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -49,6 +51,7 @@ export default defineEventHandler(async (event) => {
       // Only an administrator can make another administrator.
       is_admin: canLogin && isAdmin ? (body.is_admin ?? false) : false,
       can_login: canLogin,
+      is_technician: body.is_technician ?? false,
     })
     .eq("id", data.user.id)
     .select()

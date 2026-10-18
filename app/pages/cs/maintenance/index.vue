@@ -4,7 +4,7 @@ import { getPaginationRowModel } from "@tanstack/vue-table";
 
 definePageMeta({
   layout: "dashboard",
-  crmPermission: { module: "cs_maintenance" },
+  crmPermission: { module: "cs_maintenance", anyAction: MAINTENANCE_FULL_ACTIONS },
 });
 
 useHead({ htmlAttrs: { class: "carbon" } });
@@ -62,6 +62,8 @@ interface Row {
   at: number | null; // the date that counts: the appointment, else the periodic due date
   appointment: boolean;
   declined: boolean;
+  // an appointment the customer has confirmed by phone (needed before it can be marked done)
+  confirmed: boolean;
 }
 function rowOf(p: CsProduct): Row {
   const months = categoryOf(p.category_id)?.maintenance_interval_months ?? null;
@@ -70,7 +72,7 @@ function rowOf(p: CsProduct): Row {
   const due = declined ? null : maintenanceDue(p, months);
   const appointment = !declined && !!p.next_maintenance_at;
   const at = appointment ? new Date(p.next_maintenance_at!).getTime() : due ? new Date(`${due}T09:00:00`).getTime() : null;
-  return { p, months, due, at, appointment, declined };
+  return { p, months, due, at, appointment, declined, confirmed: appointment && !!p.maintenance_confirmed_at };
 }
 
 const allRows = computed<Row[]>(() =>
@@ -303,9 +305,26 @@ const areaItems = computed(() => [
   ...areas.value.map((a) => ({ label: a.name, value: a.id })),
 ]);
 
+// Confirmation filter: visits still waiting for the call, or already confirmed.
+const confirmFilter = ref<"all" | "awaiting" | "confirmed">("all");
+const confirmCounts = computed(() => ({
+  all: rows.value.filter((r) => r.appointment).length,
+  awaiting: rows.value.filter((r) => r.appointment && !r.confirmed).length,
+  confirmed: rows.value.filter((r) => r.confirmed).length,
+}));
+const confirmChips = computed(() =>
+  (["all", "awaiting", "confirmed"] as const).map((k) => ({
+    key: k,
+    label: t(`cs.maintenance.filter${k === "all" ? "All" : k === "awaiting" ? "Awaiting" : "Confirmed"}`),
+    count: confirmCounts.value[k],
+  })),
+);
+
 const filtered = computed(() =>
   rows.value.filter((r) => {
     if (tab.value !== "all" && bucket(r) !== tab.value) return false;
+    if (confirmFilter.value === "awaiting" && !(r.appointment && !r.confirmed)) return false;
+    if (confirmFilter.value === "confirmed" && !r.confirmed) return false;
     const c = customerOf(r.p.customer_id);
     if (areaFilter.value && c?.area_id !== areaFilter.value) return false;
     const last = r.p.last_maintenance_on;
@@ -343,12 +362,19 @@ const columns = computed<TableColumn<Row>[]>(() => [
   { id: "actions", header: "" },
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([search, areaFilter, tab, categoryFilter, lastFrom, lastTo, neverMaintained], () => {
+watch([search, areaFilter, tab, categoryFilter, lastFrom, lastTo, neverMaintained, confirmFilter], () => {
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
   filtered.value.slice(pagination.value.pageIndex * pagination.value.pageSize, (pagination.value.pageIndex + 1) * pagination.value.pageSize),
 );
+
+const confirmOpen = ref(false);
+const confirmProduct = ref<CsProduct | null>(null);
+function openConfirm(p: CsProduct) {
+  confirmProduct.value = p;
+  confirmOpen.value = true;
+}
 
 const doneOpen = ref(false);
 const doneProduct = ref<CsProduct | null>(null);
@@ -402,6 +428,14 @@ function openRecord(productId: string) {
           <UTabs v-model="tab" :items="tabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
         </div>
         <!-- Product category: pick one or several (list and tracking) -->
+        <!-- Confirmation: awaiting the call, or confirmed with the customer -->
+        <div v-if="mode === 'list'" class="flex items-center gap-2 overflow-x-auto">
+          <button v-for="c in confirmChips" :key="c.key" type="button" class="kords-chip" :class="confirmFilter === c.key && 'kords-chip-on'" @click="confirmFilter = c.key">
+            <UIcon v-if="c.key === 'confirmed'" name="i-lucide-phone-call" class="size-3.5" />
+            {{ c.label }}
+            <span class="kords-chip-count">{{ c.count }}</span>
+          </button>
+        </div>
         <div v-if="categoryChips.length > 1" class="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
           <button type="button" class="kords-chip" :class="!categoryFilter.length && 'kords-chip-on'" @click="categoryFilter = []">
             {{ t("cs.customers.allCategories") }}
@@ -537,6 +571,13 @@ function openRecord(productId: string) {
                 <span class="text-xs text-muted">
                   {{ row.original.appointment ? t("cs.maintenance.appointment") : t("cs.maintenance.periodicShort") }}
                 </span>
+                <KBadge
+                  v-if="row.original.appointment"
+                  :label="row.original.confirmed ? t('cs.maintenance.confirmedBadge') : t('cs.maintenance.awaitingConfirmation')"
+                  :tone="row.original.confirmed ? 'success' : 'warning'"
+                  :outlined="!row.original.confirmed"
+                  :icon="row.original.confirmed ? 'i-lucide-phone-call' : 'i-lucide-phone-missed'"
+                />
               </div>
             </div>
             <KBadge v-else-if="row.original.declined" :label="t('cs.maintenance.declined')" icon="i-lucide-ban" tone="error" />
@@ -574,11 +615,21 @@ function openRecord(productId: string) {
           <template #actions-cell="{ row }">
             <div class="flex items-center justify-end gap-1">
               <UButton
+                v-if="row.original.appointment && !row.original.confirmed && can.schedule"
+                icon="i-lucide-phone-call"
+                size="xs"
+                variant="soft"
+                :label="t('cs.maintenance.confirm')"
+                @click.stop="openConfirm(row.original.p)"
+              />
+              <UButton
                 v-if="row.original.appointment && can.complete"
                 icon="i-lucide-check"
                 size="xs"
                 color="success"
                 variant="soft"
+                :disabled="!row.original.confirmed"
+                :title="row.original.confirmed ? undefined : t('cs.maintenance.confirmFirst')"
                 :label="t('cs.maintenance.markDone')"
                 @click.stop="openDone(row.original.p)"
               />
@@ -645,7 +696,18 @@ function openRecord(productId: string) {
                 <span v-if="r.at !== null">· {{ r.appointment ? t("cs.maintenance.appointment") : t("cs.maintenance.periodicShort") }}</span>
               </span>
               <div class="flex items-center gap-1">
-                <UButton v-if="r.appointment && can.complete" icon="i-lucide-check" size="xs" color="success" variant="soft" :label="t('cs.maintenance.markDone')" @click.stop="openDone(r.p)" />
+                <UButton v-if="r.appointment && !r.confirmed && can.schedule" icon="i-lucide-phone-call" size="xs" variant="soft" :label="t('cs.maintenance.confirm')" @click.stop="openConfirm(r.p)" />
+                <UButton
+                  v-if="r.appointment && can.complete"
+                  icon="i-lucide-check"
+                  size="xs"
+                  color="success"
+                  variant="soft"
+                  :disabled="!r.confirmed"
+                  :title="r.confirmed ? undefined : t('cs.maintenance.confirmFirst')"
+                  :label="t('cs.maintenance.markDone')"
+                  @click.stop="openDone(r.p)"
+                />
                 <UButton v-if="r.declined && can.cancel" icon="i-lucide-rotate-ccw" size="xs" color="neutral" variant="soft" @click.stop="resume(r.p)" />
                 <template v-else-if="!r.declined">
                   <UButton
@@ -679,6 +741,7 @@ function openRecord(productId: string) {
   </UDashboardPanel>
 
   <MaintenanceModal v-model:open="modalOpen" :product="modalProduct" @saved="onSaved" />
+  <MaintenanceConfirmModal v-model:open="confirmOpen" :product="confirmProduct" @saved="onSaved" />
   <MaintenanceDoneModal v-model:open="doneOpen" :product="doneProduct" @saved="onSaved" />
   <MaintenanceCancelModal v-model:open="cancelOpen" :product="cancelProduct" @saved="onSaved" />
 </template>

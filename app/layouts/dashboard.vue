@@ -48,7 +48,10 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
             { label: t("cs.installations.title"), to: "/cs/installations" },
           ]
         : []),
-      ...(hasAnyModulePermission("cs_maintenance") ? [{ label: t("cs.maintenance.title"), to: "/cs/maintenance" }] : []),
+      ...(MAINTENANCE_FULL_ACTIONS.some((a) => hasPermission("cs_maintenance", a)) ? [{ label: t("cs.maintenance.title"), to: "/cs/maintenance" }] : []),
+      ...(CONFIRMED_VISIT_ACTIONS.some((a) => hasPermission("cs_maintenance", a))
+        ? [{ label: t("cs.confirmedVisits.title"), to: "/cs/confirmed-visits" }]
+        : []),
     ];
   }
   if (m.key !== "crm") return resourceLinks;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({
   layout: "dashboard",
-  crmPermission: { module: "cs_maintenance" },
+  crmPermission: { module: "cs_maintenance", anyAction: MAINTENANCE_FULL_ACTIONS },
 });
 
 useHead({ htmlAttrs: { class: "carbon" } });
@@ -25,7 +25,7 @@ const can = reactive({
 interface LogRow {
   id: string;
   product_id: string;
-  kind: "scheduled" | "rescheduled" | "done" | "cancelled" | "note" | "declined" | "resumed";
+  kind: "scheduled" | "rescheduled" | "done" | "cancelled" | "note" | "declined" | "resumed" | "confirmed" | "assigned";
   happened_at: string;
   scheduled_for: string | null;
   done_on: string | null;
@@ -151,6 +151,8 @@ const eventMeta = {
   cancelled: { icon: "i-lucide-calendar-x", color: "text-error", label: "cs.maintenance.evCancelled" },
   declined: { icon: "i-lucide-ban", color: "text-error", label: "cs.maintenance.evDeclined" },
   resumed: { icon: "i-lucide-rotate-ccw", color: "text-success", label: "cs.maintenance.evResumed" },
+  confirmed: { icon: "i-lucide-phone-call", color: "text-success", label: "cs.maintenance.evConfirmed" },
+  assigned: { icon: "i-lucide-hard-hat", color: "text-info", label: "cs.maintenance.evAssigned" },
   note: { icon: "i-lucide-sticky-note", color: "text-muted", label: "cs.maintenance.evNote" },
 } as const;
 
@@ -193,6 +195,19 @@ async function resume() {
 }
 
 const scheduleOpen = ref(false);
+const assignOpen = ref(false);
+function openAssign() {
+  assignOpen.value = true;
+}
+const technicianName = computed(() => personName(product.value?.maintenance_technician_id ?? null));
+
+const confirmOpen = ref(false);
+function openConfirm() {
+  confirmOpen.value = true;
+}
+// A visit is confirmed once someone called the customer and agreed it.
+const confirmed = computed(() => !!product.value?.next_maintenance_at && !!product.value?.maintenance_confirmed_at);
+
 const doneOpen = ref(false);
 function openDone() {
   doneOpen.value = true;
@@ -354,6 +369,13 @@ async function onSaved() {
                         :tone="stateColor[state]"
                         :outlined="state === 'unscheduled' || state === 'later'"
                       />
+                      <KBadge
+                        v-if="product.next_maintenance_at && !declined"
+                        :label="confirmed ? t('cs.maintenance.confirmedBadge') : t('cs.maintenance.awaitingConfirmation')"
+                        :tone="confirmed ? 'success' : 'warning'"
+                        :outlined="!confirmed"
+                        :icon="confirmed ? 'i-lucide-phone-call' : 'i-lucide-phone-missed'"
+                      />
                     </div>
                     <div v-if="declined" class="mt-0.5">
                       <div class="text-lg font-semibold text-error">{{ t("cs.maintenance.declinedNote") }}</div>
@@ -369,6 +391,15 @@ async function onSaved() {
                     </div>
                     <div v-else class="mt-0.5 text-sm text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
                     <p v-if="product.next_maintenance_note" class="mt-1 whitespace-pre-line text-sm text-toned">{{ product.next_maintenance_note }}</p>
+                    <p v-if="confirmed" class="mt-1 flex items-center gap-1.5 text-sm">
+                      <UIcon name="i-lucide-hard-hat" class="size-4 text-muted" />
+                      <span :class="technicianName ? 'font-medium text-highlighted' : 'text-muted'">
+                        {{ technicianName ? t("cs.maintenance.assignedTo", { name: technicianName }) : t("cs.maintenance.technicianUnassigned") }}
+                      </span>
+                    </p>
+                    <p v-if="confirmed" class="mt-1 text-xs text-muted">
+                      {{ t("cs.maintenance.confirmedBy", { name: personName(product.maintenance_confirmed_by ?? null) ?? "—", date: formatDateTime(product.maintenance_confirmed_at) }) }}<template v-if="product.maintenance_confirm_note"> · {{ product.maintenance_confirm_note }}</template>
+                    </p>
                     <div v-if="!declined && nextTasks.length" class="mt-3 border-s-2 border-primary/40 ps-3 text-sm">
                       <div class="text-xs font-semibold uppercase tracking-wide text-muted">{{ t("cs.maintenance.visitPlan") }}</div>
                       <ul class="mt-1 space-y-1.5">
@@ -387,7 +418,24 @@ async function onSaved() {
                 <div v-if="operating" class="flex flex-wrap items-center gap-2">
                   <UButton v-if="declined && can.cancel" icon="i-lucide-rotate-ccw" :label="t('cs.maintenance.resume')" :loading="resuming" @click="resume" />
                   <template v-else>
-                    <UButton v-if="product.next_maintenance_at && can.complete" icon="i-lucide-check" color="success" :label="t('cs.maintenance.markDone')" @click="openDone" />
+                    <UButton v-if="product.next_maintenance_at && !confirmed && can.schedule" icon="i-lucide-phone-call" :label="t('cs.maintenance.confirm')" @click="openConfirm" />
+                    <UButton
+                      v-if="confirmed && can.schedule"
+                      icon="i-lucide-user-check"
+                      color="neutral"
+                      variant="outline"
+                      :label="t(technicianName ? 'cs.maintenance.reassign' : 'cs.maintenance.assign')"
+                      @click="openAssign"
+                    />
+                    <UButton
+                      v-if="product.next_maintenance_at && can.complete"
+                      icon="i-lucide-check"
+                      color="success"
+                      :disabled="!confirmed"
+                      :title="confirmed ? undefined : t('cs.maintenance.confirmFirst')"
+                      :label="t('cs.maintenance.markDone')"
+                      @click="openDone"
+                    />
                     <UButton
                       v-if="can.schedule"
                       :icon="product.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
@@ -525,6 +573,8 @@ async function onSaved() {
   </UDashboardPanel>
 
   <MaintenanceModal v-model:open="scheduleOpen" :product="product ?? null" @saved="onSaved" />
+  <MaintenanceAssignModal v-model:open="assignOpen" :products="product ? [product] : []" @saved="onSaved" />
+  <MaintenanceConfirmModal v-model:open="confirmOpen" :product="product ?? null" @saved="onSaved" />
   <MaintenanceDoneModal v-model:open="doneOpen" :product="product ?? null" @saved="onSaved" />
   <MaintenanceCancelModal v-model:open="cancelOpen" :product="product ?? null" @saved="onSaved" />
 </template>
