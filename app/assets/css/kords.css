@@ -310,3 +310,10 @@ html.kords .kords-card-warn {
 html.kords .kords-card-selected {
   box-shadow: 0 0 0 2px #211951, var(--kords-shadow-card);
 }
+
+/* A calendar day with nothing booked (a gap): a dashed, flat outline. */
+html.kords .kords-gap {
+  border: 1.5px dashed #c9d2e0;
+  box-shadow: none;
+  background: #fbfcfd;
+}

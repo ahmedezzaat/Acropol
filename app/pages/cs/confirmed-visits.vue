@@ -108,18 +108,19 @@ const startOfToday = () => {
   d.setHours(0, 0, 0, 0);
   return d.getTime();
 };
-type Period = "all" | "overdue" | "today" | "week" | "later";
+type Period = "all" | "overdue" | "today" | "tomorrow" | "week" | "later";
 const period = ref<Period>("all");
 const inPeriod = (v: Visit, p: Period) => {
   const today = startOfToday();
   if (p === "all") return true;
   if (p === "overdue") return v.at < today;
   if (p === "today") return v.at >= today && v.at < today + 86_400_000;
+  if (p === "tomorrow") return v.at >= today + 86_400_000 && v.at < today + 2 * 86_400_000;
   if (p === "week") return v.at >= today && v.at < today + 7 * 86_400_000;
   return v.at >= today + 7 * 86_400_000;
 };
 const periodTabs = computed(() =>
-  (["all", "overdue", "today", "week", "later"] as const).map((k) => ({
+  (["all", "overdue", "today", "tomorrow", "week", "later"] as const).map((k) => ({
     value: k,
     label: `${t(k === "all" ? "cs.confirmedVisits.all" : `cs.maintenance.${k}`)} · ${visits.value.filter((v) => inPeriod(v, k)).length}`,
   })),
@@ -142,21 +143,68 @@ const search = ref("");
 const areaFilter = ref<string | null>(null);
 const areaItems = computed(() => [{ label: t("cs.customers.allAreas"), value: null }, ...areas.value.map((a) => ({ label: a.name, value: a.id }))]);
 
-const filtered = computed(() =>
-  visits.value.filter((v) => {
-    if (!inPeriod(v, period.value)) return false;
-    if (techFilter.value === "none" && !v.technicianIds.some((id) => !id)) return false;
-    if (techFilter.value !== "all" && techFilter.value !== "none" && !v.technicianIds.includes(techFilter.value)) return false;
-    const c = customerById.value.get(v.customerId);
-    if (areaFilter.value && c?.area_id !== areaFilter.value) return false;
-    if (search.value) {
-      const q = search.value.toLowerCase();
-      const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${c?.address ?? ""} ${v.products.map((p) => `${p.name} ${p.contract_code ?? ""}`).join(" ")}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    return true;
-  }),
-);
+// Everything except the period tab: used by the calendar, which has its own range.
+const passesFilters = (v: Visit) => {
+  if (techFilter.value === "none" && !v.technicianIds.some((id) => !id)) return false;
+  if (techFilter.value !== "all" && techFilter.value !== "none" && !v.technicianIds.includes(techFilter.value)) return false;
+  const c = customerById.value.get(v.customerId);
+  if (areaFilter.value && c?.area_id !== areaFilter.value) return false;
+  if (search.value) {
+    const q = search.value.toLowerCase();
+    const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${c?.address ?? ""} ${v.products.map((p) => `${p.name} ${p.contract_code ?? ""}`).join(" ")}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+};
+const filtered = computed(() => visits.value.filter((v) => inPeriod(v, period.value) && passesFilters(v)));
+
+// ---- Calendar view: this week, next week or a month, as a grid
+const viewMode = ref<"list" | "calendar">("list");
+type CalRange = "thisWeek" | "nextWeek" | "month";
+const calRange = ref<CalRange>("thisWeek");
+const calShift = ref(0); // weeks (or months) moved with the arrows
+function weekStart(offsetWeeks: number) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  // weeks start on Saturday
+  d.setDate(d.getDate() - ((d.getDay() + 1) % 7) + offsetWeeks * 7);
+  return d;
+}
+const calStart = computed(() => {
+  if (calRange.value === "month") {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth() + calShift.value, 1);
+  }
+  return weekStart((calRange.value === "nextWeek" ? 1 : 0) + calShift.value);
+});
+const calMode = computed(() => (calRange.value === "month" ? "month" : "week"));
+const calTabs = computed(() => [
+  { value: "thisWeek", label: t("cs.confirmedVisits.thisWeek") },
+  { value: "nextWeek", label: t("cs.confirmedVisits.nextWeek") },
+  { value: "month", label: t("cs.confirmedVisits.month") },
+]);
+watch(calRange, () => (calShift.value = 0));
+const calendarVisits = computed(() => visits.value.filter(passesFilters));
+const customerTitleOf = (id: string) => {
+  const c = customerById.value.get(id);
+  return c ? customerTitle(c) : "—";
+};
+// A visit clicked on the calendar opens its assignment (or its customer).
+function onCalendarSelect(v: { key: string }) {
+  const visit = visits.value.find((x) => x.key === v.key);
+  if (!visit) return;
+  if (can.assign) openAssign([visit]);
+  else openCustomer(visit.customerId);
+}
+function setView(mode: "list" | "calendar") {
+  viewMode.value = mode;
+}
+function shiftCal(delta: number) {
+  calShift.value += delta;
+}
+function backToToday() {
+  calShift.value = 0;
+}
 
 // ---- Selection (bulk assign)
 const UCheckbox = resolveComponent("UCheckbox");
@@ -248,8 +296,20 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
       <KPageHeader :title="t('cs.confirmedVisits.title')" :count="visits.length" />
 
       <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
-        <div class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <UTabs v-model="period" :items="periodTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="-mx-4 min-w-0 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+            <UTabs v-if="viewMode === 'list'" v-model="period" :items="periodTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
+            <div v-else class="flex items-center gap-2">
+              <UTabs v-model="calRange" :items="calTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max" />
+              <UButton icon="i-lucide-chevron-right" size="sm" color="neutral" variant="outline" :aria-label="t('cs.confirmedVisits.previous')" class="rtl:rotate-180" @click="shiftCal(-1)" />
+              <UButton size="sm" color="neutral" variant="outline" :label="t('cs.maintenance.today')" @click="backToToday" />
+              <UButton icon="i-lucide-chevron-left" size="sm" color="neutral" variant="outline" :aria-label="t('cs.confirmedVisits.next')" class="rtl:rotate-180" @click="shiftCal(1)" />
+            </div>
+          </div>
+          <UButtonGroup class="kords-segment">
+            <UButton icon="i-lucide-list" color="neutral" variant="ghost" :class="viewMode === 'list' && 'kords-segment-on'" :aria-label="t('cs.confirmedVisits.viewList')" @click="setView('list')" />
+            <UButton icon="i-lucide-calendar-days" color="neutral" variant="ghost" :class="viewMode === 'calendar' && 'kords-segment-on'" :aria-label="t('cs.confirmedVisits.viewCalendar')" @click="setView('calendar')" />
+          </UButtonGroup>
         </div>
         <!-- Technician: everyone, unassigned, or one technician's visits -->
         <div v-if="seesAll" class="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
@@ -277,6 +337,15 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
       <div v-if="status === 'pending' || status === 'idle'" class="flex justify-center py-16">
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
+      <ConfirmedVisitsCalendar
+        v-else-if="viewMode === 'calendar'"
+        :visits="calendarVisits"
+        :mode="calMode"
+        :start="calStart"
+        :customer-title="customerTitleOf"
+        :tech-name="techName"
+        @select="onCalendarSelect"
+      />
       <div v-else-if="!filtered.length" class="kords-card flex flex-col items-center gap-2 py-16 text-center">
         <UIcon name="i-lucide-phone-call" class="size-8 text-muted" />
         <p class="text-sm text-muted">{{ t("cs.confirmedVisits.empty") }}</p>

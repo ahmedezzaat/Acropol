@@ -1319,7 +1319,8 @@
       "evAssigned": "Visit assigned to a technician",
       "assignedTo": "Technician: {name}",
       "technicianUnassigned": "No technician yet",
-      "assignOptional": "Assign a technician (optional)"
+      "assignOptional": "Assign a technician (optional)",
+      "tomorrow": "Tomorrow"
     },
     "print": {
       "title": "Customer and product details",
@@ -1341,7 +1342,18 @@
       "hint": "A visit appears here once the customer has confirmed it by phone (Confirm visit in the maintenance list).",
       "selected": "{count} visit(s) selected",
       "count": "{count} visit(s)",
-      "mixed": "Several technicians"
+      "mixed": "Several technicians",
+      "thisWeek": "This week",
+      "nextWeek": "Next week",
+      "month": "Month",
+      "previous": "Previous",
+      "next": "Next",
+      "viewList": "List",
+      "viewCalendar": "Calendar",
+      "calVisits": "{count} visit(s)",
+      "calUnassigned": "{count} unassigned",
+      "calEmptyDays": "{count} empty day(s)",
+      "calGap": "No visits"
     }
   }
 }

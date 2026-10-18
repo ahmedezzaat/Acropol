@@ -1319,7 +1319,8 @@
       "evAssigned": "تم إسناد الزيارة إلى فني",
       "assignedTo": "الفني: {name}",
       "technicianUnassigned": "لم يُسند فني بعد",
-      "assignOptional": "إسناد إلى فني (اختياري)"
+      "assignOptional": "إسناد إلى فني (اختياري)",
+      "tomorrow": "غدًا"
     },
     "print": {
       "title": "بيانات العميل والمنتج",
@@ -1341,7 +1342,18 @@
       "hint": "تظهر الزيارة هنا بعد أن يؤكدها العميل بالهاتف («تأكيد الزيارة» في قائمة الصيانات).",
       "selected": "تم تحديد {count} زيارة",
       "count": "{count} زيارة",
-      "mixed": "عدة فنيين"
+      "mixed": "عدة فنيين",
+      "thisWeek": "هذا الأسبوع",
+      "nextWeek": "الأسبوع القادم",
+      "month": "الشهر",
+      "previous": "السابق",
+      "next": "التالي",
+      "viewList": "قائمة",
+      "viewCalendar": "تقويم",
+      "calVisits": "{count} زيارة",
+      "calUnassigned": "{count} بدون فني",
+      "calEmptyDays": "{count} يوم فارغ",
+      "calGap": "لا زيارات"
     }
   }
 }
