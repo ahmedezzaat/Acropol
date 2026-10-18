@@ -3,7 +3,7 @@
 // it. The date can be corrected here (the customer may agree another time), a
 // note records who confirmed, and the customer's other appointments on the same
 // day can be confirmed in the same call. A visit has to be confirmed before it
-// can be marked as done.
+// can be marked as done. A technician can be assigned in the same step (optional).
 const props = defineProps<{ product: CsProduct | null }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
@@ -26,6 +26,19 @@ interface Sibling {
 }
 const siblings = ref<Sibling[]>([]);
 
+// Optional: the technician who will do the visit.
+interface Technician {
+  id: string;
+  full_name: string | null;
+  email: string;
+}
+const technicians = ref<Technician[]>([]);
+const technicianId = ref<string | null>(null);
+const technicianItems = computed(() => [
+  { label: t("cs.maintenance.unassigned"), value: null as string | null },
+  ...technicians.value.map((u) => ({ label: u.full_name || u.email, value: u.id as string | null })),
+]);
+
 function toLocalInput(iso: string | null | undefined) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -38,7 +51,10 @@ watch(open, async (isOpen) => {
   if (!isOpen || !props.product) return;
   when.value = toLocalInput(props.product.next_maintenance_at);
   note.value = "";
+  technicianId.value = null;
   siblings.value = [];
+  const { data: techs } = await supabase.from("profiles").select("id, full_name, email").eq("is_technician", true).eq("is_active", true).order("full_name");
+  technicians.value = (techs ?? []) as Technician[];
   // The same customer's other unconfirmed appointments that day: one call, one visit.
   const { data } = await supabase
     .from("customer_products")
@@ -66,11 +82,19 @@ async function save() {
   for (const target of targets) {
     // Confirming together with a changed time keeps the confirmation (a plain
     // change of time would remove it).
-    const patch: { maintenance_confirmed_at: string; maintenance_confirmed_by: string | null; maintenance_confirm_note: string | null; next_maintenance_at?: string } = {
+    const patch: {
+      maintenance_confirmed_at: string;
+      maintenance_confirmed_by: string | null;
+      maintenance_confirm_note: string | null;
+      next_maintenance_at?: string;
+      maintenance_technician_id?: string;
+      maintenance_assigned_at?: string;
+    } = {
       maintenance_confirmed_at: nowIso,
       maintenance_confirmed_by: by,
       maintenance_confirm_note: text,
       ...(moved ? { next_maintenance_at: newAt } : {}),
+      ...(technicianId.value ? { maintenance_technician_id: technicianId.value, maintenance_assigned_at: nowIso } : {}),
     };
     const { error } = await supabase.from("customer_products").update(patch).eq("id", target.id);
     if (error) {
@@ -81,6 +105,9 @@ async function save() {
     const logs = [
       ...(moved ? [{ product_id: target.id, kind: "rescheduled", scheduled_for: newAt, note: text }] : []),
       { product_id: target.id, kind: "confirmed", scheduled_for: moved ? newAt : target.from, note: text },
+      ...(technicianId.value
+        ? [{ product_id: target.id, kind: "assigned", scheduled_for: moved ? newAt : target.from, technician_id: technicianId.value, note: null }]
+        : []),
     ];
     await supabase.from("product_maintenance_log").insert(logs);
   }
@@ -107,6 +134,17 @@ function close() {
         </UFormField>
         <UFormField :label="t('cs.maintenance.confirmNote')">
           <UTextarea v-model="note" :rows="2" class="w-full" />
+        </UFormField>
+        <!-- Optional: who will do the visit (also applies to the same-day visits ticked below) -->
+        <UFormField :label="t('cs.maintenance.assignOptional')" :help="technicians.length ? undefined : t('cs.maintenance.noTechnicians')">
+          <USelect
+            :model-value="technicianId"
+            :items="technicianItems"
+            value-key="value"
+            icon="i-lucide-hard-hat"
+            class="w-full"
+            @update:model-value="(v: string | null) => (technicianId = v)"
+          />
         </UFormField>
 
         <div v-if="siblings.length" class="space-y-2 rounded-[10px] border border-default p-3">

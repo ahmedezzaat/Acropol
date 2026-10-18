@@ -47,18 +47,12 @@ export function useNotifications() {
 
   function formatWhen(value: unknown) {
     if (typeof value !== "string") return "";
-    return new Date(value).toLocaleString(locale.value === "ar" ? "ar" : "en", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
+    return formatDMYTime(value, locale.value);
   }
 
   function formatDay(value: unknown) {
     if (typeof value !== "string") return "";
-    return new Date(`${value}T12:00:00`).toLocaleDateString(locale.value === "ar" ? "ar" : "en", {
-      day: "numeric",
-      month: "short",
-    });
+    return formatDMY(value);
   }
 
   // Turns a stored type + params into text in the viewer's language, the page

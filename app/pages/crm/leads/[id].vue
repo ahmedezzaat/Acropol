@@ -26,6 +26,7 @@ interface Lead {
   notes: string | null;
   assigned_to: string | null;
   customer_id: string | null;
+  area_id: string | null;
 }
 
 interface Profile {
@@ -99,6 +100,7 @@ async function save() {
     source: lead.value.source,
     status: lead.value.status,
     notes: lead.value.notes,
+    area_id: lead.value.area_id || null,
   };
   if (canAssign.value) payload.assigned_to = lead.value.assigned_to;
 
@@ -200,6 +202,9 @@ async function remove() {
         </UFormField>
         <UFormField :label="t('crm.leads.phone2')">
           <PhoneInput v-model="lead.phone2" :disabled="!canEdit" />
+        </UFormField>
+        <UFormField :label="t('cs.customers.area')">
+          <AreaSelect v-model="lead.area_id" :disabled="!canEdit" />
         </UFormField>
         <UFormField :label="t('common.email')">
           <UInput v-model="lead.email" type="email" :disabled="!canEdit" class="w-full" />

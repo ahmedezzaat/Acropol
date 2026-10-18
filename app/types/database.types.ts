@@ -247,6 +247,7 @@ export type Database = {
           assigned_to: string | null;
           created_by: string | null;
           customer_id: string | null;
+          area_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -264,6 +265,7 @@ export type Database = {
           assigned_to?: string | null;
           created_by?: string;
           customer_id?: string | null;
+          area_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -281,6 +283,7 @@ export type Database = {
           assigned_to?: string | null;
           created_by?: string;
           customer_id?: string | null;
+          area_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };

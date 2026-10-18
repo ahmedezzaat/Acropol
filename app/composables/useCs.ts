@@ -231,18 +231,14 @@ export function useCs() {
 
   function formatDate(value: string | null | undefined) {
     if (!value) return "—";
-    // Plain dates: pin to local noon so no timezone shifts the day.
-    return new Date(`${value}T12:00:00`).toLocaleDateString(locale.value === "ar" ? "ar" : "en", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    // Plain dates are read as is; dates with a time use the viewer's day.
+    return formatDMY(value);
   }
 
   // A timestamp as local date + time (e.g. a maintenance appointment).
   function formatDateTime(value: string | null | undefined) {
     if (!value) return "—";
-    return new Date(value).toLocaleString(locale.value === "ar" ? "ar" : "en", { dateStyle: "medium", timeStyle: "short" });
+    return formatDMYTime(value, locale.value);
   }
 
   // Periodic maintenance: due every `months` months counted from the operation

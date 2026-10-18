@@ -1318,7 +1318,8 @@
       "reassign": "Reassign",
       "evAssigned": "Visit assigned to a technician",
       "assignedTo": "Technician: {name}",
-      "technicianUnassigned": "No technician yet"
+      "technicianUnassigned": "No technician yet",
+      "assignOptional": "Assign a technician (optional)"
     },
     "print": {
       "title": "Customer and product details",

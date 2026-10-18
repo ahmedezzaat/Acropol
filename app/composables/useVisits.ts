@@ -80,13 +80,8 @@ export function useVisits() {
     visitTypes.value = (data ?? []) as VisitType[];
   }
   function formatDate(value: string) {
-    // visit_date is a plain date: pin it to local noon so no timezone shifts it.
-    return new Date(`${value}T12:00:00`).toLocaleDateString(locale.value === "ar" ? "ar" : "en", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    // visit_date is a plain date.
+    return formatDMY(value);
   }
   function timeRange(v: Pick<Visit, "time_from" | "time_to">) {
     return `${v.time_from.slice(0, 5)} – ${v.time_to.slice(0, 5)}`;

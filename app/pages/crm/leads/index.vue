@@ -12,6 +12,11 @@ useHead({ htmlAttrs: { class: "carbon" } });
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
+const { areaName, loadAreas } = useCs();
+useAsyncData("crm-leads-areas", async () => {
+  await loadAreas();
+  return true;
+});
 const { t } = useI18n();
 
 interface Lead {
@@ -28,6 +33,7 @@ interface Lead {
   source: string | null;
   notes: string | null;
   customer_id: string | null;
+  area_id: string | null;
 }
 
 interface Profile {
@@ -49,7 +55,7 @@ const { data: leads, refresh, status: leadsStatus } = await useAsyncData<Lead[]>
   async () => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, name, phone, phone2, email, status, assigned_to, created_at, lead_type, company_name, source, notes, customer_id")
+      .select("id, name, phone, phone2, email, status, assigned_to, created_at, lead_type, company_name, source, notes, customer_id, area_id")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -163,6 +169,7 @@ const schema = computed(() =>
       source: z.enum(sourceKeys, t("validation.required")),
       notes: z.string().optional(),
       assigned_to: z.uuid().nullable().optional(),
+      area_id: z.uuid().nullable().optional(),
     })
     .superRefine((data, ctx) => {
       if (data.lead_type === "company" && !data.company_name?.trim()) {
@@ -180,6 +187,7 @@ type Schema = {
   source: (typeof sourceKeys)[number];
   notes?: string;
   assigned_to?: string | null;
+  area_id?: string | null;
 };
 const state = reactive<Partial<Schema>>({
   lead_type: "individual",
@@ -191,6 +199,7 @@ const state = reactive<Partial<Schema>>({
   source: undefined,
   notes: "",
   assigned_to: null,
+  area_id: null,
 });
 
 function resetCreateState() {
@@ -203,6 +212,7 @@ function resetCreateState() {
   state.source = undefined;
   state.notes = "";
   state.assigned_to = null;
+  state.area_id = null;
 }
 
 // Catch the common case of a rep (re-)entering a lead someone already has,
@@ -232,6 +242,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     email: event.data.email || null,
     source: event.data.source,
     notes: event.data.notes || null,
+    area_id: event.data.area_id || null,
   };
   if (canAssign.value) payload.assigned_to = event.data.assigned_to || null;
 
@@ -288,7 +299,7 @@ function secondaryName(lead: Lead) {
   return lead.lead_type === "company" && lead.company_name ? lead.name : null;
 }
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return formatDMY(value);
 }
 function ago(value: string) {
   const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
@@ -539,6 +550,10 @@ function backToList() {
                   <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>
                   <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ selectedLead.phone || "—" }}</bdi></dd>
                 </div>
+                <div v-if="selectedLead.area_id">
+                  <dt class="text-xs text-muted">{{ t("cs.customers.area") }}</dt>
+                  <dd class="font-medium text-highlighted">{{ areaName(selectedLead.area_id) || "—" }}</dd>
+                </div>
                 <div v-if="selectedLead.phone2">
                   <dt class="text-xs text-muted">{{ t("crm.leads.phone2") }}</dt>
                   <dd class="font-medium text-highlighted"><bdi dir="ltr">{{ selectedLead.phone2 }}</bdi></dd>
@@ -642,6 +657,9 @@ function backToList() {
         </UFormField>
         <UFormField name="phone2" :label="t('crm.leads.phone2')">
           <PhoneInput v-model="state.phone2" />
+        </UFormField>
+        <UFormField name="area_id" :label="t('cs.customers.area')">
+          <AreaSelect v-model="state.area_id as string | null" />
         </UFormField>
         <UAlert
           v-if="duplicateLead"

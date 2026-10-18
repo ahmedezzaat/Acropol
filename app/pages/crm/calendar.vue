@@ -156,10 +156,7 @@ function dealIsClosed(dealId: string) {
 }
 function formatDate(value: string | null, withTime = true) {
   if (!value) return "";
-  return new Date(value).toLocaleString(locale.value === "ar" ? "ar" : "en", {
-    dateStyle: "medium",
-    timeStyle: withTime ? "short" : undefined,
-  });
+  return withTime ? formatDMYTime(value, locale.value) : formatDMY(value);
 }
 
 const todayStart = computed(() => today(getLocalTimeZone()).toDate(getLocalTimeZone()));
@@ -263,7 +260,7 @@ const scheduledTime = ref<Time>(new Time(9, 0));
 const datePopoverOpen = ref(false);
 const formattedScheduledDate = computed(() =>
   scheduledDate.value
-    ? scheduledDate.value.toDate(getLocalTimeZone()).toLocaleDateString(locale.value === "ar" ? "ar" : "en", { dateStyle: "medium" })
+    ? formatDMY(scheduledDate.value.toDate(getLocalTimeZone()))
     : "",
 );
 function scheduledAtIso(): string | null {

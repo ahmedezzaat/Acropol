@@ -223,7 +223,7 @@ function cancelAction() {
 
 const detailActions = computed(() => (selected.value ? availableActions(selected.value) : []));
 function eventTime(value: string) {
-  return new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return formatDMYTime(value);
 }
 function actionColor(a: VisitAction) {
   return a === "approve" || a === "done" ? "primary" : a === "reject" ? "error" : "neutral";

@@ -15,6 +15,14 @@ export interface NewDealEmailData {
   createdAt: string;
 }
 
+// DD/MM/YY h:mm AM/PM in Cairo time, the same way dates are shown in the app.
+function cairoDateTime(iso: string) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", day: "2-digit", month: "2-digit", year: "2-digit", hour: "numeric", minute: "2-digit", hour12: true })
+    .formatToParts(new Date(iso))
+    .reduce<Record<string, string>>((acc, p) => ({ ...acc, [p.type]: p.value }), {});
+  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute} ${(parts.dayPeriod ?? "").toUpperCase()}`;
+}
+
 const SOURCE_LABELS: Record<string, string> = {
   external_client: "عميل خارجي",
   facebook: "فيسبوك",
@@ -40,7 +48,7 @@ export function newDealEmail(d: NewDealEmailData) {
     ["المسؤول", d.assignee],
     ["أضافها", d.createdBy],
     ["القيمة", d.value ? d.value.toLocaleString("en-US") : null],
-    ["التاريخ", new Date(d.createdAt).toLocaleString("ar-EG", { timeZone: "Africa/Cairo", dateStyle: "medium", timeStyle: "short" })],
+    ["التاريخ", cairoDateTime(d.createdAt)],
   ];
   const body = rows
     .filter(([, v]) => v)

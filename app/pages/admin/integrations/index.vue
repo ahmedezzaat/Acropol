@@ -45,10 +45,7 @@ function profileLabel(id: string | null) {
 
 function formatDate(value: string | null) {
   if (!value) return t("admin.integrations.neverUsed");
-  return new Date(value).toLocaleString(locale.value === "ar" ? "ar" : "en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return formatDMYTime(value, locale.value);
 }
 
 // --- WhatsApp webhook settings (saved on the server; the app secret is write-only)

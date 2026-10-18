@@ -68,7 +68,7 @@ const myEmail = computed(() => {
   return (id ? bundle.value?.people.find((x) => x.id === id)?.email : null) ?? (user.value?.email as string | undefined) ?? "";
 });
 const exportedAt = new Date();
-const exportedAtText = exportedAt.toLocaleString(locale.value === "ar" ? "ar" : "en", { dateStyle: "long", timeStyle: "short" });
+const exportedAtText = formatDMYTime(exportedAt, locale.value);
 
 function dueText(p: CsProduct) {
   if (p.maintenance_declined_at) return t("cs.maintenance.declinedNote");

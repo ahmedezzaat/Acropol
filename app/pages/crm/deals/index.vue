@@ -437,7 +437,7 @@ function dealReasonName(deal: Deal) {
   return allReasons.value?.find((r) => r.id === deal.stage_reason_id)?.name ?? null;
 }
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString(locale.value === "ar" ? "ar" : "en", { dateStyle: "medium" });
+  return formatDMY(value);
 }
 function formatCurrency(value: number | null) {
   if (!value) return null;
@@ -795,6 +795,7 @@ const schema = computed(() =>
       lead_email: z.string().optional(),
       lead_source: z.enum(sourceKeys).optional(),
       lead_notes: z.string().optional(),
+      lead_area_id: z.uuid().nullable().optional(),
       category_ids: z.array(z.uuid()).min(1, t("validation.required")),
       pipeline_id: z.uuid(t("validation.required")),
       stage_id: z.uuid(t("validation.required")),
@@ -830,6 +831,7 @@ type Schema = {
   lead_email?: string;
   lead_source?: (typeof sourceKeys)[number];
   lead_notes?: string;
+  lead_area_id?: string | null;
   category_ids: string[];
   pipeline_id: string;
   stage_id: string;
@@ -849,6 +851,7 @@ function blankState(): Partial<Schema> {
     lead_email: "",
     lead_source: undefined,
     lead_notes: "",
+    lead_area_id: null,
     category_ids: [],
     pipeline_id: undefined,
     stage_id: undefined,
@@ -946,6 +949,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
       email: event.data.lead_email || null,
       source: event.data.lead_source,
       notes: event.data.lead_notes || null,
+      area_id: event.data.lead_area_id || null,
     };
     if (canAssign.value) leadPayload.assigned_to = event.data.assigned_to || null;
 
@@ -1497,6 +1501,9 @@ function openDeal(deal: Deal) {
           </UFormField>
           <UFormField v-if="showPhone2" name="lead_phone2" :label="t('crm.leads.phone2')">
             <PhoneInput v-model="state.lead_phone2" class="w-full" />
+          </UFormField>
+          <UFormField name="lead_area_id" :label="t('cs.customers.area')">
+            <AreaSelect v-model="state.lead_area_id as string | null" />
           </UFormField>
           <UAlert
             v-if="duplicateNewLead"

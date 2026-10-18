@@ -16,6 +16,11 @@ const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
 const { t, te, locale } = useI18n();
+const { areaName, loadAreas } = useCs();
+useAsyncData("crm-deal-areas", async () => {
+  await loadAreas();
+  return true;
+});
 
 interface Deal {
   id: string;
@@ -50,6 +55,7 @@ interface LeadContact {
   source: string | null;
   notes: string | null;
   created_at: string;
+  area_id: string | null;
 }
 
 interface Quote {
@@ -229,7 +235,7 @@ const { data: leadContact, refresh: refreshLeadContact } = await useAsyncData<Le
     if (!deal.value?.lead_id) return null;
     const { data, error } = await supabase
       .from("leads")
-      .select("id, name, company_name, lead_type, phone, phone2, email, source, notes, created_at")
+      .select("id, name, company_name, lead_type, phone, phone2, email, source, notes, created_at, area_id")
       .eq("id", deal.value.lead_id)
       .single();
     if (error) throw error;
@@ -307,6 +313,7 @@ const editName = ref("");
 const editPhone = ref("");
 const editPhone2 = ref("");
 const editEmail = ref("");
+const editArea = ref<string | null>(null);
 const editSource = ref<(typeof editSourceKeys)[number] | undefined>(undefined);
 const editLeadSaving = ref(false);
 
@@ -320,6 +327,7 @@ function openEditLead() {
   editPhone.value = leadContact.value.phone ?? "";
   editPhone2.value = leadContact.value.phone2 ?? "";
   editEmail.value = leadContact.value.email ?? "";
+  editArea.value = leadContact.value.area_id ?? null;
   editSource.value = leadContact.value.source ?? undefined;
   editLeadModalOpen.value = true;
 }
@@ -335,6 +343,7 @@ async function saveEditLead() {
     phone2: trimOrNull(editPhone2.value),
     email: editEmail.value.trim() || null,
     source: editSource.value ?? null,
+    area_id: editArea.value,
   };
   const { error } = await supabase.from("leads").update(payload).eq("id", deal.value.lead_id);
   editLeadSaving.value = false;
@@ -762,9 +771,7 @@ const datePopoverOpen = ref(false);
 
 const formattedScheduledDate = computed(() => {
   if (!scheduledDate.value) return "";
-  return scheduledDate.value
-    .toDate(getLocalTimeZone())
-    .toLocaleDateString(locale.value === "ar" ? "ar" : "en", { dateStyle: "medium" });
+  return formatDMY(scheduledDate.value.toDate(getLocalTimeZone()));
 });
 
 function resetScheduleFields() {
@@ -1042,10 +1049,7 @@ const upcomingActivities = computed(() =>
 
 function formatDate(value: string | null | undefined, withTime = false) {
   if (!value) return "";
-  return new Date(value).toLocaleString(locale.value === "ar" ? "ar" : "en", {
-    dateStyle: "medium",
-    timeStyle: withTime ? "short" : undefined,
-  });
+  return withTime ? formatDMYTime(value, locale.value) : formatDMY(value);
 }
 
 function stageName(id: string | null | undefined) {
@@ -1492,6 +1496,9 @@ function isPastDue(iso: string | null) {
                 </a>
               </p>
               <p v-if="customer.email" class="text-muted">{{ customer.email }}</p>
+              <p v-if="leadContact?.area_id" class="flex items-center gap-1.5 text-muted">
+                <UIcon name="i-lucide-map-pin" class="size-3.5" />{{ areaName(leadContact.area_id) }}
+              </p>
               <p v-if="deal.lead_id" class="mt-2 text-xs text-muted">{{ t("crm.deals.fromLead") }}</p>
               <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <ULink :to="`/crm/customers/${deal.customer_id}`" class="inline-flex items-center gap-1 text-primary">
@@ -1529,6 +1536,9 @@ function isPastDue(iso: string | null) {
                 </a>
               </p>
               <p v-if="leadContact.email" class="text-muted">{{ leadContact.email }}</p>
+              <p v-if="leadContact.area_id" class="flex items-center gap-1.5 text-muted">
+                <UIcon name="i-lucide-map-pin" class="size-3.5" />{{ areaName(leadContact.area_id) }}
+              </p>
               <p class="mt-2 text-xs text-muted">{{ t("crm.deals.customerOnWin") }}</p>
               <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <ULink v-if="hasPermission('crm_leads', 'view')" :to="`/crm/leads/${deal.lead_id}`" class="inline-flex items-center gap-1 text-primary">
@@ -1887,6 +1897,9 @@ function isPastDue(iso: string | null) {
         </UFormField>
         <UFormField :label="t('crm.leads.phone2')">
           <PhoneInput v-model="editPhone2" />
+        </UFormField>
+        <UFormField :label="t('cs.customers.area')">
+          <AreaSelect v-model="editArea" />
         </UFormField>
         <UFormField :label="t('common.email')">
           <UInput v-model="editEmail" type="email" class="w-full" />

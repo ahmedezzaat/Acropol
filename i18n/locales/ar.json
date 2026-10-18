@@ -1318,7 +1318,8 @@
       "reassign": "إعادة إسناد",
       "evAssigned": "تم إسناد الزيارة إلى فني",
       "assignedTo": "الفني: {name}",
-      "technicianUnassigned": "لم يُسند فني بعد"
+      "technicianUnassigned": "لم يُسند فني بعد",
+      "assignOptional": "إسناد إلى فني (اختياري)"
     },
     "print": {
       "title": "بيانات العميل والمنتج",
