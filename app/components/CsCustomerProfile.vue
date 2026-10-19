@@ -181,6 +181,12 @@ const { data: deals } = useAsyncData<LinkedDeal[]>(`cs-customer-${customerId}-de
   return data ?? [];
 });
 
+const mainTab = ref<"main" | "files">("main");
+const mainTabs = computed(() => [
+  { value: "main", label: t("cs.profile.products") },
+  { value: "files", label: t("files.tab") },
+]);
+
 const { data: people } = useAsyncData<{ id: string; full_name: string | null; email: string }[]>("cs-customer-people", async () => {
   const { data } = await supabase.from("profiles").select("id, full_name, email");
   return data ?? [];
@@ -616,6 +622,11 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
 
       <!-- ===== Main: the products ===== -->
       <section class="min-w-0 space-y-4">
+        <UTabs v-if="canSeeDeals" v-model="mainTab" :items="mainTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs" />
+
+        <FilesPanel v-if="canSeeDeals && mainTab === 'files'" :customer-id="customerId" />
+
+        <div v-show="mainTab === 'main'" class="space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex flex-wrap items-center gap-2">
             <h3 class="text-lg font-semibold text-highlighted">{{ t("cs.profile.products") }}</h3>
@@ -842,6 +853,7 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
             </li>
           </ul>
         </section>
+        </div>
       </section>
     </div>
   </div>

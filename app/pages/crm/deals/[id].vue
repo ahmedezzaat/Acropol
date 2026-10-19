@@ -15,6 +15,9 @@ useHead({ htmlAttrs: { class: "kords" } });
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
+// A user who sees only their own leads doesn't see where a lead came from, so
+// every lead is worked the same way. Seeing all leads is what unlocks the source.
+const canSeeSource = computed(() => hasPermission("crm_leads", "view_all"));
 const { t, te, locale } = useI18n();
 const { areaName, loadAreas } = useCs();
 useAsyncData("crm-deal-areas", async () => {
@@ -282,17 +285,6 @@ async function uploadDealAttachment(file: File): Promise<{ error: string | null 
   return { error: null };
 }
 
-async function downloadAttachment(attachment: DealAttachment) {
-  const { data, error } = await supabase.storage
-    .from("deal-attachments")
-    .createSignedUrl(attachment.storage_path, 60);
-  if (error || !data) {
-    toast.add({ title: t("crm.deals.attachmentUploadFailed"), description: error?.message, color: "error" });
-    return;
-  }
-  window.open(data.signedUrl, "_blank");
-}
-
 // --- Edit the deal's originating lead right from this page, without
 // navigating away — the lead record is the source of the contact info
 // shown in the sidebar card whether the deal has converted to a customer
@@ -301,7 +293,7 @@ const editLeadTypeOptions = computed(() => [
   { label: t("crm.leads.type.individual"), value: "individual" },
   { label: t("crm.leads.type.company"), value: "company" },
 ]);
-const editSourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api"] as const;
+const editSourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api", "odoo"] as const;
 const editSourceOptions = computed(() =>
   editSourceKeys.map((s) => ({ label: t(`crm.leads.sourceValues.${s}`), value: s })),
 );
@@ -1166,6 +1158,11 @@ function filterMatches(type: Activity["type"], filter: TimelineFilter) {
   if (filter === "system") return SYSTEM_TYPES.includes(type);
   return type !== "note" && !SYSTEM_TYPES.includes(type);
 }
+const mainTab = ref<"details" | "files">("details");
+const mainTabs = computed(() => [
+  { value: "details", label: t("files.detailsTab") },
+  { value: "files", label: `${t("files.tab")} (${attachments.value?.length ?? 0})` },
+]);
 const timelineTabs = computed(() =>
   (["all", "notes", "activities", "system"] as const).map((value) => ({
     value,
@@ -1289,6 +1286,11 @@ function isPastDue(iso: string | null) {
             </div>
           </UPageCard>
 
+          <UTabs v-model="mainTab" :items="mainTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs" />
+
+          <FilesPanel v-if="mainTab === 'files'" :deal-id="dealId" :can-edit="canEdit" @changed="refreshAttachments" />
+
+          <div v-show="mainTab === 'details'" class="space-y-6">
           <!-- Pipeline stepper -->
           <UPageCard class="kords-card">
             <div class="grid grid-cols-2 gap-1.5 sm:flex sm:gap-2 sm:overflow-x-auto">
@@ -1473,6 +1475,7 @@ function isPastDue(iso: string | null) {
               </template>
             </UTimeline>
           </UPageCard>
+          </div>
         </div>
 
         <!-- Sidebar -->
@@ -1597,21 +1600,6 @@ function isPastDue(iso: string | null) {
 
           <!-- Quotes card temporarily hidden — see layouts/dashboard.vue for
           the matching hide of the sidebar's Quotes nav entry. -->
-
-          <UPageCard class="kords-card" v-if="attachments?.length" :title="t('crm.deals.attachmentsTitle')">
-            <ul class="divide-y divide-default">
-              <li v-for="attachment in attachments" :key="attachment.id" class="py-2">
-                <button
-                  type="button"
-                  class="flex w-full items-center gap-2 text-start text-primary"
-                  @click="downloadAttachment(attachment)"
-                >
-                  <UIcon name="i-lucide-paperclip" class="size-4 shrink-0" />
-                  <span class="truncate">{{ attachment.file_name }}</span>
-                </button>
-              </li>
-            </ul>
-          </UPageCard>
         </div>
       </div>
     </template>
@@ -1904,7 +1892,7 @@ function isPastDue(iso: string | null) {
         <UFormField :label="t('common.email')">
           <UInput v-model="editEmail" type="email" class="w-full" />
         </UFormField>
-        <UFormField :label="t('crm.leads.source')">
+        <UFormField v-if="canSeeSource" :label="t('crm.leads.source')">
           <USelect v-model="editSource" :items="editSourceOptions" value-key="value" class="w-full" />
         </UFormField>
         <UButton

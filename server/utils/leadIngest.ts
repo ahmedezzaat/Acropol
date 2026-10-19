@@ -11,6 +11,7 @@ export const LEAD_SOURCES = [
   "referral",
   "whatsapp",
   "api",
+  "odoo",
 ] as const;
 
 export interface IncomingLead {

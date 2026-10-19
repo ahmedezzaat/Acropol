@@ -619,7 +619,8 @@
         "event": "Event",
         "referral": "Referral",
         "whatsapp": "WhatsApp",
-        "api": "API"
+        "api": "API",
+        "odoo": "Odoo"
       },
       "notes": "Notes",
       "assignHint": "This lead will be assigned to you automatically. You don't have permission to assign it to someone else.",
@@ -1355,5 +1356,21 @@
       "calEmptyDays": "{count} empty day(s)",
       "calGap": "No visits"
     }
+  },
+  "files": {
+    "title": "Files",
+    "upload": "Upload files",
+    "open": "Open",
+    "contract": "Contract",
+    "deal": "Deal",
+    "emptyDeal": "No files attached to this deal yet.",
+    "emptyCustomer": "No files yet. Files attached to this customer's deals appear here.",
+    "uploadFailed": "Failed to upload file",
+    "openFailed": "Could not open the file",
+    "deleteFailed": "Could not delete the file",
+    "deleteTitle": "Delete file",
+    "deleteBody": "Delete the file {name}? This cannot be undone.",
+    "tab": "Files",
+    "detailsTab": "Details"
   }
 }

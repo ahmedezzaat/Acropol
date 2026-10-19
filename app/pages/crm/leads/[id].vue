@@ -11,6 +11,9 @@ useHead({ htmlAttrs: { class: "carbon" } });
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission } = usePermissions();
+// A user who sees only their own leads doesn't see where a lead came from, so
+// every lead is worked the same way. Seeing all leads is what unlocks the source.
+const canSeeSource = computed(() => hasPermission("crm_leads", "view_all"));
 const { t } = useI18n();
 
 interface Lead {
@@ -55,7 +58,7 @@ const leadTypeOptions = computed(() => [
   { label: t("crm.leads.type.company"), value: "company" },
 ]);
 
-const sourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api"] as const;
+const sourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api", "odoo"] as const;
 const sourceOptions = computed(() =>
   sourceKeys.map((s) => ({ label: t(`crm.leads.sourceValues.${s}`), value: s })),
 );
@@ -209,7 +212,7 @@ async function remove() {
         <UFormField :label="t('common.email')">
           <UInput v-model="lead.email" type="email" :disabled="!canEdit" class="w-full" />
         </UFormField>
-        <UFormField :label="t('crm.leads.source')">
+        <UFormField v-if="canSeeSource" :label="t('crm.leads.source')">
           <USelect v-model="lead.source" :items="sourceOptions" value-key="value" :disabled="!canEdit" class="w-full" />
         </UFormField>
         <UFormField :label="t('common.status')">

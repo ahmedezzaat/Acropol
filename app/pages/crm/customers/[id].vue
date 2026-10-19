@@ -144,6 +144,13 @@ function categoryName(id: string | null) {
 function dealTitle(id: string | null) {
   return id ? (deals.value?.find((d) => d.id === id)?.title ?? null) : null;
 }
+// Files come from the customer's deals, so they follow the deals permission.
+const canSeeFiles = computed(() => hasAnyModulePermission("crm_deals"));
+const mainTab = ref<"main" | "files">("main");
+const mainTabs = computed(() => [
+  { value: "main", label: t("files.detailsTab") },
+  { value: "files", label: t("files.tab") },
+]);
 // Customer Service owns the product record; only its people can open it.
 const canOpenProducts = computed(() => hasAnyModulePermission("cs_customers"));
 function openProduct() {
@@ -288,6 +295,11 @@ async function remove() {
           </UPageCard>
 
           <div class="min-w-0 space-y-5">
+            <UTabs v-if="canSeeFiles" v-model="mainTab" :items="mainTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs" />
+
+            <FilesPanel v-if="canSeeFiles && mainTab === 'files'" :customer-id="customerId" />
+
+            <div v-show="mainTab === 'main'" class="space-y-5">
             <!-- ===== Deals ===== -->
             <section class="border border-default bg-default">
               <h3 class="flex items-center gap-2 border-b border-default px-4 py-3 text-sm font-semibold text-highlighted">
@@ -375,6 +387,7 @@ async function remove() {
                 </li>
               </ul>
             </UPageCard>
+            </div>
           </div>
         </div>
       </div>

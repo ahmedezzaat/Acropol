@@ -12,6 +12,9 @@ useHead({ htmlAttrs: { class: "carbon" } });
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
+// A user who sees only their own leads doesn't see where a lead came from, so
+// every lead is worked the same way. Seeing all leads is what unlocks the source.
+const canSeeSource = computed(() => hasPermission("crm_leads", "view_all"));
 const { areaName, loadAreas } = useCs();
 useAsyncData("crm-leads-areas", async () => {
   await loadAreas();
@@ -147,7 +150,7 @@ const leadTypeOptions = computed(() => [
   { label: t("crm.leads.type.company"), value: "company" },
 ]);
 
-const sourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api"] as const;
+const sourceKeys = ["external_client", "facebook", "instagram", "meta", "google", "website", "event", "referral", "whatsapp", "api", "odoo"] as const;
 const sourceOptions = computed(() =>
   sourceKeys.map((s) => ({ label: t(`crm.leads.sourceValues.${s}`), value: s })),
 );
@@ -562,7 +565,7 @@ function backToList() {
                   <dt class="text-xs text-muted">{{ t("common.email") }}</dt>
                   <dd class="font-medium text-highlighted">{{ selectedLead.email || "—" }}</dd>
                 </div>
-                <div>
+                <div v-if="canSeeSource">
                   <dt class="text-xs text-muted">{{ t("crm.leads.source") }}</dt>
                   <dd class="font-medium text-highlighted">
                     {{ selectedLead.source ? t(`crm.leads.sourceValues.${selectedLead.source}`) : "—" }}

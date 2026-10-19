@@ -1375,7 +1375,7 @@ export type Database = {
     Enums: {
       lead_status: "new" | "contacted" | "qualified" | "converted" | "lost";
       lead_type: "individual" | "company";
-      lead_source: "external_client" | "facebook" | "instagram" | "meta" | "google" | "website" | "event" | "referral" | "whatsapp" | "api";
+      lead_source: "external_client" | "facebook" | "instagram" | "meta" | "google" | "website" | "event" | "referral" | "whatsapp" | "api" | "odoo";
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "expired";
     };
     CompositeTypes: Record<string, never>;

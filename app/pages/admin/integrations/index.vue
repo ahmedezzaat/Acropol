@@ -417,7 +417,7 @@ const curlExample = computed(
               <li><code>phone2</code>, <code>notes</code>, <code>company_name</code>, <code>lead_type</code> (individual | company)</li>
               <li>
                 <code>source</code> — external_client, facebook, instagram, meta, google, website, event, referral, whatsapp,
-                api ({{ t("admin.integrations.fieldSource") }})
+                api, odoo ({{ t("admin.integrations.fieldSource") }})
               </li>
             </ul>
             <div class="relative">
