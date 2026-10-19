@@ -105,6 +105,8 @@ export interface CsMaintenanceLog {
   cost: number | null;
   visit_id: string | null;
   technician_id?: string | null;
+  edited_at?: string | null;
+  visit_cost?: number | null;
   created_by: string | null;
 }
 

@@ -995,6 +995,66 @@ export type Database = {
         Update: { id?: string; customer_id?: string; visit_at?: string | null; note?: string | null; created_by?: string | null; created_at?: string };
         Relationships: [];
       };
+      area_visit_costs: {
+        Row: {
+          area_id: string;
+          cost: number;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          area_id: string;
+          cost: number;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          area_id?: string;
+          cost?: number;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      maintenance_used_parts: {
+        Row: { id: string; log_id: string; spare_part_id: string | null; name: string; unit_price: number; quantity: number };
+        Insert: { id?: string; log_id: string; spare_part_id?: string | null; name: string; unit_price: number; quantity: number };
+        Update: { id?: string; log_id?: string; spare_part_id?: string | null; name?: string; unit_price?: number; quantity?: number };
+        Relationships: [];
+      };
+      spare_parts: {
+        Row: {
+          id: string;
+          category_id: string;
+          name: string;
+          price: number;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          category_id: string;
+          name: string;
+          price?: number;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          category_id?: string;
+          name?: string;
+          price?: number;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       product_maintenance_log: {
         Row: {
           id: string;
@@ -1002,11 +1062,18 @@ export type Database = {
           kind: string;
           happened_at: string;
           scheduled_for: string | null;
+          previous_scheduled_for: string | null;
+          reschedule_reason: string | null;
+          marked_rescheduled: boolean;
+          visit_cost: number | null;
+          edited_at: string | null;
+          edited_by: string | null;
           done_on: string | null;
           note: string | null;
           cost: number | null;
           visit_id: string | null;
           technician_id: string | null;
+          marked_done: boolean;
           created_by: string | null;
         };
         Insert: {
@@ -1015,11 +1082,18 @@ export type Database = {
           kind: string;
           happened_at?: string;
           scheduled_for?: string | null;
+          previous_scheduled_for?: string | null;
+          reschedule_reason?: string | null;
+          marked_rescheduled?: boolean;
+          visit_cost?: number | null;
+          edited_at?: string | null;
+          edited_by?: string | null;
           done_on?: string | null;
           note?: string | null;
           cost?: number | null;
           visit_id?: string | null;
           technician_id?: string | null;
+          marked_done?: boolean;
           created_by?: string | null;
         };
         Update: {
@@ -1028,11 +1102,18 @@ export type Database = {
           kind?: string;
           happened_at?: string;
           scheduled_for?: string | null;
+          previous_scheduled_for?: string | null;
+          reschedule_reason?: string | null;
+          marked_rescheduled?: boolean;
+          visit_cost?: number | null;
+          edited_at?: string | null;
+          edited_by?: string | null;
           done_on?: string | null;
           note?: string | null;
           cost?: number | null;
           visit_id?: string | null;
           technician_id?: string | null;
+          marked_done?: boolean;
           created_by?: string | null;
         };
         Relationships: [];
@@ -1300,6 +1381,51 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      report_spare_parts_used: {
+        Args: { p_from: string; p_to: string; p_technician?: string; p_area?: string };
+        Returns: {
+          used_id: string;
+          done_on: string;
+          customer_id: string;
+          customer_name: string;
+          area_name: string | null;
+          technician_name: string | null;
+          product_name: string;
+          part_name: string;
+          quantity: number;
+          unit_price: number;
+          line_total: number;
+        }[];
+      };
+      report_maintenance_rescheduled: {
+        Args: { p_from: string; p_to: string; p_agent?: string };
+        Returns: {
+          done_at: string;
+          old_at: string | null;
+          new_at: string;
+          customer_id: string;
+          customer_name: string;
+          reason: string | null;
+          agent_id: string | null;
+          agent_name: string | null;
+          products: number;
+        }[];
+      };
+      report_maintenance_done: {
+        Args: { p_from: string; p_to: string; p_technician?: string; p_area?: string };
+        Returns: {
+          visit_key: string;
+          done_on: string;
+          technician_id: string | null;
+          technician_name: string | null;
+          customer_id: string;
+          customer_name: string;
+          area_id: string | null;
+          area_name: string | null;
+          cost: number;
+          products: number;
+        }[];
+      };
       deals_with_activity: {
         Args: Record<string, never>;
         Returns: string[];

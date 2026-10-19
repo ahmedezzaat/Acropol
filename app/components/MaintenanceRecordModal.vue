@@ -50,6 +50,7 @@ const type = ref<RecordType>("done");
 const doneOn = ref("");
 const when = ref("");
 const visitNote = ref("");
+const reason = ref("");
 const saving = ref(false);
 
 watch(open, (isOpen) => {
@@ -64,12 +65,22 @@ watch(open, (isOpen) => {
   doneOn.value = todayIso();
   when.value = nowLocal();
   visitNote.value = "";
+  reason.value = "";
 });
 
 const picked = computed(() => lines.value.filter((l) => l.on));
+// A future appointment for a product that already has one is a reschedule: say why.
+const willReschedule = computed(
+  () =>
+    type.value === "scheduled" &&
+    !!when.value &&
+    new Date(when.value).getTime() > Date.now() &&
+    picked.value.some((l) => !!l.product.next_maintenance_at),
+);
 const valid = computed(
   () =>
     picked.value.length > 0 &&
+    (!willReschedule.value || !!reason.value.trim()) &&
     (type.value === "done" ? !!doneOn.value : !!when.value) &&
     picked.value.every((l) => l.cost === null || l.cost >= 0),
 );
@@ -106,6 +117,8 @@ async function save() {
     kind: type.value === "scheduled" && l.product.next_maintenance_at && futureAppointment ? "rescheduled" : type.value,
     done_on: type.value === "done" ? doneOn.value : null,
     scheduled_for: at,
+    previous_scheduled_for: type.value === "scheduled" && l.product.next_maintenance_at && futureAppointment ? l.product.next_maintenance_at : null,
+    reschedule_reason: type.value === "scheduled" && l.product.next_maintenance_at && futureAppointment ? reason.value.trim() : null,
     note: l.note.trim() || null,
     cost: l.cost,
     // who did a visit: the technician it was assigned to
@@ -187,6 +200,9 @@ async function save() {
           <p v-if="!picked.length" class="text-xs text-error">{{ t("cs.profile.visitPickProducts") }}</p>
         </div>
 
+        <UFormField v-if="willReschedule" :label="t('cs.maintenance.rescheduleReason')" required>
+          <UTextarea v-model="reason" :rows="2" :placeholder="t('cs.maintenance.rescheduleReasonHint')" class="w-full" />
+        </UFormField>
         <UFormField :label="t('cs.profile.visitNote')">
           <UTextarea v-model="visitNote" :rows="2" class="w-full" />
         </UFormField>

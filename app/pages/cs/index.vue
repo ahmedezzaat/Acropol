@@ -11,6 +11,12 @@ if (hasAnyModulePermission("cs_customers")) {
   await navigateTo("/cs/maintenance", { replace: true });
 } else if (CONFIRMED_VISIT_ACTIONS.some((a) => hasPermission("cs_maintenance", a))) {
   await navigateTo("/cs/confirmed-visits", { replace: true });
+} else if (hasAnyModulePermission("cs_spare_parts")) {
+  await navigateTo("/cs/spare-parts", { replace: true });
+} else if (hasAnyModulePermission("cs_visit_costs")) {
+  await navigateTo("/cs/visit-costs", { replace: true });
+} else if (REPORTS.some((r) => hasPermission("reports", r.key))) {
+  await navigateTo("/cs/reports", { replace: true });
 } else {
   await navigateTo("/403", { replace: true });
 }

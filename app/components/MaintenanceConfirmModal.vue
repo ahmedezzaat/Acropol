@@ -16,6 +16,7 @@ const { formatDateTime } = useCs();
 
 const when = ref("");
 const note = ref("");
+const reason = ref("");
 const saving = ref(false);
 
 interface Sibling {
@@ -51,6 +52,7 @@ watch(open, async (isOpen) => {
   if (!isOpen || !props.product) return;
   when.value = toLocalInput(props.product.next_maintenance_at);
   note.value = "";
+  reason.value = "";
   technicianId.value = null;
   siblings.value = [];
   const { data: techs } = await supabase.from("profiles").select("id, full_name, email").eq("is_technician", true).eq("is_active", true).order("full_name");
@@ -68,9 +70,15 @@ watch(open, async (isOpen) => {
     .map((p) => ({ id: p.id, name: p.name, next_maintenance_at: p.next_maintenance_at!, on: true }));
 });
 
+// The appointment is being moved (the customer agreed another time): say why.
+const willMove = computed(
+  () => !!props.product?.next_maintenance_at && !!when.value && new Date(props.product.next_maintenance_at).getTime() !== new Date(when.value).getTime(),
+);
+const canSave = computed(() => !!when.value && (!willMove.value || !!reason.value.trim()));
+
 async function save() {
   const product = props.product;
-  if (!product || !when.value) return;
+  if (!product || !canSave.value) return;
   saving.value = true;
   const newAt = new Date(when.value).toISOString();
   const moved = !!product.next_maintenance_at && new Date(product.next_maintenance_at).getTime() !== new Date(newAt).getTime();
@@ -103,7 +111,7 @@ async function save() {
       return;
     }
     const logs = [
-      ...(moved ? [{ product_id: target.id, kind: "rescheduled", scheduled_for: newAt, note: text }] : []),
+      ...(moved ? [{ product_id: target.id, kind: "rescheduled", scheduled_for: newAt, previous_scheduled_for: target.from, reschedule_reason: reason.value.trim(), note: text }] : []),
       { product_id: target.id, kind: "confirmed", scheduled_for: moved ? newAt : target.from, note: text },
       ...(technicianId.value
         ? [{ product_id: target.id, kind: "assigned", scheduled_for: moved ? newAt : target.from, technician_id: technicianId.value, note: null }]
@@ -132,6 +140,9 @@ function close() {
         <UFormField :label="t('cs.maintenance.confirmWhen')" required>
           <UInput v-model="when" type="datetime-local" class="w-full" />
         </UFormField>
+        <UFormField v-if="willMove" :label="t('cs.maintenance.rescheduleReason')" required>
+          <UTextarea v-model="reason" :rows="2" :placeholder="t('cs.maintenance.rescheduleReasonHint')" class="w-full" />
+        </UFormField>
         <UFormField :label="t('cs.maintenance.confirmNote')">
           <UTextarea v-model="note" :rows="2" class="w-full" />
         </UFormField>
@@ -154,7 +165,7 @@ function close() {
 
         <div class="flex gap-2">
           <UButton color="neutral" variant="outline" :label="t('common.cancel')" class="flex-1 justify-center" @click="close" />
-          <UButton icon="i-lucide-phone-call" :label="t('cs.maintenance.confirm')" :loading="saving" :disabled="!when" class="flex-1 justify-center" @click="save" />
+          <UButton icon="i-lucide-phone-call" :label="t('cs.maintenance.confirm')" :loading="saving" :disabled="!canSave" class="flex-1 justify-center" @click="save" />
         </div>
       </div>
     </template>

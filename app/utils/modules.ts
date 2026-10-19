@@ -59,6 +59,21 @@ export const SETTINGS_ITEMS: SettingsItemDef[] = [
   { key: "notification_emails", path: "/admin/notification-emails", titleKey: "admin.notificationEmails.title", icon: "i-lucide-mail" },
 ];
 
+// Ready-made reports. Each one is its own permission (action) on the "reports"
+// resource, so a role can be allowed to open some reports and not others.
+export interface ReportDef {
+  key: string;
+  path: string;
+  titleKey: string;
+  descriptionKey: string;
+  icon: string;
+}
+export const REPORTS: ReportDef[] = [
+  { key: "maintenance_done", path: "/cs/reports/maintenance-done", titleKey: "reports.maintenanceDone.title", descriptionKey: "reports.maintenanceDone.description", icon: "i-lucide-wrench" },
+  { key: "maintenance_rescheduled", path: "/cs/reports/maintenance-rescheduled", titleKey: "reports.maintenanceRescheduled.title", descriptionKey: "reports.maintenanceRescheduled.description", icon: "i-lucide-calendar-sync" },
+  { key: "spare_parts_used", path: "/cs/reports/spare-parts-used", titleKey: "reports.sparePartsUsed.title", descriptionKey: "reports.sparePartsUsed.description", icon: "i-lucide-package" },
+];
+
 // Which Settings page a path belongs to (/admin/roles/123 -> "roles"), or null
 // for the Settings hub itself.
 export function settingsKeyForPath(path: string) {
@@ -151,6 +166,27 @@ export const MODULES: ModuleDef[] = [
           { key: "view_confirmed_own", labelKey: "resources.cs_maintenance.actions.view_confirmed_own" },
           { key: "view_confirmed_all", labelKey: "resources.cs_maintenance.actions.view_confirmed_all" },
         ],
+      },
+      {
+        // The parts of each product category, with their price.
+        key: "cs_spare_parts",
+        labelKey: "resources.cs_spare_parts.label",
+        actions: crud("cs_spare_parts"),
+      },
+      {
+        // What a maintenance visit costs in each area.
+        key: "cs_visit_costs",
+        labelKey: "resources.cs_visit_costs.label",
+        actions: [
+          { key: "view", labelKey: "resources.cs_visit_costs.actions.view" },
+          { key: "edit", labelKey: "resources.cs_visit_costs.actions.edit" },
+        ],
+      },
+      {
+        // Ready-made reports (one action per report), viewed on screen and exported to PDF.
+        key: "reports",
+        labelKey: "resources.reports.label",
+        actions: REPORTS.map((r) => ({ key: r.key, labelKey: r.titleKey })),
       },
     ],
   },

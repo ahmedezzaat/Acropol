@@ -11,6 +11,7 @@ const { t } = useI18n();
 
 const when = ref("");
 const note = ref("");
+const reason = ref("");
 const saving = ref(false);
 
 // <input type="datetime-local"> works in local time without a zone.
@@ -25,12 +26,13 @@ watch(open, (isOpen) => {
   if (!isOpen) return;
   when.value = toLocalInput(props.product?.next_maintenance_at);
   note.value = props.product?.next_maintenance_note ?? "";
+  reason.value = "";
 });
 
 const rescheduling = computed(() => !!props.product?.next_maintenance_at);
 
 async function save() {
-  if (!props.product || !when.value) return;
+  if (!props.product || !when.value || (rescheduling.value && !reason.value.trim())) return;
   saving.value = true;
   const at = new Date(when.value).toISOString();
   const { error } = await supabase
@@ -42,6 +44,9 @@ async function save() {
       product_id: props.product.id,
       kind: rescheduling.value ? "rescheduled" : "scheduled",
       scheduled_for: at,
+      previous_scheduled_for: rescheduling.value ? (props.product.next_maintenance_at ?? null) : null,
+      reschedule_reason: rescheduling.value ? reason.value.trim() : null,
+      marked_rescheduled: rescheduling.value,
       note: note.value.trim() || null,
     });
   }
@@ -64,10 +69,13 @@ async function save() {
         <UFormField :label="t('cs.maintenance.whenLabel')" required>
           <UInput v-model="when" type="datetime-local" class="w-full" />
         </UFormField>
+        <UFormField v-if="rescheduling" :label="t('cs.maintenance.rescheduleReason')" required>
+          <UTextarea v-model="reason" :rows="2" :placeholder="t('cs.maintenance.rescheduleReasonHint')" class="w-full" />
+        </UFormField>
         <UFormField :label="t('cs.maintenance.note')">
           <UTextarea v-model="note" :rows="3" class="w-full" />
         </UFormField>
-        <UButton :label="t('common.save')" :loading="saving" :disabled="!when" size="lg" block @click="save" />
+        <UButton :label="t('common.save')" :loading="saving" :disabled="!when || (rescheduling && !reason.trim())" size="lg" block @click="save" />
       </div>
     </template>
   </UModal>

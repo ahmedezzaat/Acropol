@@ -86,6 +86,15 @@ const { data: logData, refresh: refreshLog } = useAsyncData<CsMaintenanceLog[]>(
   if (error) throw error;
   return (data ?? []) as CsMaintenanceLog[];
 });
+// The spare parts used in the done visits, by log entry.
+const { data: usedPartsData, refresh: refreshUsedParts } = useAsyncData<{ log_id: string; name: string; quantity: number }[]>(`cs-customer-${customerId}-usedparts`, async () => {
+  const ids = (logData.value ?? []).filter((l) => l.kind === "done").map((l) => l.id);
+  if (!ids.length) return [];
+  const { data } = await supabase.from("maintenance_used_parts").select("log_id, name, quantity").in("log_id", ids);
+  return data ?? [];
+}, { watch: [logData] });
+const usedPartsText = (logId: string) =>
+  (usedPartsData.value ?? []).filter((u) => u.log_id === logId).map((u) => (u.quantity > 1 ? `${u.name} × ${u.quantity}` : u.name)).join("، ");
 const { data: visitData, refresh: refreshVisits } = useAsyncData<CsMaintenanceVisit[]>(`cs-customer-${customerId}-visits`, async () => {
   if (!canMaintenance.value) return [];
   const { data, error } = await supabase.from("maintenance_visits").select("*").eq("customer_id", customerId);
@@ -95,6 +104,7 @@ const { data: visitData, refresh: refreshVisits } = useAsyncData<CsMaintenanceVi
 // Reload this customer's products and tell the list (stage badges, counts).
 async function refreshProducts() {
   await Promise.all([refreshProductsRaw(), refreshLog(), refreshContracts(), refreshVisits()]);
+  await refreshUsedParts();
   emit("changed");
 }
 const products = computed(() => productData.value?.products ?? []);
@@ -405,6 +415,20 @@ const productNameOf = (id: string) => products.value.find((p) => p.id === id)?.n
 const canAddRecord = computed(
   () => !!products.value.length && (canDoMaintenance.value || canScheduleMaintenance.value || hasPermission("cs_maintenance", "cancel")),
 );
+// Correct a logged visit: the people who may record that kind of entry may edit it.
+const canEditItem = (it: HistoryItem) => {
+  const kind = it.entries[0]!.kind;
+  if (kind === "done") return canDoMaintenance.value;
+  if (kind === "note") return hasPermission("cs_maintenance", "note");
+  if (it.type === "cancelled") return hasPermission("cs_maintenance", "cancel");
+  return canScheduleMaintenance.value;
+};
+const editItem = ref<HistoryItem | null>(null);
+const editEntryOpen = ref(false);
+function openEditItem(it: HistoryItem) {
+  editItem.value = it;
+  editEntryOpen.value = true;
+}
 const recordOpen = ref(false);
 function openRecord() {
   recordOpen.value = true;
@@ -835,15 +859,21 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
                   </span>
                   <span v-if="it.entries.length > 1" class="text-xs text-muted">{{ t("cs.profile.contractProducts", { count: it.entries.length }) }}</span>
                 </div>
-                <span v-if="itemTotal(it) && it.entries.length > 1" class="text-xs font-semibold text-muted">
-                  {{ t("cs.profile.visitTotal", { amount: money(itemTotal(it)) ?? "" }) }}
-                </span>
+                <div class="flex items-center gap-2">
+                  <span v-if="itemTotal(it) && it.entries.length > 1" class="text-xs font-semibold text-muted">
+                    {{ t("cs.profile.visitTotal", { amount: money(itemTotal(it)) ?? "" }) }}
+                  </span>
+                  <KBadge v-if="it.entries.some((e) => e.edited_at)" :label="t('cs.profile.edited')" tone="neutral" outlined />
+                  <UButton v-if="canEditItem(it)" icon="i-lucide-pencil" color="neutral" variant="ghost" size="xs" :aria-label="t('cs.profile.editAction')" @click="openEditItem(it)" />
+                </div>
               </div>
               <ul class="mt-2 divide-y divide-default">
                 <li v-for="e in it.entries" :key="e.id" class="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2">
                   <div class="min-w-0">
                     <div class="font-medium text-highlighted">{{ productNameOf(e.product_id) }}</div>
                     <p v-if="e.note" class="mt-0.5 whitespace-pre-line text-toned">{{ e.note }}</p>
+                    <p v-if="usedPartsText(e.id)" class="mt-0.5 text-xs text-muted">{{ t("cs.maintenance.usedParts", { list: usedPartsText(e.id) }) }}</p>
+                    <p v-if="e.visit_cost !== null && e.visit_cost !== undefined && e.kind === 'done'" class="mt-0.5 text-xs text-muted">{{ t("cs.maintenance.visitCostLine", { cost: money(e.visit_cost) ?? "" }) }}</p>
                   </div>
                   <span v-if="money(e.cost)" class="shrink-0 font-semibold text-highlighted">{{ money(e.cost) }}</span>
                 </li>
@@ -873,6 +903,7 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
   <MaintenanceModal v-model:open="maintenanceOpen" :product="maintenanceProduct" @saved="refreshProducts" />
   <MaintenanceConfirmModal v-model:open="confirmOpen" :product="confirmProduct" @saved="refreshProducts" />
   <MaintenanceDoneModal v-model:open="doneOpen" :product="doneProduct" @saved="refreshProducts" />
+  <MaintenanceEntryEditModal v-model:open="editEntryOpen" :item="editItem" :product-name="productNameOf" @saved="refreshProducts" />
   <MaintenanceRecordModal v-model:open="recordOpen" :customer-id="customerId" :products="products" @saved="refreshProducts" />
 
   <UModal v-model:open="deleteCustomerOpen" :title="t('cs.customers.deleteTitle')">
