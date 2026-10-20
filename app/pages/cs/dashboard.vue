@@ -17,30 +17,35 @@ const canMaintenance = computed(() => hasAnyModulePermission("cs_maintenance"));
 // own limit (Settings); stages with no limit fall back to this many days.
 const STUCK_DAYS = 30;
 
-const { data: customers, status } = await useAsyncData<CsCustomer[]>("cs-dash-customers", async () =>
+const __ad1 = useAsyncData<CsCustomer[]>("cs-dash-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
     supabase.from("customers").select("id, name, company, phone, email, address, area_id, created_at").order("id").range(from, to) as never,
   ),
 );
-const { data: products } = await useAsyncData<CsProduct[]>("cs-dash-products", async () =>
+const { data: customers, status } = __ad1;
+const __ad2 = useAsyncData<CsProduct[]>("cs-dash-products", async () =>
   fetchAll<CsProduct>((from, to) => supabase.from("customer_products").select("*").order("id").range(from, to) as never),
 );
-const { data: stageDates } = await useAsyncData<CsStageDate[]>("cs-dash-dates", async () =>
+const { data: products } = __ad2;
+const __ad3 = useAsyncData<CsStageDate[]>("cs-dash-dates", async () =>
   fetchAll<CsStageDate>((from, to) =>
     supabase.from("customer_product_stage_dates").select("product_id, stage_id, reached_on").order("product_id").order("stage_id").range(from, to) as never,
   ),
 );
+const { data: stageDates } = __ad3;
 const dates = computed(() => dateIndex(stageDates.value ?? []));
-const { data: categories } = await useAsyncData<{ id: string; name: string; maintenance_interval_months: number | null }[]>("cs-dash-categories", async () => {
+const __ad4 = useAsyncData<{ id: string; name: string; maintenance_interval_months: number | null }[]>("cs-dash-categories", async () => {
   const { data } = await supabase.from("product_categories").select("id, name, maintenance_interval_months").order("sort_order");
   return data ?? [];
 });
-const { data: people } = await useAsyncData<{ id: string; full_name: string | null; email: string }[]>("cs-dash-people", async () => {
+const { data: categories } = __ad4;
+const __ad5 = useAsyncData<{ id: string; full_name: string | null; email: string }[]>("cs-dash-people", async () => {
   const { data } = await supabase.from("profiles").select("id, full_name, email");
   return data ?? [];
 });
+const { data: people } = __ad5;
 // Visits done in the last 28 days (the maintenance log).
-const { data: doneRecently } = await useAsyncData<number>("cs-dash-maintenance-done", async () => {
+const __ad6 = useAsyncData<number>("cs-dash-maintenance-done", async () => {
   if (!canMaintenance.value) return 0;
   const from = new Date();
   from.setDate(from.getDate() - 27);
@@ -52,10 +57,14 @@ const { data: doneRecently } = await useAsyncData<number>("cs-dash-maintenance-d
     .gte("done_on", day);
   return count ?? 0;
 });
-await useAsyncData("cs-dash-areas", async () => {
+const { data: doneRecently } = __ad6;
+const __ad7 = useAsyncData("cs-dash-areas", async () => {
   await Promise.all([loadAreas(true), loadPipelines(true)]);
   return true;
 });
+
+// Load everything at once instead of one request after another.
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7]);
 
 // ---- Filters: area, and a period applied to the contract date
 type Period = "all" | "year" | "90d";

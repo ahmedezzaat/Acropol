@@ -83,13 +83,14 @@ interface Team {
   leader_id: string;
 }
 
-const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deals-pipelines", async () => {
+const __ad1 = useAsyncData<Pipeline[]>("crm-deals-pipelines", async () => {
   const { data, error } = await supabase.from("pipelines").select("id, name, sort_order").order("sort_order");
   if (error) throw error;
   return data ?? [];
 });
+const { data: pipelines } = __ad1;
 
-const { data: allStages } = await useAsyncData<Stage[]>("crm-deals-stages", async () => {
+const __ad2 = useAsyncData<Stage[]>("crm-deals-stages", async () => {
   const { data, error } = await supabase
     .from("pipeline_stages")
     .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key, max_stay_days, max_stay_hours")
@@ -97,8 +98,9 @@ const { data: allStages } = await useAsyncData<Stage[]>("crm-deals-stages", asyn
   if (error) throw error;
   return data ?? [];
 });
+const { data: allStages } = __ad2;
 
-const { data: allReasons } = await useAsyncData<Reason[]>("crm-deals-reasons", async () => {
+const __ad3 = useAsyncData<Reason[]>("crm-deals-reasons", async () => {
   const { data, error } = await supabase
     .from("pipeline_stage_reasons")
     .select("id, pipeline_id, category, name")
@@ -106,20 +108,22 @@ const { data: allReasons } = await useAsyncData<Reason[]>("crm-deals-reasons", a
   if (error) throw error;
   return data ?? [];
 });
+const { data: allReasons } = __ad3;
 
 interface ProductCategory {
   id: string;
   name: string;
 }
 
-const { data: productCategories } = await useAsyncData<ProductCategory[]>("crm-deals-product-categories", async () => {
+const __ad4 = useAsyncData<ProductCategory[]>("crm-deals-product-categories", async () => {
   const { data, error } = await supabase.from("product_categories").select("id, name").order("sort_order");
   if (error) throw error;
   return data ?? [];
 });
+const { data: productCategories } = __ad4;
 const categoryItems = computed(() => (productCategories.value ?? []).map((c) => ({ label: c.name, value: c.id })));
 
-const { data: deals, refresh, status } = await useAsyncData<Deal[]>("crm-deals", async () => {
+const __ad5 = useAsyncData<Deal[]>("crm-deals", async () => {
   const { data, error } = await supabase
     .from("deals")
     .select("id, title, value, customer_id, lead_id, pipeline_id, stage_id, assigned_to, created_at, stage_reason_id")
@@ -127,14 +131,16 @@ const { data: deals, refresh, status } = await useAsyncData<Deal[]>("crm-deals",
   if (error) throw error;
   return data ?? [];
 });
+const { data: deals, refresh, status } = __ad5;
 
-const { data: customers, refresh: refreshCustomers } = await useAsyncData<Customer[]>("crm-deals-customers", async () =>
+const __ad6 = useAsyncData<Customer[]>("crm-deals-customers", async () =>
   fetchAll<Customer>((from, to) => supabase.from("customers").select("id, name, phone").order("name").order("id").range(from, to) as never),
 );
+const { data: customers, refresh: refreshCustomers } = __ad6;
 
 // Latest note per deal, for the Kanban card and list view — fetched newest
 // first so the first row seen per deal_id is already its latest note.
-const { data: noteActivities } = await useAsyncData<{ deal_id: string; content: string | null }[]>(
+const __ad7 = useAsyncData<{ deal_id: string; content: string | null }[]>(
   "crm-deals-last-notes",
   async () => {
     const { data, error } = await supabase
@@ -146,6 +152,7 @@ const { data: noteActivities } = await useAsyncData<{ deal_id: string; content: 
     return data ?? [];
   },
 );
+const { data: noteActivities } = __ad7;
 const lastNoteByDeal = computed(() => {
   const map = new Map<string, string>();
   for (const a of noteActivities.value ?? []) {
@@ -161,7 +168,7 @@ function lastNote(dealId: string) {
 // at the most recent of the stage change and the last assignment to a person (a
 // new assignee gets a fresh clock). A deal that's never moved nor been assigned
 // falls back to its creation date.
-const { data: stageChangeActivities } = await useAsyncData<{ deal_id: string; created_at: string }[]>(
+const __ad8 = useAsyncData<{ deal_id: string; created_at: string }[]>(
   "crm-deals-stage-changes",
   async () => {
     const rows = await fetchAll<{ deal_id: string; type: string; metadata: { to?: string | null } | null; created_at: string }>((from, to) =>
@@ -177,6 +184,7 @@ const { data: stageChangeActivities } = await useAsyncData<{ deal_id: string; cr
     return rows.filter((r) => r.type === "stage_changed" || !!r.metadata?.to).map((r) => ({ deal_id: r.deal_id, created_at: r.created_at }));
   },
 );
+const { data: stageChangeActivities } = __ad8;
 const stageEnteredAtByDeal = computed(() => {
   const map = new Map<string, string>();
   for (const a of stageChangeActivities.value ?? []) {
@@ -229,7 +237,7 @@ function isStageOverdue(deal: Deal) {
   return limit !== null && stageAgeDays(deal) > limit;
 }
 
-const { data: leadsList, refresh: refreshLeads } = await useAsyncData<LeadOption[]>(
+const __ad9 = useAsyncData<LeadOption[]>(
   "crm-deals-leads",
   async () => {
     const { data, error } = await supabase
@@ -240,8 +248,9 @@ const { data: leadsList, refresh: refreshLeads } = await useAsyncData<LeadOption
     return data ?? [];
   },
 );
+const { data: leadsList, refresh: refreshLeads } = __ad9;
 
-const { data: profiles } = await useAsyncData<Profile[]>("crm-deals-profiles", async () => {
+const __ad10 = useAsyncData<Profile[]>("crm-deals-profiles", async () => {
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, email, team_id")
@@ -249,14 +258,16 @@ const { data: profiles } = await useAsyncData<Profile[]>("crm-deals-profiles", a
   if (error) throw error;
   return data ?? [];
 });
+const { data: profiles } = __ad10;
 
 // teams is openly readable by any authenticated user (see 0029), so this
 // is enough to resolve "do I lead a team, and which one" client-side.
-const { data: teams } = await useAsyncData<Team[]>("crm-deals-teams", async () => {
+const __ad11 = useAsyncData<Team[]>("crm-deals-teams", async () => {
   const { data, error } = await supabase.from("teams").select("id, leader_id");
   if (error) throw error;
   return data ?? [];
 });
+const { data: teams } = __ad11;
 
 function customerName(id: string) {
   return customers.value?.find((c) => c.id === id)?.name ?? "—";
@@ -386,11 +397,15 @@ const noteFilterOptions = computed(() => [
   { label: t("crm.deals.notesWith"), value: "with" },
   { label: t("crm.deals.notesWithout"), value: "without" },
 ]);
-const { data: dealIdsWithNotes, refresh: refreshNoteFlags } = await useAsyncData<string[]>("crm-deals-with-activity", async () => {
+const __ad12 = useAsyncData<string[]>("crm-deals-with-activity", async () => {
   const { data, error } = await supabase.rpc("deals_with_activity");
   if (error) throw error;
   return (data ?? []) as string[];
 });
+const { data: dealIdsWithNotes, refresh: refreshNoteFlags } = __ad12;
+
+// Load everything at once instead of one request after another.
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8, __ad9, __ad10, __ad11, __ad12]);
 const dealsWithNotes = computed(() => new Set(dealIdsWithNotes.value ?? []));
 
 // The kanban board only renders columns for the stage(s) actually picked —

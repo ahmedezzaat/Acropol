@@ -109,6 +109,12 @@ async function onPick(event: Event) {
 const removing = ref<FileRow | null>(null);
 const removeOpen = computed({ get: () => !!removing.value, set: (v) => { if (!v) removing.value = null; } });
 const deleting = ref(false);
+function askRemove(row: FileRow) {
+  removing.value = row;
+}
+function cancelRemove() {
+  removing.value = null;
+}
 async function confirmRemove() {
   const row = removing.value;
   if (!row) return;
@@ -172,7 +178,7 @@ async function confirmRemove() {
           variant="ghost"
           size="sm"
           :aria-label="t('common.delete')"
-          @click="removing = r"
+          @click="askRemove(r)"
         />
       </li>
     </ul>
@@ -183,7 +189,7 @@ async function confirmRemove() {
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">
-          <UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="removing = null" />
+          <UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="cancelRemove" />
           <UButton color="error" :label="t('common.delete')" :loading="deleting" @click="confirmRemove" />
         </div>
       </template>

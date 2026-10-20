@@ -98,6 +98,12 @@ async function save() {
 const deleteTarget = ref<SparePart | null>(null);
 const deleteOpen = computed({ get: () => !!deleteTarget.value, set: (v) => { if (!v) deleteTarget.value = null; } });
 const deleting = ref(false);
+function askDelete(p: SparePart) {
+  deleteTarget.value = p;
+}
+function closeForm() {
+  formOpen.value = false;
+}
 async function confirmDelete() {
   if (!deleteTarget.value) return;
   deleting.value = true;
@@ -163,7 +169,7 @@ function setCategory(v: unknown) {
                 <td v-if="canEdit || canDelete" class="px-4 py-3">
                   <div class="flex items-center justify-end gap-1">
                     <UButton v-if="canEdit" icon="i-lucide-pencil" color="neutral" variant="ghost" size="xs" :aria-label="t('common.edit')" @click="openEdit(p)" />
-                    <UButton v-if="canDelete" icon="i-lucide-trash-2" color="error" variant="ghost" size="xs" :aria-label="t('common.delete')" @click="deleteTarget = p" />
+                    <UButton v-if="canDelete" icon="i-lucide-trash-2" color="error" variant="ghost" size="xs" :aria-label="t('common.delete')" @click="askDelete(p)" />
                   </div>
                 </td>
               </tr>
@@ -187,7 +193,7 @@ function setCategory(v: unknown) {
       </UFormField>
     </div>
     <template #actions>
-      <UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="formOpen = false" />
+      <UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="closeForm" />
       <UButton :label="t('common.save')" :loading="saving" :disabled="!valid" @click="save" />
     </template>
   </KDialog>

@@ -88,7 +88,7 @@ interface Pipeline {
   sort_order: number;
 }
 
-const { data: leadsData, status: leadsStatus } = await useAsyncData<LeadRow[]>(
+const __ad1 = useAsyncData<LeadRow[]>(
   "dashboard-leads",
   async () => {
     if (!canLeads.value) return [];
@@ -102,8 +102,9 @@ const { data: leadsData, status: leadsStatus } = await useAsyncData<LeadRow[]>(
   },
   { watch: [fromDate, toDate] },
 );
+const { data: leadsData, status: leadsStatus } = __ad1;
 
-const { data: dealsData, status: dealsStatus } = await useAsyncData<DealRow[]>(
+const __ad2 = useAsyncData<DealRow[]>(
   "dashboard-deals",
   async () => {
     if (!canDeals.value) return [];
@@ -117,8 +118,9 @@ const { data: dealsData, status: dealsStatus } = await useAsyncData<DealRow[]>(
   },
   { watch: [fromDate, toDate] },
 );
+const { data: dealsData, status: dealsStatus } = __ad2;
 
-const { data: customersCount } = await useAsyncData<number>(
+const __ad3 = useAsyncData<number>(
   "dashboard-customers-count",
   async () => {
     if (!canCustomers.value) return 0;
@@ -132,8 +134,9 @@ const { data: customersCount } = await useAsyncData<number>(
   },
   { watch: [fromDate, toDate] },
 );
+const { data: customersCount } = __ad3;
 
-const { data: quotesCount } = await useAsyncData<number>(
+const __ad4 = useAsyncData<number>(
   "dashboard-quotes-count",
   async () => {
     if (!canQuotes.value) return 0;
@@ -147,15 +150,17 @@ const { data: quotesCount } = await useAsyncData<number>(
   },
   { watch: [fromDate, toDate] },
 );
+const { data: quotesCount } = __ad4;
 
 // Reference data — not date-filtered, just used to label the breakdowns.
-const { data: pipelines } = await useAsyncData<Pipeline[]>("dashboard-pipelines", async () => {
+const __ad5 = useAsyncData<Pipeline[]>("dashboard-pipelines", async () => {
   if (!canDeals.value) return [];
   const { data, error } = await supabase.from("pipelines").select("id, name, sort_order").order("sort_order");
   if (error) throw error;
   return data ?? [];
 });
-const { data: stages } = await useAsyncData<Stage[]>("dashboard-stages", async () => {
+const { data: pipelines } = __ad5;
+const __ad6 = useAsyncData<Stage[]>("dashboard-stages", async () => {
   if (!canDeals.value) return [];
   const { data, error } = await supabase
     .from("pipeline_stages")
@@ -164,7 +169,8 @@ const { data: stages } = await useAsyncData<Stage[]>("dashboard-stages", async (
   if (error) throw error;
   return data ?? [];
 });
-const { data: profiles } = await useAsyncData<Profile[]>("dashboard-profiles", async () => {
+const { data: stages } = __ad6;
+const __ad7 = useAsyncData<Profile[]>("dashboard-profiles", async () => {
   if (!canDeals.value) return [];
   const { data, error } = await supabase
     .from("profiles")
@@ -173,12 +179,17 @@ const { data: profiles } = await useAsyncData<Profile[]>("dashboard-profiles", a
   if (error) throw error;
   return data ?? [];
 });
-const { data: teams } = await useAsyncData<Team[]>("dashboard-teams", async () => {
+const { data: profiles } = __ad7;
+const __ad8 = useAsyncData<Team[]>("dashboard-teams", async () => {
   if (!canDeals.value) return [];
   const { data, error } = await supabase.from("teams").select("id, name");
   if (error) throw error;
   return data ?? [];
 });
+const { data: teams } = __ad8;
+
+// Load everything at once instead of one request after another.
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8]);
 
 const isLoading = computed(
   () => !loaded.value || leadsStatus.value === "pending" || dealsStatus.value === "pending",

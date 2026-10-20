@@ -53,7 +53,7 @@ const typeFilter = ref<"all" | "individual" | "company">("all");
 const UNASSIGNED = "__unassigned__";
 const assigneeFilter = ref<string | null>(null);
 
-const { data: leads, refresh, status: leadsStatus } = await useAsyncData<Lead[]>(
+const __ad1 = useAsyncData<Lead[]>(
   "crm-leads",
   async () => {
     const { data, error } = await supabase
@@ -64,24 +64,27 @@ const { data: leads, refresh, status: leadsStatus } = await useAsyncData<Lead[]>
     return data ?? [];
   },
 );
+const { data: leads, refresh, status: leadsStatus } = __ad1;
 
 // Only checked when the viewer can see deals at all — otherwise crm_deals
 // RLS would return zero rows and every lead would falsely show as
 // deal-less.
 const canSeeDeals = computed(() => hasAnyModulePermission("crm_deals"));
-const { data: leadIdsWithDeals, refresh: refreshDealFlags } = await useAsyncData<string[]>("crm-leads-deal-flags", async () => {
+const __ad2 = useAsyncData<string[]>("crm-leads-deal-flags", async () => {
   if (!canSeeDeals.value) return [];
   const { data, error } = await supabase.from("deals").select("lead_id").not("lead_id", "is", null);
   if (error) throw error;
   return (data ?? []).map((d) => d.lead_id as string);
 });
+const { data: leadIdsWithDeals, refresh: refreshDealFlags } = __ad2;
 const leadIdsWithDealsSet = computed(() => new Set(leadIdsWithDeals.value ?? []));
 
-const { data: profiles } = await useAsyncData<Profile[]>("crm-leads-profiles", async () => {
+const __ad3 = useAsyncData<Profile[]>("crm-leads-profiles", async () => {
   const { data, error } = await supabase.from("profiles").select("id, full_name, email").eq("is_active", true);
   if (error) throw error;
   return data ?? [];
 });
+const { data: profiles } = __ad3;
 
 function profileLabel(id: string | null) {
   if (!id) return t("common.unassigned");
@@ -330,20 +333,22 @@ interface LeadDeal {
   created_at: string;
 }
 
-const { data: stageInfo } = await useAsyncData<PipelineStageInfo[]>("crm-leads-stages", async () => {
+const __ad4 = useAsyncData<PipelineStageInfo[]>("crm-leads-stages", async () => {
   if (!canSeeDeals.value) return [];
   const { data, error } = await supabase.from("pipeline_stages").select("id, name, pipeline_id, system_key");
   if (error) throw error;
   return data ?? [];
 });
-const { data: pipelineInfo } = await useAsyncData<{ id: string; name: string }[]>("crm-leads-pipelines", async () => {
+const { data: stageInfo } = __ad4;
+const __ad5 = useAsyncData<{ id: string; name: string }[]>("crm-leads-pipelines", async () => {
   if (!canSeeDeals.value) return [];
   const { data, error } = await supabase.from("pipelines").select("id, name");
   if (error) throw error;
   return data ?? [];
 });
+const { data: pipelineInfo } = __ad5;
 
-const { data: leadDeals, refresh: refreshLeadDeals, status: leadDealsStatus } = await useAsyncData<LeadDeal[]>(
+const __ad6 = useAsyncData<LeadDeal[]>(
   "crm-lead-deals",
   async () => {
     if (!canSeeDeals.value || !selectedId.value) return [];
@@ -357,6 +362,10 @@ const { data: leadDeals, refresh: refreshLeadDeals, status: leadDealsStatus } = 
   },
   { watch: [selectedId] },
 );
+const { data: leadDeals, refresh: refreshLeadDeals, status: leadDealsStatus } = __ad6;
+
+// Load everything at once instead of one request after another.
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6]);
 
 function stageOf(id: string) {
   return stageInfo.value?.find((s) => s.id === id);

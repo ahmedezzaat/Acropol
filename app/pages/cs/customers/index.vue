@@ -17,7 +17,7 @@ const { areas, stages, pipelines, stageColor, stageName, stageLabelFull, loadAre
 
 // Customer service sees every customer: the ones a won deal created in the CRM
 // and the ones added here directly.
-const { data: customers, refresh, status } = await useAsyncData<CsCustomer[]>("cs-customers", async () =>
+const __ad1 = useAsyncData<CsCustomer[]>("cs-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
     supabase
       .from("customers")
@@ -27,20 +27,23 @@ const { data: customers, refresh, status } = await useAsyncData<CsCustomer[]>("c
       .range(from, to) as never,
   ),
 );
+const { data: customers, refresh, status } = __ad1;
 
-const { data: products, refresh: refreshProducts } = await useAsyncData<Pick<CsProduct, "customer_id" | "stage_id" | "category_id">[]>(
+const __ad2 = useAsyncData<Pick<CsProduct, "customer_id" | "stage_id" | "category_id">[]>(
   "cs-customers-products",
   async () =>
     fetchAll<Pick<CsProduct, "customer_id" | "stage_id" | "category_id">>((from, to) =>
       supabase.from("customer_products").select("customer_id, stage_id, category_id").order("id").range(from, to) as never,
     ),
 );
+const { data: products, refresh: refreshProducts } = __ad2;
 // Contract codes of every customer (shown in the list, and searchable).
-const { data: contractRows, refresh: refreshContracts } = await useAsyncData<{ customer_id: string; code: string | null }[]>("cs-customers-contracts", async () =>
+const __ad3 = useAsyncData<{ customer_id: string; code: string | null }[]>("cs-customers-contracts", async () =>
   fetchAll<{ customer_id: string; code: string | null }>((from, to) =>
     supabase.from("contracts").select("customer_id, code").order("signed_on", { ascending: false, nullsFirst: false }).order("id").range(from, to) as never,
   ),
 );
+const { data: contractRows, refresh: refreshContracts } = __ad3;
 const contractsByCustomer = computed(() => {
   const map = new Map<string, string[]>();
   for (const c of contractRows.value ?? []) {
@@ -51,22 +54,27 @@ const contractsByCustomer = computed(() => {
 });
 const contractsOf = (customerId: string) => contractsByCustomer.value.get(customerId) ?? [];
 
-const { data: categories } = await useAsyncData<{ id: string; name: string }[]>("cs-customers-categories", async () => {
+const __ad4 = useAsyncData<{ id: string; name: string }[]>("cs-customers-categories", async () => {
   const { data, error } = await supabase.from("product_categories").select("id, name").order("sort_order");
   if (error) throw error;
   return data ?? [];
 });
-await useAsyncData("cs-customers-areas", async () => {
+const { data: categories } = __ad4;
+const __ad5 = useAsyncData("cs-customers-areas", async () => {
   await Promise.all([loadAreas(true), loadPipelines(true)]);
   return true;
 });
 
 // The Customer Service agents (for the filter, which only people who see every
 // customer need).
-const { data: people } = await useAsyncData<{ id: string; full_name: string | null; email: string }[]>("cs-customers-people", async () => {
+const __ad6 = useAsyncData<{ id: string; full_name: string | null; email: string }[]>("cs-customers-people", async () => {
   const { data } = await supabase.from("profiles").select("id, full_name, email");
   return data ?? [];
 });
+const { data: people } = __ad6;
+
+// Load everything at once instead of one request after another.
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6]);
 const agentFilter = ref<string | null>(null); // null = everyone, "none" = no agent
 const agentItems = computed(() => [
   { label: t("cs.customers.allAgents"), value: null as string | null },

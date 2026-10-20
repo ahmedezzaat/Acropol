@@ -32,7 +32,7 @@ const me = useSupabaseUser();
 const seesAll = computed(() => hasPermission("cs_maintenance", "view_confirmed_all"));
 
 // ---- Data
-const { data: products, refresh, status } = await useAsyncData<CsProduct[]>("cs-confirmed-visits", async () =>
+const __ad1 = useAsyncData<CsProduct[]>("cs-confirmed-visits", async () =>
   fetchAll<CsProduct>((from, to) =>
     supabase
       .from("customer_products")
@@ -45,25 +45,31 @@ const { data: products, refresh, status } = await useAsyncData<CsProduct[]>("cs-
       .range(from, to) as never,
   ),
 );
-const { data: customers } = await useAsyncData<CsCustomer[]>("cs-confirmed-visits-customers", async () =>
+const { data: products, refresh, status } = __ad1;
+const __ad2 = useAsyncData<CsCustomer[]>("cs-confirmed-visits-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
     supabase.from("customers").select("id, name, company, phone, address, area_id").order("id").range(from, to) as never,
   ),
 );
+const { data: customers } = __ad2;
 interface Technician {
   id: string;
   full_name: string | null;
   email: string;
   is_active: boolean;
 }
-const { data: technicians } = await useAsyncData<Technician[]>("cs-confirmed-visits-technicians", async () => {
+const __ad3 = useAsyncData<Technician[]>("cs-confirmed-visits-technicians", async () => {
   const { data } = await supabase.from("profiles").select("id, full_name, email, is_active").eq("is_technician", true).order("full_name");
   return (data ?? []) as Technician[];
 });
-await useAsyncData("cs-confirmed-visits-meta", async () => {
+const { data: technicians } = __ad3;
+const __ad4 = useAsyncData("cs-confirmed-visits-meta", async () => {
   await Promise.all([loadAreas(true), loadPipelines(true)]);
   return true;
 });
+
+// Load everything at once instead of one request after another.
+await Promise.all([__ad1, __ad2, __ad3, __ad4]);
 
 const customerById = computed(() => new Map((customers.value ?? []).map((c) => [c.id, c])));
 const techName = (id: string | null | undefined) => {

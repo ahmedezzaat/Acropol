@@ -28,22 +28,25 @@ const { areas, stageById, formatDate, formatDateTime, maintenanceDue, loadAreas,
 
 // Only products that reached the completed stage (تم التشغيل) — those are the
 // ones maintenance starts for. Loaded whole, then narrowed by stage below.
-const { data: allProducts, refresh, status } = await useAsyncData<CsProduct[]>("cs-maintenance", async () =>
+const __ad1 = useAsyncData<CsProduct[]>("cs-maintenance", async () =>
   fetchAll<CsProduct>((from, to) => supabase.from("customer_products").select("*").order("id").range(from, to) as never),
 );
-const { data: customers } = await useAsyncData<CsCustomer[]>("cs-maintenance-customers", async () =>
+const { data: allProducts, refresh, status } = __ad1;
+const __ad2 = useAsyncData<CsCustomer[]>("cs-maintenance-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
     supabase.from("customers").select("id, name, company, phone, email, address, area_id").order("id").range(from, to) as never,
   ),
 );
-const { data: categories } = await useAsyncData<{ id: string; name: string; maintenance_interval_months: number | null }[]>(
+const { data: customers } = __ad2;
+const __ad3 = useAsyncData<{ id: string; name: string; maintenance_interval_months: number | null }[]>(
   "cs-maintenance-categories",
   async () => {
     const { data } = await supabase.from("product_categories").select("id, name, maintenance_interval_months");
     return data ?? [];
   },
 );
-await useAsyncData("cs-maintenance-meta", async () => {
+const { data: categories } = __ad3;
+const __ad4 = useAsyncData("cs-maintenance-meta", async () => {
   await Promise.all([loadAreas(true), loadPipelines(true)]);
   return true;
 });
@@ -178,7 +181,7 @@ interface LogRow {
   done_on: string | null;
   note: string | null;
 }
-const { data: logs, refresh: refreshLogs } = await useAsyncData<LogRow[]>(
+const __ad5 = useAsyncData<LogRow[]>(
   "cs-maintenance-log",
   async () => {
     const { from, to } = range.value;
@@ -201,6 +204,10 @@ const { data: logs, refresh: refreshLogs } = await useAsyncData<LogRow[]>(
   },
   { watch: [period] },
 );
+const { data: logs, refresh: refreshLogs } = __ad5;
+
+// Load everything at once instead of one request after another.
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5]);
 
 const statKey = ref<"overdue" | "scheduled" | "done" | "declined">("overdue");
 // Overdue is a standing state, so it counts everything overdue right now, whatever the period.
