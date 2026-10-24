@@ -10,6 +10,7 @@ const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
 const supabase = useSupabaseClient();
+const me = useSupabaseUser();
 const toast = useToast();
 const { t } = useI18n();
 const { hasPermission } = usePermissions();
@@ -66,9 +67,17 @@ watch(open, (isOpen) => {
   when.value = nowLocal();
   visitNote.value = "";
   reason.value = "";
+  signed.value = false;
+  signaturePad.value?.clear();
 });
 
 const picked = computed(() => lines.value.filter((l) => l.on));
+
+// The customer signs on the technician's phone when a visit is marked done. It is
+// required from the technician the visit is assigned to, optional for anyone else.
+const signed = ref(false);
+const signaturePad = ref<{ toBlob: () => Promise<Blob | null>; clear: () => void } | null>(null);
+const mustSign = computed(() => type.value === "done" && picked.value.some((l) => !!l.product.maintenance_technician_id && l.product.maintenance_technician_id === me.value?.sub));
 // A future appointment for a product that already has one is a reschedule: say why.
 const willReschedule = computed(
   () =>
@@ -80,6 +89,7 @@ const willReschedule = computed(
 const valid = computed(
   () =>
     picked.value.length > 0 &&
+    (!mustSign.value || signed.value) &&
     (!willReschedule.value || !!reason.value.trim()) &&
     (type.value === "done" ? !!doneOn.value : !!when.value) &&
     picked.value.every((l) => l.cost === null || l.cost >= 0),
@@ -95,6 +105,22 @@ async function save() {
 
   const at = type.value === "done" ? null : new Date(when.value).toISOString();
   const futureAppointment = type.value === "scheduled" && !!at && new Date(at).getTime() > Date.now();
+
+  // the customer's signature (a done visit), kept in a private bucket
+  let signaturePath: string | null = null;
+  if (type.value === "done" && signed.value) {
+    const blob = await signaturePad.value?.toBlob();
+    if (blob) {
+      const path = `${props.customerId}/${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage.from("visit-signatures").upload(path, blob, { contentType: "image/png" });
+      if (uploadError) {
+        saving.value = false;
+        toast.add({ title: t("cs.maintenance.signatureFailed"), description: uploadError.message, color: "error" });
+        return;
+      }
+      signaturePath = path;
+    }
+  }
 
   const { data: visit, error: visitError } = await supabase
     .from("maintenance_visits")
@@ -121,6 +147,7 @@ async function save() {
     reschedule_reason: type.value === "scheduled" && l.product.next_maintenance_at && futureAppointment ? reason.value.trim() : null,
     note: l.note.trim() || null,
     cost: l.cost,
+    signature_path: type.value === "done" ? signaturePath : null,
     // who did a visit: the technician it was assigned to
     technician_id: type.value === "done" ? (l.product.maintenance_technician_id ?? null) : null,
   }));
@@ -206,6 +233,13 @@ async function save() {
         <UFormField :label="t('cs.profile.visitNote')">
           <UTextarea v-model="visitNote" :rows="2" class="w-full" />
         </UFormField>
+
+        <!-- The customer signs with a finger (a done visit) -->
+        <div v-show="type === 'done'" class="space-y-2 border-t border-default pt-4">
+          <p class="text-sm font-medium text-highlighted">{{ t("cs.maintenance.customerSignature") }} <span v-if="mustSign" class="text-error">*</span></p>
+          <SignaturePad ref="signaturePad" v-model:signed="signed" />
+          <p v-if="mustSign && !signed" class="text-xs text-warning">{{ t("cs.maintenance.signatureRequired") }}</p>
+        </div>
 
         <UButton :label="t('common.save')" :loading="saving" :disabled="!valid" size="lg" block @click="save" />
       </div>

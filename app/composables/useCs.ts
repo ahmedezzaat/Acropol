@@ -53,6 +53,8 @@ export interface CsProduct {
   maintenance_confirmed_at?: string | null;
   maintenance_confirmed_by?: string | null;
   maintenance_confirm_note?: string | null;
+  maintenance_confirm_parts?: { id: string; name: string; price: number; qty: number }[] | null;
+  maintenance_confirm_fee?: number | null;
   maintenance_technician_id?: string | null;
   maintenance_assigned_at?: string | null;
   next_maintenance_at: string | null;
@@ -107,6 +109,7 @@ export interface CsMaintenanceLog {
   technician_id?: string | null;
   edited_at?: string | null;
   visit_cost?: number | null;
+  signature_path?: string | null;
   created_by: string | null;
 }
 

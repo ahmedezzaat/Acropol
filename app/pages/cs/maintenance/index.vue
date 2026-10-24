@@ -749,6 +749,6 @@ function openRecord(productId: string) {
 
   <MaintenanceModal v-model:open="modalOpen" :product="modalProduct" @saved="onSaved" />
   <MaintenanceConfirmModal v-model:open="confirmOpen" :product="confirmProduct" @saved="onSaved" />
-  <MaintenanceDoneModal v-model:open="doneOpen" :product="doneProduct" @saved="onSaved" />
+  <MaintenanceDoneModal v-model:open="doneOpen" :products="doneProduct ? [doneProduct] : []" @saved="onSaved" />
   <MaintenanceCancelModal v-model:open="cancelOpen" :product="cancelProduct" @saved="onSaved" />
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Json } from "~/types/database.types";
 // Confirm a scheduled maintenance visit: someone called the customer and agreed
 // it. The date can be corrected here (the customer may agree another time), a
 // note records who confirmed, and the customer's other appointments on the same
@@ -16,6 +17,8 @@ const { formatDateTime } = useCs();
 
 const when = ref("");
 const note = ref("");
+const fees = ref<FeesState>({ parts: [], fee: null, total: 0, checked: false, loaded: false });
+const initialParts = computed(() => (props.product?.maintenance_confirm_parts as FeePart[] | null | undefined) ?? null);
 const reason = ref("");
 const saving = ref(false);
 
@@ -97,11 +100,15 @@ async function save() {
       next_maintenance_at?: string;
       maintenance_technician_id?: string;
       maintenance_assigned_at?: string;
+      maintenance_confirm_parts?: Json | null;
+      maintenance_confirm_fee?: number | null;
     } = {
       maintenance_confirmed_at: nowIso,
       maintenance_confirmed_by: by,
       maintenance_confirm_note: text,
       ...(moved ? { next_maintenance_at: newAt } : {}),
+      // what the visit is expected to cost is settled on the visit itself, not its same-day companions
+      ...(target.id === product.id ? { maintenance_confirm_parts: fees.value.parts.length ? (fees.value.parts as unknown as Json) : null, maintenance_confirm_fee: fees.value.fee } : {}),
       ...(technicianId.value ? { maintenance_technician_id: technicianId.value, maintenance_assigned_at: nowIso } : {}),
     };
     const { error } = await supabase.from("customer_products").update(patch).eq("id", target.id);
@@ -143,6 +150,7 @@ function close() {
         <UFormField v-if="willMove" :label="t('cs.maintenance.rescheduleReason')" required>
           <UTextarea v-model="reason" :rows="2" :placeholder="t('cs.maintenance.rescheduleReasonHint')" class="w-full" />
         </UFormField>
+        <MaintenanceFeesEditor v-model="fees" :product="product" :active="open" :initial-parts="initialParts" :initial-fee="product.maintenance_confirm_fee ?? null" />
         <UFormField :label="t('cs.maintenance.confirmNote')">
           <UTextarea v-model="note" :rows="2" class="w-full" />
         </UFormField>

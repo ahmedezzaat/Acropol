@@ -1357,7 +1357,13 @@
       "filterParts": "ابحث في القطع…",
       "usedParts": "قطع الغيار: {list}",
       "visitCostLine": "تكلفة الزيارة: {cost}",
-      "afterMonths": "بعد {n} أشهر"
+      "afterMonths": "بعد {n} أشهر",
+      "customerSignature": "توقيع العميل",
+      "signHere": "وقّع هنا",
+      "clearSignature": "مسح",
+      "signatureRequired": "يجب أن يوقّع العميل قبل الحفظ.",
+      "signatureFailed": "تعذر حفظ التوقيع",
+      "viewSignature": "التوقيع"
     },
     "print": {
       "title": "بيانات العميل والمنتج",
@@ -1427,6 +1433,22 @@
       "set": "{count} من {total} منطقة لها تكلفة",
       "forArea": "تكلفة الزيارة في {area}: {cost}",
       "applied": "مقترحة من منطقة العميل، عدّلها إن لزم."
+    },
+    "myVisits": {
+      "title": "زياراتي",
+      "yesterday": "أمس",
+      "today": "اليوم",
+      "tomorrow": "غدًا",
+      "pending": "{count} زيارة مطلوبة",
+      "noneLeft": "لا يوجد ما تبقّى",
+      "empty": "لا توجد زيارات في هذا اليوم.",
+      "done": "تمت",
+      "thisVisit": "هذه الزيارة",
+      "otherProducts": "منتجات العميل الأخرى",
+      "pastNotes": "الملاحظات السابقة",
+      "noNotes": "لا توجد ملاحظات بعد.",
+      "call": "اتصال",
+      "close": "إغلاق"
     }
   },
   "files": {

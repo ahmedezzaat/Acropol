@@ -1,33 +1,28 @@
 <script setup lang="ts">
-// A maintenance visit was done. It cannot be saved until the person has entered
+// A maintenance visit was done (one or several of the customer's products serviced
+// together). It cannot be saved until the person has entered
 // the spare parts used (with their quantity — or ticked that none were used) and
 // the visit cost; the final fees collected from the customer (visit cost + parts)
 // are worked out from them. The next visit must be booked too (quick chips: after
 // 6, 10 or 12 months).
-const props = defineProps<{ product: CsProduct | null }>();
+const props = defineProps<{ products: CsProduct[] }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
 const supabase = useSupabaseClient();
+const me = useSupabaseUser();
 const toast = useToast();
 const { t } = useI18n();
 
-interface PartLine {
-  id: string;
-  name: string;
-  price: number;
-  qty: number;
-}
-
 const doneOn = ref("");
 const doneNote = ref("");
-const visitCost = ref<number | null>(null);
-// the visit cost of the customer's area, offered as the cost
-const areaCostOffered = ref(false);
-const parts = ref<PartLine[]>([]);
-const partsLoaded = ref(false);
-const noParts = ref(false);
-const partSearch = ref("");
+// spare parts, visit fee and total: starts from what was set when the visit was confirmed
+// (one set per product; the visit fee is entered once, on the first product)
+const emptyFees = (): FeesState => ({ parts: [], fee: null, total: 0, checked: false, loaded: false });
+const feesList = ref<FeesState[]>([]);
+const initialPartsOf = (p: CsProduct) => (p.maintenance_confirm_parts as FeePart[] | null | undefined) ?? null;
+// the visit fee settled at confirmation: on any of the products
+const initialFee = computed(() => props.products.find((p) => p.maintenance_confirm_fee !== null && p.maintenance_confirm_fee !== undefined)?.maintenance_confirm_fee ?? null);
 const nextMonths = ref<number | null>(null);
 const nextWhen = ref("");
 const nextNote = ref("");
@@ -40,43 +35,15 @@ const today = () => {
 
 watch(open, (isOpen) => {
   if (!isOpen) return;
+  feesList.value = props.products.map(emptyFees);
   doneOn.value = today();
   doneNote.value = "";
-  visitCost.value = null;
-  areaCostOffered.value = false;
-  parts.value = [];
-  partsLoaded.value = false;
-  noParts.value = false;
-  partSearch.value = "";
+  signed.value = false;
+  signaturePad.value?.clear();
   nextMonths.value = null;
   nextWhen.value = "";
   nextNote.value = "";
-  loadParts();
-  offerAreaCost();
 });
-
-// The spare parts of the product's category.
-async function loadParts() {
-  const categoryId = props.product?.category_id;
-  if (categoryId) {
-    const { data } = await supabase.from("spare_parts").select("id, name, price").eq("category_id", categoryId).order("name");
-    parts.value = (data ?? []).map((p) => ({ id: p.id, name: p.name, price: Number(p.price), qty: 0 }));
-  }
-  partsLoaded.value = true;
-}
-
-async function offerAreaCost() {
-  const customerId = props.product?.customer_id;
-  if (!customerId) return;
-  const { data: customer } = await supabase.from("customers").select("area_id").eq("id", customerId).maybeSingle();
-  if (!customer?.area_id) return;
-  const { data } = await supabase.from("area_visit_costs").select("cost").eq("area_id", customer.area_id).maybeSingle();
-  // only when the person hasn't typed a cost in the meantime
-  if (data && visitCost.value === null) {
-    visitCost.value = Number(data.cost);
-    areaCostOffered.value = true;
-  }
-}
 
 // Quick choices for the next visit: the done date plus 6, 10 or 12 months, at 10:00
 // (or the time already picked).
@@ -99,77 +66,89 @@ watch(doneOn, () => {
   if (nextMonths.value) applyMonths(nextMonths.value);
 });
 
-const shownParts = computed(() => {
-  const q = partSearch.value.trim().toLowerCase();
-  return q ? parts.value.filter((p) => p.name.toLowerCase().includes(q) || p.qty > 0) : parts.value;
-});
-const usedParts = computed(() => parts.value.filter((p) => p.qty > 0));
-const partsTotal = computed(() => usedParts.value.reduce((n, p) => n + p.price * p.qty, 0));
-const total = computed(() => partsTotal.value + (visitCost.value ?? 0));
 const money = (v: number) => `${v.toLocaleString("en-US")} ${t("common.currency")}`;
+// The customer signs on the technician's phone; for the technician assigned to this
+// visit the signature is required, for anyone else it is optional.
+const signed = ref(false);
+const signaturePad = ref<{ toBlob: () => Promise<Blob | null>; clear: () => void } | null>(null);
+const mustSign = computed(() => props.products.some((p) => !!p.maintenance_technician_id && p.maintenance_technician_id === me.value?.sub));
 
-// Parts only matter when the category has some defined.
-const partsChecked = computed(() => !parts.value.length || usedParts.value.length > 0 || noParts.value);
 const valid = computed(
   () =>
+    props.products.length > 0 &&
+    feesList.value.length === props.products.length &&
+    (!mustSign.value || signed.value) &&
     !!doneOn.value &&
-    partsLoaded.value &&
-    partsChecked.value &&
-    visitCost.value !== null &&
-    visitCost.value >= 0 &&
+    feesList.value.every((f) => f.loaded && f.checked) &&
+    feesList.value[0]!.fee !== null &&
+    feesList.value[0]!.fee >= 0 &&
     !!nextWhen.value,
 );
-watch(usedParts, (list) => {
-  if (list.length) noParts.value = false;
-});
 
 async function save() {
-  if (!props.product || !valid.value) return;
+  const products = props.products;
+  const customerId = products[0]?.customer_id;
+  if (!customerId || !valid.value) return;
   saving.value = true;
   const next = new Date(nextWhen.value).toISOString();
-
-  const { error } = await supabase
-    .from("customer_products")
-    .update({
-      last_maintenance_on: doneOn.value,
-      next_maintenance_at: next,
-      next_maintenance_note: nextNote.value.trim() || null,
-    })
-    .eq("id", props.product.id);
-  if (error) {
+  const fail = (title: string, description?: string) => {
     saving.value = false;
-    toast.add({ title: t("cs.maintenance.saveFailed"), description: error.message, color: "error" });
-    return;
+    toast.add({ title, description, color: "error" });
+  };
+
+  // the customer's signature, kept in a private bucket
+  let signaturePath: string | null = null;
+  if (signed.value) {
+    const blob = await signaturePad.value?.toBlob();
+    if (blob) {
+      const path = `${customerId}/${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage.from("visit-signatures").upload(path, blob, { contentType: "image/png" });
+      if (uploadError) return fail(t("cs.maintenance.signatureFailed"), uploadError.message);
+      signaturePath = path;
+    }
   }
 
-  // the entry's cost is the final fees collected: the visit cost plus the parts
-  const { data: entry, error: logError } = await supabase
-    .from("product_maintenance_log")
-    .insert({
-      product_id: props.product.id,
-      kind: "done",
-      done_on: doneOn.value,
-      note: doneNote.value.trim() || null,
-      cost: total.value,
-      visit_cost: visitCost.value,
-      technician_id: props.product.maintenance_technician_id ?? null,
-      marked_done: true,
-    })
+  // one visit for the products serviced together; its note is the note written here
+  const { data: visit, error: visitError } = await supabase
+    .from("maintenance_visits")
+    .insert({ customer_id: customerId, visit_at: new Date(`${doneOn.value}T12:00:00`).toISOString(), note: doneNote.value.trim() || null })
     .select("id")
     .single();
-  if (logError || !entry) {
-    saving.value = false;
-    toast.add({ title: t("cs.maintenance.saveFailed"), description: logError?.message, color: "error" });
-    return;
+  if (visitError || !visit) return fail(t("cs.maintenance.saveFailed"), visitError?.message);
+
+  for (const [i, product] of products.entries()) {
+    const f = feesList.value[i]!;
+    // the entry's cost is the final fees collected: the parts, plus the visit fee on the first product
+    const fee = i === 0 ? f.fee : null;
+    const { error } = await supabase
+      .from("customer_products")
+      .update({ last_maintenance_on: doneOn.value, next_maintenance_at: next, next_maintenance_note: nextNote.value.trim() || null })
+      .eq("id", product.id);
+    if (error) return fail(t("cs.maintenance.saveFailed"), error.message);
+
+    const { data: entry, error: logError } = await supabase
+      .from("product_maintenance_log")
+      .insert({
+        product_id: product.id,
+        visit_id: visit.id,
+        kind: "done",
+        done_on: doneOn.value,
+        cost: f.total,
+        visit_cost: fee,
+        technician_id: product.maintenance_technician_id ?? null,
+        marked_done: true,
+        signature_path: signaturePath,
+      })
+      .select("id")
+      .single();
+    if (logError || !entry) return fail(t("cs.maintenance.saveFailed"), logError?.message);
+    if (f.parts.length) {
+      await supabase
+        .from("maintenance_used_parts")
+        .insert(f.parts.map((p) => ({ log_id: entry.id, spare_part_id: p.id, name: p.name, unit_price: p.price, quantity: p.qty })));
+    }
+    await supabase.from("product_maintenance_log").insert({ product_id: product.id, kind: "scheduled", scheduled_for: next, note: nextNote.value.trim() || null });
   }
-  if (usedParts.value.length) {
-    await supabase
-      .from("maintenance_used_parts")
-      .insert(usedParts.value.map((p) => ({ log_id: entry.id, spare_part_id: p.id, name: p.name, unit_price: p.price, quantity: p.qty })));
-  }
-  await supabase
-    .from("product_maintenance_log")
-    .insert({ product_id: props.product.id, kind: "scheduled", scheduled_for: next, note: nextNote.value.trim() || null });
 
   saving.value = false;
   toast.add({ title: t("cs.maintenance.doneSaved"), color: "success" });
@@ -181,45 +160,20 @@ async function save() {
 <template>
   <UModal v-model:open="open" :title="t('cs.maintenance.markDone')">
     <template #body>
-      <div v-if="product" class="space-y-4">
-        <p class="text-sm font-medium text-highlighted">{{ product.name }}</p>
+      <div v-if="products.length" class="space-y-4">
+        <p v-if="products.length === 1" class="text-sm font-medium text-highlighted">{{ products[0]!.name }}</p>
 
         <UFormField :label="t('cs.maintenance.doneOn')" required>
           <UInput v-model="doneOn" type="date" class="w-full" />
         </UFormField>
 
-        <!-- Spare parts used -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-sm font-medium text-highlighted">{{ t("cs.maintenance.sparePartsUsed") }} <span class="text-error">*</span></p>
-            <UInput v-if="parts.length > 8" v-model="partSearch" icon="i-lucide-search" size="sm" :placeholder="t('cs.maintenance.filterParts')" class="w-44" />
+        <!-- Spare parts, visit fee and total, as set at confirmation (can be changed) -->
+        <template v-if="feesList.length === products.length">
+          <div v-for="(p, i) in products" :key="p.id" :class="products.length > 1 && 'space-y-3 rounded-[10px] border border-default p-3'">
+            <p v-if="products.length > 1" class="text-sm font-semibold text-highlighted">{{ p.name }}</p>
+            <MaintenanceFeesEditor v-model="feesList[i]!" :product="p" :active="open" :initial-parts="initialPartsOf(p)" :initial-fee="i === 0 ? initialFee : null" :show-fee="i === 0" required />
           </div>
-          <p v-if="partsLoaded && !parts.length" class="text-xs text-muted">{{ t("cs.maintenance.noSparePartsDefined") }}</p>
-          <template v-else>
-            <ul class="max-h-64 divide-y divide-default overflow-y-auto border border-default">
-              <li v-for="p in shownParts" :key="p.id" class="flex items-center justify-between gap-3 px-3 py-2">
-                <div class="min-w-0">
-                  <div class="truncate text-sm font-medium text-highlighted">{{ p.name }}</div>
-                  <div class="text-xs text-muted">{{ money(p.price) }}</div>
-                </div>
-                <UInputNumber v-model="p.qty" :min="0" size="sm" :aria-label="t('cs.maintenance.partQty')" class="w-28 shrink-0" />
-              </li>
-            </ul>
-            <UCheckbox v-model="noParts" :disabled="usedParts.length > 0" :label="t('cs.maintenance.noPartsUsed')" />
-            <p v-if="parts.length && !partsChecked" class="text-xs text-warning">{{ t("cs.maintenance.partsRequired") }}</p>
-          </template>
-        </div>
-
-        <UFormField :label="t('cs.maintenance.visitCost')" :help="areaCostOffered ? t('cs.visitCosts.applied') : undefined" required>
-          <UInputNumber v-model="visitCost" :min="0" class="w-full" />
-        </UFormField>
-
-        <!-- What the customer pays -->
-        <dl class="space-y-1 rounded-[10px] bg-muted p-3 text-sm">
-          <div class="flex justify-between"><dt class="text-muted">{{ t("cs.maintenance.visitCost") }}</dt><dd>{{ money(visitCost ?? 0) }}</dd></div>
-          <div class="flex justify-between"><dt class="text-muted">{{ t("cs.maintenance.partsTotal") }}</dt><dd>{{ money(partsTotal) }}</dd></div>
-          <div class="flex justify-between border-t border-default pt-1 text-base font-semibold text-highlighted"><dt>{{ t("cs.maintenance.finalFees") }}</dt><dd>{{ money(total) }}</dd></div>
-        </dl>
+        </template>
 
         <UFormField :label="t('cs.maintenance.doneNote')">
           <UTextarea v-model="doneNote" :rows="3" class="w-full" />
@@ -245,6 +199,13 @@ async function save() {
           <UFormField :label="t('cs.maintenance.note')">
             <UTextarea v-model="nextNote" :rows="2" class="w-full" />
           </UFormField>
+        </div>
+
+        <!-- The customer signs with a finger -->
+        <div class="space-y-2 border-t border-default pt-4">
+          <p class="text-sm font-medium text-highlighted">{{ t("cs.maintenance.customerSignature") }} <span v-if="mustSign" class="text-error">*</span></p>
+          <SignaturePad ref="signaturePad" v-model:signed="signed" />
+          <p v-if="mustSign && !signed" class="text-xs text-warning">{{ t("cs.maintenance.signatureRequired") }}</p>
         </div>
 
         <UButton :label="t('common.save')" :loading="saving" :disabled="!valid" size="lg" block @click="save" />

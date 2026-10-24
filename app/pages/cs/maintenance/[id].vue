@@ -575,6 +575,6 @@ async function onSaved() {
   <MaintenanceModal v-model:open="scheduleOpen" :product="product ?? null" @saved="onSaved" />
   <MaintenanceAssignModal v-model:open="assignOpen" :products="product ? [product] : []" @saved="onSaved" />
   <MaintenanceConfirmModal v-model:open="confirmOpen" :product="product ?? null" @saved="onSaved" />
-  <MaintenanceDoneModal v-model:open="doneOpen" :product="product ?? null" @saved="onSaved" />
+  <MaintenanceDoneModal v-model:open="doneOpen" :products="product ? [product] : []" @saved="onSaved" />
   <MaintenanceCancelModal v-model:open="cancelOpen" :product="product ?? null" @saved="onSaved" />
 </template>

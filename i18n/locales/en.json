@@ -1357,7 +1357,13 @@
       "filterParts": "Search parts…",
       "usedParts": "Spare parts: {list}",
       "visitCostLine": "Visit cost: {cost}",
-      "afterMonths": "After {n} months"
+      "afterMonths": "After {n} months",
+      "customerSignature": "Customer signature",
+      "signHere": "Sign here",
+      "clearSignature": "Clear",
+      "signatureRequired": "The customer must sign before saving.",
+      "signatureFailed": "Could not save the signature",
+      "viewSignature": "Signature"
     },
     "print": {
       "title": "Customer and product details",
@@ -1427,6 +1433,22 @@
       "set": "{count} of {total} areas have a cost",
       "forArea": "Visit cost for {area}: {cost}",
       "applied": "Offered from the customer's area; change it if needed."
+    },
+    "myVisits": {
+      "title": "My visits",
+      "yesterday": "Yesterday",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "pending": "{count} visits to do",
+      "noneLeft": "Nothing left to do",
+      "empty": "No visits on this day.",
+      "done": "Done",
+      "thisVisit": "This visit",
+      "otherProducts": "The customer's other products",
+      "pastNotes": "Past notes",
+      "noNotes": "No notes yet.",
+      "call": "Call",
+      "close": "Close"
     }
   },
   "files": {

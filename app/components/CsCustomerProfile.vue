@@ -93,6 +93,10 @@ const { data: usedPartsData, refresh: refreshUsedParts } = useAsyncData<{ log_id
   const { data } = await supabase.from("maintenance_used_parts").select("log_id, name, quantity").in("log_id", ids);
   return data ?? [];
 }, { watch: [logData] });
+async function openSignature(path: string) {
+  const { data } = await supabase.storage.from("visit-signatures").createSignedUrl(path, 60);
+  if (data) window.open(data.signedUrl, "_blank");
+}
 const usedPartsText = (logId: string) =>
   (usedPartsData.value ?? []).filter((u) => u.log_id === logId).map((u) => (u.quantity > 1 ? `${u.name} × ${u.quantity}` : u.name)).join("، ");
 const { data: visitData, refresh: refreshVisits } = useAsyncData<CsMaintenanceVisit[]>(`cs-customer-${customerId}-visits`, async () => {
@@ -872,6 +876,9 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
                   <div class="min-w-0">
                     <div class="font-medium text-highlighted">{{ productNameOf(e.product_id) }}</div>
                     <p v-if="e.note" class="mt-0.5 whitespace-pre-line text-toned">{{ e.note }}</p>
+                    <button v-if="e.signature_path" type="button" class="mt-0.5 flex items-center gap-1 text-xs text-primary" @click="openSignature(e.signature_path)">
+                      <UIcon name="i-lucide-pen-line" class="size-3.5" />{{ t("cs.maintenance.viewSignature") }}
+                    </button>
                     <p v-if="usedPartsText(e.id)" class="mt-0.5 text-xs text-muted">{{ t("cs.maintenance.usedParts", { list: usedPartsText(e.id) }) }}</p>
                     <p v-if="e.visit_cost !== null && e.visit_cost !== undefined && e.kind === 'done'" class="mt-0.5 text-xs text-muted">{{ t("cs.maintenance.visitCostLine", { cost: money(e.visit_cost) ?? "" }) }}</p>
                   </div>
@@ -902,7 +909,7 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
   <ProductStageModal v-model:open="stageModalOpen" :product="stageProduct" @saved="refreshProducts" />
   <MaintenanceModal v-model:open="maintenanceOpen" :product="maintenanceProduct" @saved="refreshProducts" />
   <MaintenanceConfirmModal v-model:open="confirmOpen" :product="confirmProduct" @saved="refreshProducts" />
-  <MaintenanceDoneModal v-model:open="doneOpen" :product="doneProduct" @saved="refreshProducts" />
+  <MaintenanceDoneModal v-model:open="doneOpen" :products="doneProduct ? [doneProduct] : []" @saved="refreshProducts" />
   <MaintenanceEntryEditModal v-model:open="editEntryOpen" :item="editItem" :product-name="productNameOf" @saved="refreshProducts" />
   <MaintenanceRecordModal v-model:open="recordOpen" :customer-id="customerId" :products="products" @saved="refreshProducts" />
 

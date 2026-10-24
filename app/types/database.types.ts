@@ -790,6 +790,8 @@ export type Database = {
           maintenance_confirmed_at: string | null;
           maintenance_confirmed_by: string | null;
           maintenance_confirm_note: string | null;
+          maintenance_confirm_parts: Json | null;
+          maintenance_confirm_fee: number | null;
           maintenance_technician_id: string | null;
           maintenance_assigned_at: string | null;
           deal_id: string | null;
@@ -823,6 +825,8 @@ export type Database = {
           maintenance_confirmed_at?: string | null;
           maintenance_confirmed_by?: string | null;
           maintenance_confirm_note?: string | null;
+          maintenance_confirm_parts?: Json | null;
+          maintenance_confirm_fee?: number | null;
           maintenance_technician_id?: string | null;
           maintenance_assigned_at?: string | null;
           deal_id?: string | null;
@@ -856,6 +860,8 @@ export type Database = {
           maintenance_confirmed_at?: string | null;
           maintenance_confirmed_by?: string | null;
           maintenance_confirm_note?: string | null;
+          maintenance_confirm_parts?: Json | null;
+          maintenance_confirm_fee?: number | null;
           maintenance_technician_id?: string | null;
           maintenance_assigned_at?: string | null;
           deal_id?: string | null;
@@ -1066,6 +1072,7 @@ export type Database = {
           reschedule_reason: string | null;
           marked_rescheduled: boolean;
           visit_cost: number | null;
+          signature_path: string | null;
           edited_at: string | null;
           edited_by: string | null;
           done_on: string | null;
@@ -1086,6 +1093,7 @@ export type Database = {
           reschedule_reason?: string | null;
           marked_rescheduled?: boolean;
           visit_cost?: number | null;
+          signature_path?: string | null;
           edited_at?: string | null;
           edited_by?: string | null;
           done_on?: string | null;
@@ -1106,6 +1114,7 @@ export type Database = {
           reschedule_reason?: string | null;
           marked_rescheduled?: boolean;
           visit_cost?: number | null;
+          signature_path?: string | null;
           edited_at?: string | null;
           edited_by?: string | null;
           done_on?: string | null;
