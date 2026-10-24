@@ -221,7 +221,8 @@
       "passwordPlaceholder": "Enter your password",
       "submit": "Sign in",
       "signedIn": "Signed in",
-      "error": "Incorrect email or password."
+      "error": "Incorrect email or password.",
+      "identifier": "Email or phone number"
     }
   },
   "forbidden": {
@@ -271,7 +272,10 @@
       "noLoginBadge": "No sign-in",
       "optional": "optional",
       "isTechnician": "Maintenance technician (can be assigned confirmed visits)",
-      "technicianBadge": "Technician"
+      "technicianBadge": "Technician",
+      "emailOrPhone": "Enter an email or a phone number",
+      "phoneLogin": "Phone number (to sign in)",
+      "phoneLoginHint": "With a phone number the person can sign in with it and their password — no email needed."
     },
     "roles": {
       "title": "Roles",

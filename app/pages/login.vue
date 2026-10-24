@@ -12,14 +12,13 @@ const errorMessage = ref("");
 
 const fields = computed<AuthFormField[]>(() => [
   {
-    name: "email",
-    type: "email",
-    label: t("auth.login.email"),
+    // an email, or a phone number (technicians sign in with their phone)
+    name: "identifier",
+    type: "text",
+    label: t("auth.login.identifier"),
     // Hardcoded, not routed through $t(): vue-i18n's message compiler treats
-    // "@" as the start of a linked-message token, so "you@example.com" as a
-    // translation value fails to parse — and this string isn't actually
-    // language-specific content anyway.
-    placeholder: "you@example.com",
+    // "@" as the start of a linked-message token, and this isn't language content.
+    placeholder: "you@example.com / 01xxxxxxxxx",
     required: true,
   },
   {
@@ -33,21 +32,33 @@ const fields = computed<AuthFormField[]>(() => [
 
 const schema = computed(() =>
   z.object({
-    email: z.email(t("validation.invalidEmail")),
+    identifier: z.string().min(1, t("validation.required")),
     password: z.string().min(1, t("validation.required")),
   }),
 );
 
-type Schema = { email: string; password: string };
+type Schema = { identifier: string; password: string };
 
 async function onSubmit(payload: FormSubmitEvent<Schema>) {
   submitting.value = true;
   errorMessage.value = "";
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email: payload.data.email,
-    password: payload.data.password,
-  });
+  const identifier = payload.data.identifier.trim();
+  let error: unknown = null;
+  if (identifier.includes("@")) {
+    ({ error } = await supabase.auth.signInWithPassword({ email: identifier, password: payload.data.password }));
+  } else {
+    // a phone number: the server finds the account and checks the password
+    try {
+      const session = await $fetch<{ access_token: string; refresh_token: string }>("/api/auth/phone-login", {
+        method: "POST",
+        body: { phone: identifier, password: payload.data.password },
+      });
+      ({ error } = await supabase.auth.setSession(session));
+    } catch (e) {
+      error = e;
+    }
+  }
 
   if (error) {
     submitting.value = false;

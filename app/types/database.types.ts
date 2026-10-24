@@ -27,6 +27,7 @@ export type Database = {
           is_active: boolean;
           can_login: boolean;
           is_technician: boolean;
+          phone: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -40,6 +41,7 @@ export type Database = {
           is_active?: boolean;
           can_login?: boolean;
           is_technician?: boolean;
+          phone?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -53,6 +55,7 @@ export type Database = {
           is_active?: boolean;
           can_login?: boolean;
           is_technician?: boolean;
+          phone?: string | null;
           created_at?: string;
           updated_at?: string;
         };

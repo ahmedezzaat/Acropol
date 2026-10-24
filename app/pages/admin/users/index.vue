@@ -17,6 +17,7 @@ interface Profile {
   is_active: boolean;
   can_login: boolean;
   is_technician: boolean;
+  phone: string | null;
 }
 
 interface Role {
@@ -29,7 +30,7 @@ const { data: users, refresh: refreshUsers, status: usersStatus } = await useAsy
   async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role_id, is_admin, is_active, can_login, is_technician")
+      .select("id, email, full_name, role_id, is_admin, is_active, can_login, is_technician, phone")
       .order("email");
     if (error) throw error;
     return data ?? [];
@@ -64,17 +65,20 @@ const createOpen = ref(false);
 const creating = ref(false);
 const createSchema = computed(() =>
   z.object({
-    email: createState.can_login ? z.email(t("validation.invalidEmail")) : z.union([z.email(t("validation.invalidEmail")), z.literal("")]),
+    // someone who can sign in needs an email or a phone number
+    email: z.union([z.email(t("validation.invalidEmail")), z.literal("")]),
+    phone: z.string(),
     password: createState.can_login ? z.string().min(8, t("validation.minLength", { min: 8 })) : z.string(),
     full_name: z.string().min(1, t("validation.required")),
     role_id: z.uuid().nullable(),
     is_admin: z.boolean(),
     can_login: z.boolean(),
     is_technician: z.boolean(),
-  }),
+  }).refine((v) => !v.can_login || !!v.email || !!v.phone.trim(), { message: t("admin.users.emailOrPhone"), path: ["email"] }),
 );
 type CreateSchema = {
   email: string;
+  phone: string;
   password: string;
   full_name: string;
   role_id: string | null;
@@ -84,6 +88,7 @@ type CreateSchema = {
 };
 const createState = reactive<CreateSchema>({
   email: "",
+  phone: "",
   password: "",
   full_name: "",
   role_id: null,
@@ -99,14 +104,15 @@ function openCreate() {
 async function onCreate(event: FormSubmitEvent<CreateSchema>) {
   creating.value = true;
   try {
-    const { email, password, ...rest } = event.data;
+    const { email, password, phone, ...rest } = event.data;
     await $fetch("/api/admin/users", {
       method: "POST",
-      body: { ...rest, ...(email ? { email } : {}), ...(event.data.can_login ? { password } : {}) },
+      body: { ...rest, ...(email ? { email } : {}), ...(phone.trim() ? { phone } : {}), ...(event.data.can_login ? { password } : {}) },
     });
     toast.add({ title: t("admin.users.userCreated"), color: "success" });
     createOpen.value = false;
     createState.email = "";
+    createState.phone = "";
     createState.password = "";
     createState.full_name = "";
     createState.role_id = null;
@@ -131,6 +137,7 @@ const editing = ref(false);
 const editTarget = ref<Profile | null>(null);
 const editState = reactive({
   email: "",
+  phone: "",
   full_name: "",
   role_id: null as string | null,
   is_admin: false,
@@ -138,11 +145,15 @@ const editState = reactive({
   can_login: true,
   is_technician: false,
 });
-const editEmailValid = computed(() => z.email().safeParse(editState.email).success);
+// someone who signs in with a phone number and has no email carries a placeholder address
+const isPhoneOnly = (u: Profile) => u.email.endsWith("@phone.acropol.invalid");
+const emailShown = (u: Profile) => (isPhoneOnly(u) ? (u.phone ?? "") : u.email);
+const editEmailValid = computed(() => editState.email === "" ? !!editState.phone.trim() : z.email().safeParse(editState.email).success);
 
 function openEdit(user: Profile) {
   editTarget.value = user;
-  editState.email = user.email;
+  editState.email = isPhoneOnly(user) ? "" : user.email;
+  editState.phone = user.phone ?? "";
   editState.full_name = user.full_name ?? "";
   editState.role_id = user.role_id;
   editState.is_admin = user.is_admin;
@@ -156,9 +167,11 @@ async function saveEdit() {
   if (!editTarget.value) return;
   editing.value = true;
   try {
+    const { email, ...fields } = editState;
     await $fetch(`/api/admin/users/${editTarget.value.id}/update`, {
       method: "POST",
-      body: editState,
+      // an empty email leaves the placeholder one as it is
+      body: { ...fields, ...(email ? { email } : {}), phone: editState.phone.trim() || null },
     });
     toast.add({ title: t("admin.users.userUpdated"), color: "success" });
     editOpen.value = false;
@@ -256,7 +269,9 @@ async function saveReset() {
       <UTable :data="users ?? []" :columns="columns" :loading="usersStatus === 'pending' || usersStatus === 'idle'">
         <template #email-cell="{ row }">
           <span v-if="row.original.email.endsWith('@no-login.acropol.invalid')" class="text-muted">—</span>
+          <span v-else-if="isPhoneOnly(row.original)" dir="ltr" class="inline-flex items-center gap-1"><UIcon name="i-lucide-phone" class="size-3.5 text-muted" />{{ emailShown(row.original) }}</span>
           <span v-else>{{ row.original.email }}</span>
+          <div v-if="row.original.phone && !isPhoneOnly(row.original)" dir="ltr" class="text-start text-xs text-muted">{{ row.original.phone }}</div>
         </template>
         <template #role-cell="{ row }">
           {{ roleName(row.original.role_id) }}
@@ -304,8 +319,11 @@ async function saveReset() {
         <UCheckbox v-model="createState.can_login" :label="t('admin.users.canLogin')" />
         <UCheckbox v-model="createState.is_technician" :label="t('admin.users.isTechnician')" />
         <p v-if="!createState.can_login" class="text-xs text-muted">{{ t("admin.users.noLoginHint") }}</p>
-        <UFormField name="email" :label="createState.can_login ? t('common.email') : `${t('common.email')} (${t('admin.users.optional')})`">
+        <UFormField name="email" :label="`${t('common.email')} (${t('admin.users.optional')})`">
           <UInput v-model="createState.email" type="email" class="w-full" />
+        </UFormField>
+        <UFormField name="phone" :label="t('admin.users.phoneLogin')" :help="t('admin.users.phoneLoginHint')">
+          <UInput v-model="createState.phone" type="tel" dir="ltr" placeholder="01xxxxxxxxx" class="w-full" />
         </UFormField>
         <UFormField v-if="createState.can_login" name="password" :label="t('admin.users.password')">
           <UInput v-model="createState.password" type="password" class="w-full" />
@@ -324,6 +342,9 @@ async function saveReset() {
       <div class="space-y-4">
         <UFormField :label="t('common.email')">
           <UInput v-model="editState.email" type="email" class="w-full" />
+        </UFormField>
+        <UFormField :label="t('admin.users.phoneLogin')" :help="t('admin.users.phoneLoginHint')">
+          <UInput v-model="editState.phone" type="tel" dir="ltr" placeholder="01xxxxxxxxx" class="w-full" />
         </UFormField>
         <UFormField :label="t('admin.users.fullName')">
           <UInput v-model="editState.full_name" class="w-full" />

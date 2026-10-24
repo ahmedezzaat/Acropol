@@ -8,6 +8,7 @@ const bodySchema = z.object({
   is_active: z.boolean().optional(),
   can_login: z.boolean().optional(),
   is_technician: z.boolean().optional(),
+  phone: z.string().nullable().optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -36,18 +37,25 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // the phone is stored as canonical digits ("" clears it)
+  const { phone: rawPhone, ...rest } = body;
+  const changes = { ...rest, ...(rawPhone !== undefined ? { phone: canonicalPhone(rawPhone) } : {}) };
+
   // profiles RLS only allows self-updates (see supabase/migrations/0002) —
   // editing another user's role/admin/active status is deliberately only
   // possible through this service-role route, not the regular client.
   const { data: profile, error } = await adminClient
     .from("profiles")
-    .update(body)
+    .update(changes)
     .eq("id", id)
     .select()
     .single();
 
   if (error) {
-    throw createError({ statusCode: 500, statusMessage: error.message });
+    throw createError({
+      statusCode: error.code === "23505" ? 409 : 500,
+      statusMessage: error.code === "23505" ? "This phone number is already used by another user" : error.message,
+    });
   }
 
   if (body.is_active !== undefined || body.can_login !== undefined) {

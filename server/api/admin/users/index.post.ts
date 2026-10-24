@@ -10,6 +10,8 @@ const bodySchema = z.object({
   can_login: z.boolean().optional(),
   // A technician carries out maintenance visits (can be assigned to them).
   is_technician: z.boolean().optional(),
+  // Sign in with phone + password (a technician may have no email at all).
+  phone: z.string().optional(),
 });
 
 export default defineEventHandler(async (event) => {
@@ -17,14 +19,15 @@ export default defineEventHandler(async (event) => {
   const body = await readValidatedBody(event, bodySchema.parse);
   const canLogin = body.can_login ?? true;
 
-  if (canLogin && (!body.email || !body.password)) {
-    throw createError({ statusCode: 400, statusMessage: "email and password are required" });
+  const phone = canonicalPhone(body.phone);
+  if (canLogin && (!(body.email || phone) || !body.password)) {
+    throw createError({ statusCode: 400, statusMessage: "an email or phone, and a password, are required" });
   }
 
   // A record-only user still needs an auth row (profiles.id references it):
   // a throwaway password nobody knows, a placeholder address if none was given,
   // and a ban so no session can ever be minted.
-  const email = body.email ?? `nologin-${crypto.randomUUID()}@no-login.acropol.invalid`;
+  const email = body.email ?? (phone && canLogin ? phoneEmail(phone) : `nologin-${crypto.randomUUID()}@no-login.acropol.invalid`);
   const password = canLogin ? body.password! : `${crypto.randomUUID()}${crypto.randomUUID()}`;
 
   const { data, error } = await adminClient.auth.admin.createUser({
@@ -52,13 +55,19 @@ export default defineEventHandler(async (event) => {
       is_admin: canLogin && isAdmin ? (body.is_admin ?? false) : false,
       can_login: canLogin,
       is_technician: body.is_technician ?? false,
+      phone,
     })
     .eq("id", data.user.id)
     .select()
     .single();
 
   if (profileError) {
-    throw createError({ statusCode: 500, statusMessage: profileError.message });
+    // the user was created above: do not leave an account without its profile data
+    await adminClient.auth.admin.deleteUser(data.user.id);
+    throw createError({
+      statusCode: profileError.code === "23505" ? 409 : 500,
+      statusMessage: profileError.code === "23505" ? "This phone number is already used by another user" : profileError.message,
+    });
   }
 
   return profile;
