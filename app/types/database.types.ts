@@ -333,6 +333,7 @@ export type Database = {
           sort_order: number;
           is_closed: boolean;
           reason_category: "archive" | "competitor" | null;
+          sub_pipeline_id: string | null;
           system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
           max_stay_days: number | null;
           max_stay_hours: number | null;
@@ -345,6 +346,7 @@ export type Database = {
           sort_order?: number;
           is_closed?: boolean;
           reason_category?: "archive" | "competitor" | null;
+          sub_pipeline_id?: string | null;
           system_key?: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
           max_stay_days?: number | null;
           max_stay_hours?: number | null;
@@ -357,6 +359,7 @@ export type Database = {
           sort_order?: number;
           is_closed?: boolean;
           reason_category?: "archive" | "competitor" | null;
+          sub_pipeline_id?: string | null;
           system_key?: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
           max_stay_days?: number | null;
           max_stay_hours?: number | null;
@@ -561,6 +564,8 @@ export type Database = {
           file_name: string;
           storage_path: string;
           uploaded_by: string | null;
+          work_item_id: string | null;
+          from_work_pipeline_id: string | null;
           kind: string | null;
           created_at: string;
         };
@@ -570,6 +575,8 @@ export type Database = {
           file_name: string;
           storage_path: string;
           uploaded_by?: string | null;
+          work_item_id?: string | null;
+          from_work_pipeline_id?: string | null;
           kind?: string | null;
           created_at?: string;
         };
@@ -579,6 +586,8 @@ export type Database = {
           file_name?: string;
           storage_path?: string;
           uploaded_by?: string | null;
+          work_item_id?: string | null;
+          from_work_pipeline_id?: string | null;
           kind?: string | null;
           created_at?: string;
         };
@@ -1026,6 +1035,24 @@ export type Database = {
         Row: { id: string; log_id: string; spare_part_id: string | null; name: string; unit_price: number; quantity: number };
         Insert: { id?: string; log_id: string; spare_part_id?: string | null; name: string; unit_price: number; quantity: number };
         Update: { id?: string; log_id?: string; spare_part_id?: string | null; name?: string; unit_price?: number; quantity?: number };
+        Relationships: [];
+      };
+      work_pipelines: {
+        Row: { id: string; name: string; sort_order: number; created_at: string };
+        Insert: { id?: string; name: string; sort_order?: number; created_at?: string };
+        Update: { id?: string; name?: string; sort_order?: number; created_at?: string };
+        Relationships: [];
+      };
+      work_pipeline_stages: {
+        Row: { id: string; work_pipeline_id: string; name: string; sort_order: number; created_at: string };
+        Insert: { id?: string; work_pipeline_id: string; name: string; sort_order?: number; created_at?: string };
+        Update: { id?: string; work_pipeline_id?: string; name?: string; sort_order?: number; created_at?: string };
+        Relationships: [];
+      };
+      work_items: {
+        Row: { id: string; work_pipeline_id: string; stage_id: string; deal_id: string; title: string; assigned_to: string | null; request_note: string | null; deadline: string | null; created_by: string | null; created_at: string; stage_changed_at: string };
+        Insert: { id?: string; work_pipeline_id: string; stage_id: string; deal_id: string; title: string; assigned_to?: string | null; request_note?: string | null; deadline?: string | null; created_by?: string | null; created_at?: string; stage_changed_at?: string };
+        Update: { id?: string; work_pipeline_id?: string; stage_id?: string; deal_id?: string; title?: string; assigned_to?: string | null; request_note?: string | null; deadline?: string | null; created_by?: string | null; created_at?: string; stage_changed_at?: string };
         Relationships: [];
       };
       spare_parts: {

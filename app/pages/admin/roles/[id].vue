@@ -41,6 +41,20 @@ watchEffect(() => {
   }
 });
 
+// Each work board (e.g. the technical office) is its own permission on "crm_work".
+const { data: boards } = await useAsyncData<{ id: string; name: string }[]>("admin-role-work-boards", async () => {
+  const { data } = await supabase.from("work_pipelines").select("id, name").order("sort_order");
+  return data ?? [];
+});
+const actionsOf = (resource: (typeof MODULES)[number]["resources"][number]): { key: string; labelKey: string; label?: string }[] =>
+  resource.key === "crm_work"
+    ? [
+        ...resource.actions.filter((a) => a.key === "view"),
+        ...(boards.value ?? []).map((b) => ({ key: b.id, labelKey: "", label: b.name })),
+        ...resource.actions.filter((a) => a.key !== "view"),
+      ]
+    : resource.actions;
+
 async function saveDetails() {
   saving.value = true;
   const { error } = await supabase
@@ -156,10 +170,10 @@ async function deleteRole() {
                   <p class="mb-1 text-sm text-muted">{{ t(resource.labelKey) }}</p>
                   <div class="flex flex-wrap gap-x-6 gap-y-2">
                     <UCheckbox
-                      v-for="action in resource.actions"
+                      v-for="action in actionsOf(resource)"
                       :key="action.key"
                       v-model="permSet[permKey(resource.key, action.key)]"
-                      :label="t(action.labelKey)"
+                      :label="action.label ?? t(action.labelKey)"
                     />
                   </div>
                 </div>

@@ -203,6 +203,13 @@
         "view": "See visit costs",
         "edit": "Edit visit costs"
       }
+    },
+    "crm_work": {
+      "label": "Work boards",
+      "actions": {
+        "view": "See every board",
+        "edit": "Move and assign items"
+      }
     }
   },
   "auth": {
@@ -574,6 +581,25 @@
       "testNoRecipients": "Add an active address first",
       "testNotConfigured": "Enter the Resend key and sender address first",
       "testFailed": "Couldn't send"
+    },
+    "workPipelines": {
+      "title": "Sub-workflows",
+      "subtitle": "Pipelines with their own stages and board (for example the technical office). A deal stage can hand the deal to one of them.",
+      "new": "New workflow",
+      "name": "Workflow name",
+      "stages": "Stages",
+      "addStage": "Add stage",
+      "stageName": "Stage name",
+      "save": "Save",
+      "saved": "Saved",
+      "saveFailed": "Could not save",
+      "delete": "Delete workflow",
+      "deleteBody": "Delete {name} with its stages and every item on its board? This cannot be undone.",
+      "empty": "No workflows yet.",
+      "newStageDefault": "New stage",
+      "pushTo": "Hand the deal to",
+      "pushNone": "Nothing",
+      "pushHint": "A button on the deal sends it to this workflow's board."
     }
   },
   "crm": {
@@ -818,7 +844,12 @@
       "notesWith": "With a note or logged activity",
       "notesWithout": "No note or logged activity",
       "leadNotesTitle": "Notes from the lead",
-      "leadNotesFrom": "Written on the lead on {date}"
+      "leadNotesFrom": "Written on the lead on {date}",
+      "activityTab": "Activity",
+      "quickNote": "Add note",
+      "stageCardTitle": "Deal stage",
+      "stageCardHint": "Tap a stage to move the deal there.",
+      "composerTitle": "Write a note"
     },
     "quotes": {
       "title": "Quotes",
@@ -954,6 +985,48 @@
       "dealCardTitle": "Trips & inspections",
       "dealCardEmpty": "None requested for this deal.",
       "unknownDeal": "Deal"
+    },
+    "work": {
+      "send": "Send to {name}",
+      "sent": "Sent to {name}",
+      "inBoard": "{name}: {stage}",
+      "openBoard": "Open the board",
+      "empty": "Nothing here",
+      "unassigned": "Unassigned",
+      "assign": "Assign",
+      "daysIn": "{n} d",
+      "openDeal": "Open the deal",
+      "move": "Move to",
+      "items": "{count} items",
+      "noItems": "No items yet. Send a deal here from its page.",
+      "sendFailed": "Could not send the deal",
+      "moveFailed": "Could not move the item",
+      "back": "Back",
+      "forward": "Next",
+      "sendTitle": "Send to {name}",
+      "requestNote": "What do you need?",
+      "requestNoteHint": "Describe what you want from them.",
+      "deadline": "Deadline",
+      "overdue": "Overdue",
+      "note": "Request",
+      "confirmSend": "Send",
+      "seeAllBoards": "See every board",
+      "withdraw": "Withdraw",
+      "withdrawBody": "Take this deal back from {name}? It disappears from that board.",
+      "withdrawn": "Withdrawn from the board",
+      "withdrawFailed": "Could not withdraw the deal",
+      "deadlineOptions": {
+        "h24": "24 hours",
+        "d2": "2 days",
+        "d3": "3 days",
+        "w1": "1 week"
+      },
+      "deadlinePick": "Choose the deadline",
+      "attachFiles": "Attach files (optional)",
+      "files": "Files",
+      "requestedBy": "Requested by {name}",
+      "addFiles": "Attach files",
+      "uploadFailed": "Could not upload the file"
     }
   },
   "notifications": {
@@ -1465,7 +1538,8 @@
     "deleteTitle": "Delete file",
     "deleteBody": "Delete the file {name}? This cannot be undone.",
     "tab": "Files",
-    "detailsTab": "Details"
+    "detailsTab": "Details",
+    "fromWork": "From {name}"
   },
   "reports": {
     "title": "Customer Service reports",

@@ -91,6 +91,7 @@ interface Stage {
   system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
   max_stay_days: number | null;
   max_stay_hours: number | null;
+  sub_pipeline_id: string | null;
 }
 
 interface Reason {
@@ -167,7 +168,7 @@ const { data: pipelines } = await useAsyncData<Pipeline[]>("crm-deal-pipelines",
 const { data: allStages } = await useAsyncData<Stage[]>("crm-deal-stages", async () => {
   const { data, error } = await supabase
     .from("pipeline_stages")
-    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key, max_stay_days, max_stay_hours")
+    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key, max_stay_days, max_stay_hours, sub_pipeline_id")
     .order("sort_order");
   if (error) throw error;
   return data ?? [];
@@ -203,6 +204,134 @@ const pipelineStages = computed(() =>
     .sort((a, b) => a.sort_order - b.sort_order),
 );
 const currentStage = computed(() => allStages.value?.find((s) => s.id === deal.value?.stage_id));
+
+// ---- Hand the deal to a sub-workflow (e.g. the technical office): when the deal's
+// stage is set up to, a button sends it to that workflow's board.
+interface WorkItemInfo {
+  id: string;
+  work_pipeline_id: string;
+  stage_id: string;
+}
+const { data: workInfo, refresh: refreshWorkInfo } = await useAsyncData(`crm-deal-${dealId}-work`, async () => {
+  const [pipelines, stages, items] = await Promise.all([
+    supabase.from("work_pipelines").select("id, name").order("sort_order"),
+    supabase.from("work_pipeline_stages").select("id, work_pipeline_id, name, sort_order").order("sort_order"),
+    supabase.from("work_items").select("id, work_pipeline_id, stage_id").eq("deal_id", dealId),
+  ]);
+  return {
+    pipelines: (pipelines.data ?? []) as { id: string; name: string }[],
+    stages: (stages.data ?? []) as { id: string; work_pipeline_id: string; name: string; sort_order: number }[],
+    items: (items.data ?? []) as WorkItemInfo[],
+  };
+});
+const subPipeline = computed(() => workInfo.value?.pipelines.find((p) => p.id === currentStage.value?.sub_pipeline_id) ?? null);
+const subItem = computed(() => (subPipeline.value ? workInfo.value?.items.find((i) => i.work_pipeline_id === subPipeline.value!.id) ?? null : null));
+// every stage of the workflow, in order, to show where the deal is now
+const subStages = computed(() => (subPipeline.value ? (workInfo.value?.stages.filter((s) => s.work_pipeline_id === subPipeline.value!.id) ?? []) : []));
+const subStageIndex = computed(() => subStages.value.findIndex((s) => s.id === subItem.value?.stage_id));
+// the stage can change on the board: look again when this tab is shown again
+onMounted(() => {
+  const refresh = () => document.visibilityState === "visible" && refreshWorkInfo();
+  document.addEventListener("visibilitychange", refresh);
+  window.addEventListener("focus", refresh);
+  onBeforeUnmount(() => {
+    document.removeEventListener("visibilitychange", refresh);
+    window.removeEventListener("focus", refresh);
+  });
+});
+const subItemStage = computed(() => workInfo.value?.stages.find((s) => s.id === subItem.value?.stage_id)?.name ?? "");
+const canSendToWork = computed(() => canEdit.value);
+// the board is opened with its own permission, or "see every board"
+const canOpenBoard = computed(() => !!subPipeline.value && (hasPermission("crm_work", "view") || hasPermission("crm_work", subPipeline.value.id)));
+const sendingToWork = ref(false);
+// sending asks what is wanted and by when; both are required
+const sendOpen = ref(false);
+const sendNote = ref("");
+// the deadline is picked from a few choices, counted from now
+const DEADLINES = [
+  { value: "24h", label: "crm.work.deadlineOptions.h24", hours: 24 },
+  { value: "2d", label: "crm.work.deadlineOptions.d2", hours: 48 },
+  { value: "3d", label: "crm.work.deadlineOptions.d3", hours: 72 },
+  { value: "1w", label: "crm.work.deadlineOptions.w1", hours: 168 },
+];
+const deadlineItems = computed(() => DEADLINES.map((d) => ({ value: d.value, label: t(d.label) })));
+const sendDeadline = ref<string | null>(null);
+const sendFiles = ref<File[]>([]);
+function setDeadline(v: unknown) {
+  sendDeadline.value = typeof v === "string" && v ? v : null;
+}
+const sendValid = computed(() => !!sendNote.value.trim() && !!sendDeadline.value);
+function openSend() {
+  sendNote.value = "";
+  sendDeadline.value = null;
+  sendFiles.value = [];
+  sendOpen.value = true;
+}
+function closeSend() {
+  sendOpen.value = false;
+}
+// Take the deal back from the board: its item is removed from that workflow.
+const withdrawOpen = ref(false);
+const withdrawing = ref(false);
+function askWithdraw() {
+  withdrawOpen.value = true;
+}
+async function withdrawFromWork() {
+  const item = subItem.value;
+  if (!item) return;
+  withdrawing.value = true;
+  const { error } = await supabase.from("work_items").delete().eq("id", item.id);
+  withdrawing.value = false;
+  if (error) {
+    toast.add({ title: t("crm.work.withdrawFailed"), description: error.message, color: "error" });
+    return;
+  }
+  withdrawOpen.value = false;
+  toast.add({ title: t("crm.work.withdrawn"), color: "success" });
+  await refreshWorkInfo();
+}
+async function sendToWork() {
+  if (!sendValid.value) return;
+  const target = subPipeline.value;
+  if (!target || !deal.value) return;
+  const first = workInfo.value?.stages.find((s) => s.work_pipeline_id === target.id);
+  if (!first) return;
+  sendingToWork.value = true;
+  const hours = DEADLINES.find((d) => d.value === sendDeadline.value)?.hours ?? 24;
+  const { data: created, error } = await supabase
+    .from("work_items")
+    .insert({
+      work_pipeline_id: target.id,
+      stage_id: first.id,
+      deal_id: dealId,
+      title: contactName.value || deal.value.title,
+      request_note: sendNote.value.trim(),
+      deadline: new Date(Date.now() + hours * 3_600_000).toISOString(),
+    })
+    .select("id")
+    .single();
+  if (error || !created) {
+    sendingToWork.value = false;
+    toast.add({ title: t("crm.work.sendFailed"), description: error?.message, color: "error" });
+    return;
+  }
+  // the files belong to the deal too (its Files tab), and point at this request
+  for (const file of sendFiles.value) {
+    const path = `${dealId}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage.from("deal-attachments").upload(path, file);
+    if (uploadError) {
+      toast.add({ title: t("files.uploadFailed"), description: `${file.name}: ${uploadError.message}`, color: "error" });
+      continue;
+    }
+    const { error: rowError } = await supabase.from("deal_attachments").insert({ deal_id: dealId, file_name: file.name, storage_path: path, work_item_id: created.id });
+    if (rowError) toast.add({ title: t("files.uploadFailed"), description: `${file.name}: ${rowError.message}`, color: "error" });
+  }
+  sendingToWork.value = false;
+  refreshAttachments();
+  toast.add({ title: t("crm.work.sent", { name: target.name }), color: "success" });
+  sendOpen.value = false;
+  await refreshWorkInfo();
+}
 const currentReasonName = computed(() => {
   if (!currentStage.value?.reason_category || !deal.value?.stage_reason_id) return null;
   return allReasons.value?.find((r) => r.id === deal.value?.stage_reason_id)?.name ?? null;
@@ -1159,10 +1288,22 @@ function filterMatches(type: Activity["type"], filter: TimelineFilter) {
   return type !== "note" && !SYSTEM_TYPES.includes(type);
 }
 const mainTab = ref<"details" | "files">("details");
+// "Note" in the header: show the activity tab and put the cursor in the note box
+const noteEl = ref<{ textareaRef?: HTMLTextAreaElement } | null>(null);
+function focusNote() {
+  mainTab.value = "details";
+  nextTick(() => {
+    noteEl.value?.textareaRef?.scrollIntoView({ behavior: "smooth", block: "center" });
+    noteEl.value?.textareaRef?.focus();
+  });
+}
 const mainTabs = computed(() => [
-  { value: "details", label: t("files.detailsTab") },
+  { value: "details", label: t("crm.deals.activityTab") },
   { value: "files", label: `${t("files.tab")} (${attachments.value?.length ?? 0})` },
 ]);
+function setTimelineFilter(v: TimelineFilter) {
+  timelineFilter.value = v;
+}
 const timelineTabs = computed(() =>
   (["all", "notes", "activities", "system"] as const).map((value) => ({
     value,
@@ -1196,32 +1337,24 @@ function isPastDue(iso: string | null) {
       <div v-else-if="deal" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <!-- Main column -->
         <div class="space-y-6 lg:col-span-2">
-          <!-- Deal summary -->
-          <UPageCard class="kords-card kords-card-dark">
+          <!-- Deal header: who it is, where it stands, and the things you do most -->
+          <section class="kords-card kords-card-dark space-y-4 p-4 sm:p-5">
             <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="min-w-0">
-                <h2 class="truncate text-xl font-semibold text-highlighted">{{ contactName }}</h2>
-                <div v-if="dealCategoryList.length" class="mt-1.5 flex flex-wrap gap-1.5">
-                  <UBadge
-                    v-for="cat in dealCategoryList"
-                    :key="cat"
-                    :label="cat"
-                    color="neutral"
-                    variant="subtle"
-                    size="sm"
-                    class="cds-tag"
-                  />
+              <div class="min-w-0 space-y-1.5">
+                <h2 class="truncate text-xl font-semibold text-highlighted sm:text-2xl">{{ contactName }}</h2>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <UBadge v-if="currentStage" :label="currentStage.name" color="primary" variant="solid" size="md" />
+                  <UBadge v-for="cat in dealCategoryList" :key="cat" :label="cat" color="neutral" variant="subtle" size="sm" class="cds-tag" />
                 </div>
               </div>
               <div class="text-end">
-                <div class="text-2xl font-semibold" :class="deal.value ? 'text-success' : 'text-dimmed'">
-                  {{ formatMoney(deal.value) ?? "—" }}
-                </div>
+                <div class="text-2xl font-semibold" :class="deal.value ? 'text-success' : 'text-dimmed'">{{ formatMoney(deal.value) ?? "—" }}</div>
                 <div class="text-xs text-muted">{{ t("crm.deals.value") }}</div>
               </div>
             </div>
 
-            <dl class="mt-4 grid grid-cols-2 gap-4 border-t border-default pt-4 sm:grid-cols-4">
+            <!-- At a glance -->
+            <dl class="grid grid-cols-2 gap-3 border-t border-default pt-3 sm:grid-cols-4">
               <div>
                 <dt class="text-xs text-muted">{{ t("crm.deals.assignedTo") }}</dt>
                 <dd class="mt-1 flex items-center gap-1.5 text-sm font-medium text-highlighted">
@@ -1231,13 +1364,8 @@ function isPastDue(iso: string | null) {
               </div>
               <div>
                 <dt class="text-xs text-muted">{{ t("crm.deals.timeInStage") }}</dt>
-                <dd
-                  class="mt-1 flex items-center gap-1 text-sm font-medium"
-                  :class="stageOverdue ? 'text-error' : 'text-highlighted'"
-                  :title="stageOverdue ? t('crm.deals.stageOverdue') : undefined"
-                >
-                  <UIcon :name="stageOverdue ? 'i-lucide-triangle-alert' : 'i-lucide-clock'" class="size-4" />
-                  {{ daysInStageLabel }}
+                <dd class="mt-1 flex items-center gap-1 text-sm font-medium" :class="stageOverdue ? 'text-error' : 'text-highlighted'" :title="stageOverdue ? t('crm.deals.stageOverdue') : undefined">
+                  <UIcon :name="stageOverdue ? 'i-lucide-triangle-alert' : 'i-lucide-clock'" class="size-4" />{{ daysInStageLabel }}
                 </dd>
               </div>
               <div>
@@ -1250,49 +1378,29 @@ function isPastDue(iso: string | null) {
               </div>
             </dl>
 
-            <!-- Big tap targets on a phone: the quick actions share the row
-            equally, and stay compact from sm up. -->
-            <div class="mt-4 flex flex-wrap items-center gap-2">
-              <UButton
-                v-if="contactPhone"
-                :to="`tel:${contactPhone}`"
-                icon="i-lucide-phone"
-                :label="t('crm.deals.callContact')"
-                color="neutral"
-                variant="outline"
-                class="min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
-              />
-              <UButton
-                v-if="toWhatsAppLink(contactPhone)"
-                :to="toWhatsAppLink(contactPhone)!"
-                target="_blank"
-                rel="noopener noreferrer"
-                icon="i-simple-icons-whatsapp"
-                :label="t('crm.deals.chatOnWhatsApp')"
-                color="neutral"
-                variant="outline"
-                class="min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
-              />
-              <UButton
-                v-if="canEdit"
-                icon="i-lucide-calendar-plus"
-                :label="t('crm.deals.timeline.scheduleActivityButton')"
-                color="neutral"
-                variant="outline"
-                class="min-h-11 flex-1 justify-center sm:min-h-0 sm:flex-none"
-                :disabled="upcomingActivities.length > 0"
-                @click="openScheduleModal"
-              />
+            <!-- Quick actions: the contact first, then what you can do with the deal -->
+            <div class="grid grid-cols-2 gap-2 border-t border-default pt-3 sm:flex sm:flex-wrap">
+              <UButton v-if="contactPhone" :to="`tel:${contactPhone}`" icon="i-lucide-phone" :label="t('crm.deals.callContact')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-sky-500 !text-white hover:!bg-sky-400" />
+              <UButton v-if="toWhatsAppLink(contactPhone)" :to="toWhatsAppLink(contactPhone)!" target="_blank" rel="noopener noreferrer" icon="i-simple-icons-whatsapp" :label="t('crm.deals.chatOnWhatsApp')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-[#25D366] !text-white hover:!bg-[#1fb857]" />
+              <UButton v-if="canEdit" icon="i-lucide-sticky-note" :label="t('crm.deals.quickNote')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-amber-400 !text-gray-900 hover:!bg-amber-300" @click="focusNote" />
+              <UButton v-if="canEdit" icon="i-lucide-calendar-plus" :label="t('crm.deals.timeline.scheduleActivityButton')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-violet-500 !text-white hover:!bg-violet-400 disabled:!opacity-50" :disabled="upcomingActivities.length > 0" @click="openScheduleModal" />
+              <UButton v-if="canRequestVisit" icon="i-lucide-map-pin-plus" :label="t('crm.visits.requestFromDeal')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-teal-500 !text-white hover:!bg-teal-400" @click="openVisitModal" />
+              <UButton v-if="subPipeline && !subItem && canSendToWork" icon="i-lucide-send" :label="t('crm.work.send', { name: subPipeline.name })" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-emerald-600 !text-white hover:!bg-emerald-500" @click="openSend" />
             </div>
-          </UPageCard>
+          </section>
 
           <UTabs v-model="mainTab" :items="mainTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs" />
 
           <FilesPanel v-if="mainTab === 'files'" :deal-id="dealId" :can-edit="canEdit" @changed="refreshAttachments" />
 
           <div v-show="mainTab === 'details'" class="space-y-6">
-          <!-- Pipeline stepper -->
-          <UPageCard class="kords-card">
+          <!-- Stage: where the deal is, and moving it -->
+          <section class="kords-card space-y-4 p-4 sm:p-5">
+            <div>
+              <h3 class="text-sm font-semibold text-highlighted">{{ t("crm.deals.stageCardTitle") }}</h3>
+              <p v-if="canEdit" class="text-xs text-muted">{{ t("crm.deals.stageCardHint") }}</p>
+            </div>
+            <div>
             <div class="grid grid-cols-2 gap-1.5 sm:flex sm:gap-2 sm:overflow-x-auto">
               <button
                 v-for="(stage, index) in openStages"
@@ -1323,40 +1431,50 @@ function isPastDue(iso: string | null) {
             <p v-if="currentReasonName" class="mt-3 text-sm text-muted">
               {{ t("crm.deals.reason") }}: <span class="text-highlighted">{{ currentReasonName }}</span>
             </p>
-          </UPageCard>
-
-          <!-- Trips & inspections -->
-          <UPageCard class="kords-card" v-if="canSeeVisits" :title="t('crm.visits.dealCardTitle')">
-            <div class="space-y-2">
-              <div v-for="v in dealVisits" :key="v.id">
-              <NuxtLink
-                :to="`/crm/visits?open=${v.id}`"
-                class="flex flex-wrap items-center justify-between gap-2 border border-default p-3 transition-colors hover:border-primary hover:bg-elevated"
-              >
-                <span class="flex min-w-0 items-center gap-2 text-sm">
-                  <UIcon :name="visitKindIcon(v.kind)" class="size-4 shrink-0 text-primary" />
-                  <span class="font-medium text-highlighted">{{ visitKindLabel(v.kind) }}</span>
-                  <span class="text-muted">· {{ visitFormatDate(v.visit_date) }} · <bdi dir="ltr">{{ visitTimeRange(v) }}</bdi></span>
-                </span>
-                <UBadge :label="visitStatusLabel(v.status)" :color="visitStatusColors[v.status]" variant="subtle" size="sm" class="cds-tag" />
-              </NuxtLink>
-              <div v-if="v.notes?.trim() || visitNotesOf(v.id).length" class="space-y-1 border border-t-0 border-default bg-muted p-2 text-xs text-toned">
-                <p v-if="v.notes?.trim()" class="whitespace-pre-line">{{ v.notes }}</p>
-                <p v-for="(e, i) in visitNotesOf(v.id)" :key="i" class="whitespace-pre-line text-muted">{{ e.note }}</p>
+          </div>
+            <!-- The workflow this stage hands the deal to -->
+            <div v-if="subPipeline" class="space-y-3 border-t border-default pt-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+                <UIcon name="i-lucide-git-fork" class="size-5 shrink-0 text-primary" />
+                <span class="font-medium text-highlighted">{{ subPipeline.name }}</span>
               </div>
+              <div v-if="subItem" class="flex flex-wrap items-center gap-2">
+                <UButton v-if="canOpenBoard" :to="`/crm/work/${subPipeline.id}`" color="neutral" variant="outline" icon="i-lucide-kanban" :label="t('crm.work.openBoard')" />
+                <UButton v-if="canSendToWork" color="error" variant="ghost" icon="i-lucide-undo-2" :label="t('crm.work.withdraw')" @click="askWithdraw" />
               </div>
-              <p v-if="!dealVisits?.length" class="text-sm text-muted">{{ t("crm.visits.dealCardEmpty") }}</p>
-              <UButton
-                v-if="canRequestVisit"
-                icon="i-lucide-map-pin-plus"
-                :label="t('crm.visits.requestFromDeal')"
-                color="neutral"
-                variant="outline"
-                class="min-h-11 w-full justify-center sm:min-h-0 sm:w-auto"
-                @click="openVisitModal"
-              />
+              <UButton v-else-if="canSendToWork" icon="i-lucide-send" :label="t('crm.work.send', { name: subPipeline.name })" @click="openSend" />
             </div>
-          </UPageCard>
+            <!-- Where the deal is in the workflow -->
+            <ol v-if="subItem" class="flex flex-wrap items-center gap-1.5">
+              <li
+                v-for="(s, i) in subStages"
+                :key="s.id"
+                class="rounded-full border px-3 py-1 text-xs"
+                :class="i === subStageIndex ? 'border-success bg-success text-inverted font-semibold' : i < subStageIndex ? 'border-success/40 bg-success/10 text-success' : 'border-default text-muted'"
+              >
+                {{ s.name }}
+              </li>
+            </ol>
+          </div>
+          </section>
+
+          <!-- Write a note -->
+          <section v-if="canEdit" class="kords-card space-y-2 p-4 sm:p-5">
+            <h3 class="text-sm font-semibold text-highlighted">{{ t("crm.deals.composerTitle") }}</h3>
+            <UTextarea
+              ref="noteEl"
+              v-model="quickNoteContent"
+              :rows="3"
+              :placeholder="t('crm.deals.timeline.quickNotePlaceholder')"
+              class="w-full"
+              @keydown.ctrl.enter.prevent="logNote"
+              @keydown.meta.enter.prevent="logNote"
+            />
+            <div class="flex justify-end">
+              <UButton icon="i-lucide-send-horizontal" :label="t('crm.deals.timeline.addNote')" :loading="loggingNote" :disabled="!quickNoteContent.trim()" @click="logNote" />
+            </div>
+          </section>
 
           <!-- Upcoming -->
           <UPageCard class="kords-card" v-if="upcomingActivities.length" :title="t('crm.deals.timeline.upcomingTitle')">
@@ -1399,45 +1517,24 @@ function isPastDue(iso: string | null) {
             </div>
           </UPageCard>
 
-          <!-- Notes written on the lead this deal came from -->
-          <UPageCard v-if="leadContact?.notes?.trim()" class="kords-card" :title="t('crm.deals.leadNotesTitle')">
-            <p class="whitespace-pre-line text-sm text-toned">{{ leadContact.notes }}</p>
-            <p class="mt-2 text-xs text-muted">
-              {{ t("crm.deals.leadNotesFrom", { date: formatDate(leadContact.created_at) }) }}
-              <ULink v-if="hasPermission('crm_leads', 'view')" :to="`/crm/leads/${leadContact.id}`" class="ms-2 text-primary">{{ t("crm.deals.viewLead") }}</ULink>
-            </p>
-          </UPageCard>
-
           <!-- Timeline -->
           <UPageCard class="kords-card">
             <template #header>
               <h2 class="font-semibold text-highlighted">{{ t("crm.deals.timeline.title") }}</h2>
             </template>
-            <div v-if="canEdit" class="mb-4 flex gap-2">
-              <UInput
-                v-model="quickNoteContent"
-                icon="i-lucide-sticky-note"
-                :placeholder="t('crm.deals.timeline.quickNotePlaceholder')"
-                class="flex-1"
-                @keyup.enter="logNote"
-              />
-              <UButton
-                icon="i-lucide-send-horizontal"
-                :label="t('crm.deals.timeline.addNote')"
-                :loading="loggingNote"
-                :disabled="!quickNoteContent.trim()"
-                @click="logNote"
-              />
+            <!-- compact filter chips: all / notes / activities / system -->
+            <div class="mb-3 flex flex-wrap items-center gap-1.5">
+              <button
+                v-for="tab in timelineTabs"
+                :key="tab.value"
+                type="button"
+                class="kords-chip !px-2.5 !py-1 !text-xs"
+                :class="timelineFilter === tab.value && 'kords-chip-on'"
+                @click="setTimelineFilter(tab.value)"
+              >
+                {{ tab.label }}
+              </button>
             </div>
-            <UTabs
-              v-model="timelineFilter"
-              :items="timelineTabs"
-              value-key="value"
-              variant="link"
-              :content="false"
-              size="sm"
-              class="mb-4"
-            />
             <div v-if="!filteredTimelineItems.length" class="py-8 text-center text-sm text-muted">
               {{ t("crm.deals.timeline.noActivity") }}
             </div>
@@ -1561,6 +1658,48 @@ function isPastDue(iso: string | null) {
             </div>
           </UPageCard>
 
+          <!-- Trips & inspections -->
+          <UPageCard class="kords-card" v-if="canSeeVisits" :title="t('crm.visits.dealCardTitle')">
+            <div class="space-y-2">
+              <div v-for="v in dealVisits" :key="v.id">
+              <NuxtLink
+                :to="`/crm/visits?open=${v.id}`"
+                class="flex flex-wrap items-center justify-between gap-2 border border-default p-3 transition-colors hover:border-primary hover:bg-elevated"
+              >
+                <span class="flex min-w-0 items-center gap-2 text-sm">
+                  <UIcon :name="visitKindIcon(v.kind)" class="size-4 shrink-0 text-primary" />
+                  <span class="font-medium text-highlighted">{{ visitKindLabel(v.kind) }}</span>
+                  <span class="text-muted">· {{ visitFormatDate(v.visit_date) }} · <bdi dir="ltr">{{ visitTimeRange(v) }}</bdi></span>
+                </span>
+                <UBadge :label="visitStatusLabel(v.status)" :color="visitStatusColors[v.status]" variant="subtle" size="sm" class="cds-tag" />
+              </NuxtLink>
+              <div v-if="v.notes?.trim() || visitNotesOf(v.id).length" class="space-y-1 border border-t-0 border-default bg-muted p-2 text-xs text-toned">
+                <p v-if="v.notes?.trim()" class="whitespace-pre-line">{{ v.notes }}</p>
+                <p v-for="(e, i) in visitNotesOf(v.id)" :key="i" class="whitespace-pre-line text-muted">{{ e.note }}</p>
+              </div>
+              </div>
+              <p v-if="!dealVisits?.length" class="text-sm text-muted">{{ t("crm.visits.dealCardEmpty") }}</p>
+              <UButton
+                v-if="canRequestVisit"
+                icon="i-lucide-map-pin-plus"
+                :label="t('crm.visits.requestFromDeal')"
+                color="neutral"
+                variant="outline"
+                class="min-h-11 w-full justify-center sm:min-h-0 sm:w-auto"
+                @click="openVisitModal"
+              />
+            </div>
+          </UPageCard>
+
+          <!-- Notes written on the lead this deal came from -->
+          <UPageCard v-if="leadContact?.notes?.trim()" class="kords-card" :title="t('crm.deals.leadNotesTitle')">
+            <p class="whitespace-pre-line text-sm text-toned">{{ leadContact.notes }}</p>
+            <p class="mt-2 text-xs text-muted">
+              {{ t("crm.deals.leadNotesFrom", { date: formatDate(leadContact.created_at) }) }}
+              <ULink v-if="hasPermission('crm_leads', 'view')" :to="`/crm/leads/${leadContact.id}`" class="ms-2 text-primary">{{ t("crm.deals.viewLead") }}</ULink>
+            </p>
+          </UPageCard>
+
           <UPageCard class="kords-card" :title="t('common.details')">
             <div class="space-y-4">
               <UFormField :label="t('crm.deals.dealTitle')">
@@ -1604,6 +1743,33 @@ function isPastDue(iso: string | null) {
       </div>
     </template>
   </UDashboardPanel>
+
+  <KDeleteConfirmation
+    v-model:open="withdrawOpen"
+    :title="t('crm.work.withdraw')"
+    :message="t('crm.work.withdrawBody', { name: subPipeline?.name ?? '' })"
+    :confirm-label="t('crm.work.withdraw')"
+    :loading="withdrawing"
+    @confirm="withdrawFromWork"
+  />
+
+  <KDialog v-model:open="sendOpen" :title="t('crm.work.sendTitle', { name: subPipeline?.name ?? '' })">
+    <div class="space-y-4">
+      <UFormField :label="t('crm.work.requestNote')" required>
+        <UTextarea v-model="sendNote" :rows="4" :placeholder="t('crm.work.requestNoteHint')" class="w-full" autofocus />
+      </UFormField>
+      <UFormField :label="t('crm.work.deadline')" required>
+        <USelect :model-value="sendDeadline ?? undefined" :items="deadlineItems" value-key="value" :placeholder="t('crm.work.deadlinePick')" class="w-full" @update:model-value="setDeadline" />
+      </UFormField>
+      <UFormField :label="t('crm.work.attachFiles')">
+        <UFileUpload v-model="sendFiles" multiple class="w-full" />
+      </UFormField>
+    </div>
+    <template #actions>
+      <UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="closeSend" />
+      <UButton icon="i-lucide-send" :label="t('crm.work.confirmSend')" :loading="sendingToWork" :disabled="!sendValid" @click="sendToWork" />
+    </template>
+  </KDialog>
 
   <VisitRequestModal v-model:open="visitModalOpen" :deal-id="dealId" @saved="refreshVisits" />
 

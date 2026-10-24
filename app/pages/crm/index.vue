@@ -19,7 +19,12 @@ const firstAccessible =
   crmModule.resources.find((r) => r.key === "crm_deals" && hasAnyModulePermission(r.key)) ??
   crmModule.resources.find((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)));
 
-if (firstAccessible) {
+if (firstAccessible?.key === "crm_work") {
+  // only the work boards: open the first one
+  const { data } = await useSupabaseClient().from("work_pipelines").select("id").order("sort_order");
+  const board = (data ?? []).find((b) => hasPermission("crm_work", "view") || hasPermission("crm_work", b.id));
+  if (board) await navigateTo(`/crm/work/${board.id}`, { replace: true });
+} else if (firstAccessible) {
   await navigateTo(routeByResource[firstAccessible.key], { replace: true });
 }
 </script>

@@ -203,6 +203,13 @@
         "view": "عرض تكلفة الزيارات",
         "edit": "تعديل تكلفة الزيارات"
       }
+    },
+    "crm_work": {
+      "label": "لوحات العمل",
+      "actions": {
+        "view": "رؤية كل اللوحات",
+        "edit": "تحريك العناصر وإسنادها"
+      }
     }
   },
   "auth": {
@@ -574,6 +581,25 @@
       "testNoRecipients": "أضف عنوانًا مفعّلًا أولًا",
       "testNotConfigured": "أدخل مفتاح Resend وعنوان المُرسِل أولًا",
       "testFailed": "تعذر الإرسال"
+    },
+    "workPipelines": {
+      "title": "مسارات العمل الفرعية",
+      "subtitle": "مسارات لها مراحلها ولوحتها (مثل المكتب الفني). يمكن لمرحلة في مسار الصفقات أن تحيل الصفقة إلى أحدها.",
+      "new": "مسار جديد",
+      "name": "اسم المسار",
+      "stages": "المراحل",
+      "addStage": "إضافة مرحلة",
+      "stageName": "اسم المرحلة",
+      "save": "حفظ",
+      "saved": "تم الحفظ",
+      "saveFailed": "تعذر الحفظ",
+      "delete": "حذف المسار",
+      "deleteBody": "هل تريد حذف {name} مع مراحله وكل العناصر في لوحته؟ لا يمكن التراجع.",
+      "empty": "لا توجد مسارات بعد.",
+      "newStageDefault": "مرحلة جديدة",
+      "pushTo": "إحالة الصفقة إلى",
+      "pushNone": "لا شيء",
+      "pushHint": "يظهر في الصفقة زر يرسلها إلى لوحة هذا المسار."
     }
   },
   "crm": {
@@ -818,7 +844,12 @@
       "notesWith": "بها ملاحظة أو نشاط مسجّل",
       "notesWithout": "بدون ملاحظة أو نشاط",
       "leadNotesTitle": "ملاحظات العميل المحتمل",
-      "leadNotesFrom": "كُتبت على العميل المحتمل بتاريخ {date}"
+      "leadNotesFrom": "كُتبت على العميل المحتمل بتاريخ {date}",
+      "activityTab": "النشاط",
+      "quickNote": "إضافة ملاحظة",
+      "stageCardTitle": "مرحلة الصفقة",
+      "stageCardHint": "اضغط على مرحلة لنقل الصفقة إليها.",
+      "composerTitle": "اكتب ملاحظة"
     },
     "quotes": {
       "title": "عروض الأسعار",
@@ -954,6 +985,48 @@
       "dealCardTitle": "مأموريات ومعاينات",
       "dealCardEmpty": "لا توجد طلبات لهذه الصفقة.",
       "unknownDeal": "صفقة"
+    },
+    "work": {
+      "send": "إرسال إلى {name}",
+      "sent": "تم الإرسال إلى {name}",
+      "inBoard": "{name}: {stage}",
+      "openBoard": "فتح اللوحة",
+      "empty": "لا يوجد شيء هنا",
+      "unassigned": "غير مُسنَد",
+      "assign": "إسناد",
+      "daysIn": "{n} ي",
+      "openDeal": "فتح الصفقة",
+      "move": "نقل إلى",
+      "items": "{count} عنصر",
+      "noItems": "لا توجد عناصر بعد. أرسل صفقة إلى هنا من صفحتها.",
+      "sendFailed": "تعذر إرسال الصفقة",
+      "moveFailed": "تعذر نقل العنصر",
+      "back": "السابق",
+      "forward": "التالي",
+      "sendTitle": "إرسال إلى {name}",
+      "requestNote": "ما المطلوب؟",
+      "requestNoteHint": "اكتب ما تريده منهم.",
+      "deadline": "الموعد النهائي",
+      "overdue": "متأخر",
+      "note": "الطلب",
+      "confirmSend": "إرسال",
+      "seeAllBoards": "رؤية كل اللوحات",
+      "withdraw": "سحب الطلب",
+      "withdrawBody": "هل تريد سحب هذه الصفقة من {name}؟ ستختفي من لوحته.",
+      "withdrawn": "تم سحب الطلب من اللوحة",
+      "withdrawFailed": "تعذر سحب الصفقة",
+      "deadlineOptions": {
+        "h24": "24 ساعة",
+        "d2": "يومان",
+        "d3": "3 أيام",
+        "w1": "أسبوع"
+      },
+      "deadlinePick": "اختر الموعد النهائي",
+      "attachFiles": "إرفاق ملفات (اختياري)",
+      "files": "الملفات",
+      "requestedBy": "طلب من {name}",
+      "addFiles": "إرفاق ملفات",
+      "uploadFailed": "تعذر رفع الملف"
     }
   },
   "notifications": {
@@ -1465,7 +1538,8 @@
     "deleteTitle": "حذف الملف",
     "deleteBody": "هل تريد حذف الملف {name}؟ لا يمكن التراجع عن ذلك.",
     "tab": "الملفات",
-    "detailsTab": "التفاصيل"
+    "detailsTab": "التفاصيل",
+    "fromWork": "من {name}"
   },
   "reports": {
     "title": "تقارير خدمة العملاء",

@@ -56,6 +56,7 @@ export const SETTINGS_ITEMS: SettingsItemDef[] = [
   { key: "cs_pipelines", path: "/admin/cs-pipelines", titleKey: "admin.csPipelines.title", icon: "i-lucide-workflow" },
   { key: "visit_types", path: "/admin/visit-types", titleKey: "admin.visitTypes.title", icon: "i-lucide-map-pinned" },
   { key: "integrations", path: "/admin/integrations", titleKey: "admin.integrations.title", icon: "i-lucide-plug" },
+  { key: "work_pipelines", path: "/admin/work-pipelines", titleKey: "admin.workPipelines.title", icon: "i-lucide-kanban" },
   { key: "notification_emails", path: "/admin/notification-emails", titleKey: "admin.notificationEmails.title", icon: "i-lucide-mail" },
 ];
 
@@ -119,6 +120,16 @@ export const MODULES: ModuleDef[] = [
           { key: "edit", labelKey: "resources.crm_visits.actions.edit" },
           { key: "approve", labelKey: "resources.crm_visits.actions.approve" },
           { key: "view_all", labelKey: "resources.crm_visits.actions.view_all" },
+        ],
+      },
+      {
+        // The boards of the sub-workflows (e.g. the technical office): see them, and
+        // move / assign the items. Any action opens the boards.
+        key: "crm_work",
+        labelKey: "resources.crm_work.label",
+        actions: [
+          { key: "view", labelKey: "resources.crm_work.actions.view" },
+          { key: "edit", labelKey: "resources.crm_work.actions.edit" },
         ],
       },
       {

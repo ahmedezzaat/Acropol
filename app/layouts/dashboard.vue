@@ -20,6 +20,18 @@ const resourceRoutes: Record<string, string> = {
 
 const route = useRoute();
 
+// The boards of the sub-workflows (e.g. the technical office), as links in the CRM menu.
+const workBoards = useState<{ id: string; name: string }[]>("work-boards", () => []);
+async function loadWorkBoards() {
+  if (!hasAnyModulePermission("crm_work")) {
+    workBoards.value = [];
+    return;
+  }
+  const { data } = await supabase.from("work_pipelines").select("id, name").order("sort_order");
+  workBoards.value = data ?? [];
+}
+watch(loaded, (ready) => ready && loadWorkBoards(), { immediate: true });
+
 // Loads this user's notifications and listens for new ones (toasts + panel).
 useNotificationsRealtime();
 
@@ -36,7 +48,7 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
   // for the matching hide on the deal page.
   const resourceLinks = m.resources
     // Leads has its own "view" permission for the tab.
-    .filter((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)) && r.key !== "crm_quotes")
+    .filter((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)) && r.key !== "crm_quotes" && r.key !== "crm_work")
     .map((r) => ({ label: t(r.labelKey), to: resourceRoutes[r.key] }));
   if (m.key === "customer_service") {
     const customers = hasAnyModulePermission("cs_customers");
@@ -62,6 +74,7 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
     { label: t("crm.dashboard.title"), to: "/crm/dashboard" },
     ...resourceLinks,
     ...(hasAnyModulePermission("crm_deals") ? [{ label: t("crm.calendar.title"), to: "/crm/calendar" }] : []),
+    ...workBoards.value.filter((b) => hasPermission("crm_work", "view") || hasPermission("crm_work", b.id)).map((b) => ({ label: b.name, to: `/crm/work/${b.id}` })),
   ];
 }
 

@@ -15,6 +15,7 @@ interface FileRow {
   file_name: string;
   storage_path: string;
   kind: string | null;
+  from_work_pipeline_id: string | null;
   uploaded_by: string | null;
   created_at: string;
 }
@@ -27,6 +28,7 @@ const loading = ref(true);
 const rows = ref<FileRow[]>([]);
 const dealTitles = ref<Record<string, string>>({});
 const people = ref<Record<string, string>>({});
+const workNames = ref<Record<string, string>>({});
 const uploading = ref(false);
 const picker = ref<HTMLInputElement | null>(null);
 
@@ -47,10 +49,17 @@ async function load() {
   }
   const { data } = await supabase
     .from("deal_attachments")
-    .select("id, deal_id, file_name, storage_path, kind, uploaded_by, created_at")
+    .select("id, deal_id, file_name, storage_path, kind, from_work_pipeline_id, uploaded_by, created_at")
     .in("deal_id", dealIds)
     .order("created_at", { ascending: false });
   rows.value = (data ?? []) as FileRow[];
+
+  // the work pipelines files came from (to tag them)
+  const workIds = [...new Set(rows.value.map((r) => r.from_work_pipeline_id).filter((x): x is string => !!x))];
+  if (workIds.length) {
+    const { data: wp } = await supabase.from("work_pipelines").select("id, name").in("id", workIds);
+    workNames.value = Object.fromEntries((wp ?? []).map((w) => [w.id, w.name]));
+  }
 
   const uploaderIds = [...new Set(rows.value.map((r) => r.uploaded_by).filter((x): x is string => !!x))];
   if (uploaderIds.length) {
@@ -161,6 +170,7 @@ async function confirmRemove() {
           <div class="flex flex-wrap items-center gap-2">
             <span class="truncate text-sm font-medium text-highlighted"><bdi>{{ r.file_name }}</bdi></span>
             <KBadge v-if="r.kind === 'contract'" :label="t('files.contract')" tone="primary" />
+            <KBadge v-if="r.from_work_pipeline_id" :label="t('files.fromWork', { name: workNames[r.from_work_pipeline_id] ?? '' })" tone="success" icon="i-lucide-git-fork" />
           </div>
           <div class="mt-0.5 text-xs text-muted">
             {{ formatDMYTime(r.created_at) }}<template v-if="r.uploaded_by && people[r.uploaded_by]"> · {{ people[r.uploaded_by] }}</template>

@@ -16,6 +16,8 @@ interface StageRow {
   system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
   max_stay_days: number | null;
   max_stay_hours: number | null;
+  // the work pipeline this stage hands a deal to
+  sub_pipeline_id: string | null;
 }
 
 interface ReasonRow {
@@ -50,13 +52,26 @@ const reasonCategoryOptions = computed(() => [
 // See crm/leads/[id].vue for why this goes through useAsyncData's own
 // `data` (via watchEffect) instead of only mutating the local refs inside
 // the handler.
+// The work pipelines a stage can hand a deal to.
+const { data: workPipelines } = await useAsyncData<{ id: string; name: string }[]>(`admin-pipeline-${pipelineId}-work`, async () => {
+  const { data } = await supabase.from("work_pipelines").select("id, name").order("sort_order");
+  return data ?? [];
+});
+const subPipelineOptions = computed(() => [
+  { label: t("admin.workPipelines.pushNone"), value: null as string | null },
+  ...(workPipelines.value ?? []).map((w) => ({ label: w.name, value: w.id as string | null })),
+]);
+function setSubPipeline(stage: StageRow, v: unknown) {
+  stage.sub_pipeline_id = typeof v === "string" && v ? v : null;
+}
+
 const { data: pipelinePayload, status } = await useAsyncData(`admin-pipeline-${pipelineId}`, async () => {
   const [{ data: pipeline, error: pipelineError }, { data: stageRows, error: stagesError }, { data: reasonRows, error: reasonsError }] =
     await Promise.all([
       supabase.from("pipelines").select("*").eq("id", pipelineId).single(),
       supabase
         .from("pipeline_stages")
-        .select("id, name, is_closed, reason_category, system_key, max_stay_days, max_stay_hours")
+        .select("id, name, is_closed, reason_category, system_key, max_stay_days, max_stay_hours, sub_pipeline_id")
         .eq("pipeline_id", pipelineId)
         .order("sort_order"),
       supabase.from("pipeline_stage_reasons").select("*").eq("pipeline_id", pipelineId).order("sort_order"),
@@ -81,6 +96,7 @@ watchEffect(() => {
     system_key: s.system_key,
     max_stay_days: s.max_stay_days,
     max_stay_hours: s.max_stay_hours,
+    sub_pipeline_id: s.sub_pipeline_id,
   }));
   archiveReasons.value = reasonRows
     .filter((r) => r.category === "archive")
@@ -112,6 +128,7 @@ function addStage() {
     system_key: null,
     max_stay_days: null,
     max_stay_hours: null,
+    sub_pipeline_id: null,
   });
 }
 
@@ -155,6 +172,7 @@ async function saveStages() {
       system_key: stage.system_key,
       max_stay_days: stage.max_stay_days,
       max_stay_hours: stage.max_stay_hours,
+      sub_pipeline_id: stage.sub_pipeline_id,
     };
 
     const { data, error } = stage.id
@@ -319,6 +337,17 @@ async function deletePipeline() {
                 />
                 <span class="text-xs text-muted">{{ t("admin.pipelines.hours") }}</span>
               </div>
+              <USelect
+                v-if="(workPipelines ?? []).length"
+                :model-value="stage.sub_pipeline_id"
+                :items="subPipelineOptions"
+                value-key="value"
+                icon="i-lucide-git-fork"
+                :aria-label="t('admin.workPipelines.pushTo')"
+                :placeholder="t('admin.workPipelines.pushTo')"
+                class="w-48"
+                @update:model-value="(v: unknown) => setSubPipeline(stage, v)"
+              />
               <UBadge
                 v-if="stage.system_key"
                 :label="t('admin.pipelines.fixedStage')"
