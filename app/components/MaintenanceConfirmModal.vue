@@ -144,16 +144,6 @@ function close() {
       <div v-if="product" class="space-y-4">
         <p class="text-sm font-medium text-highlighted">{{ product.name }}</p>
         <p class="text-sm text-muted">{{ t("cs.maintenance.confirmHint") }}</p>
-        <UFormField :label="t('cs.maintenance.confirmWhen')" required>
-          <UInput v-model="when" type="datetime-local" class="w-full" />
-        </UFormField>
-        <UFormField v-if="willMove" :label="t('cs.maintenance.rescheduleReason')" required>
-          <UTextarea v-model="reason" :rows="2" :placeholder="t('cs.maintenance.rescheduleReasonHint')" class="w-full" />
-        </UFormField>
-        <MaintenanceFeesEditor v-model="fees" :product="product" :active="open" :initial-parts="initialParts" :initial-fee="product.maintenance_confirm_fee ?? null" />
-        <UFormField :label="t('cs.maintenance.confirmNote')">
-          <UTextarea v-model="note" :rows="2" class="w-full" />
-        </UFormField>
         <!-- Optional: who will do the visit (also applies to the same-day visits ticked below) -->
         <UFormField :label="t('cs.maintenance.assignOptional')" :help="technicians.length ? undefined : t('cs.maintenance.noTechnicians')">
           <USelect
@@ -165,7 +155,16 @@ function close() {
             @update:model-value="(v: string | null) => (technicianId = v)"
           />
         </UFormField>
-
+        <UFormField :label="t('cs.maintenance.confirmWhen')" required>
+          <UInput v-model="when" type="datetime-local" class="w-full" />
+        </UFormField>
+        <UFormField v-if="willMove" :label="t('cs.maintenance.rescheduleReason')" required>
+          <UTextarea v-model="reason" :rows="2" :placeholder="t('cs.maintenance.rescheduleReasonHint')" class="w-full" />
+        </UFormField>
+        <MaintenanceFeesEditor v-model="fees" planning :product="product" :active="open" :initial-parts="initialParts" :initial-fee="product.maintenance_confirm_fee ?? null" />
+        <UFormField :label="t('cs.maintenance.confirmNote')">
+          <UTextarea v-model="note" :rows="2" class="w-full" />
+        </UFormField>
         <div v-if="siblings.length" class="space-y-2 rounded-[10px] border border-default p-3">
           <p class="text-xs font-medium text-muted">{{ t("cs.maintenance.confirmAlso") }}</p>
           <UCheckbox v-for="s in siblings" :key="s.id" v-model="s.on" :label="`${s.name} · ${formatDateTime(s.next_maintenance_at)}`" />
@@ -173,7 +172,7 @@ function close() {
 
         <div class="flex gap-2">
           <UButton color="neutral" variant="outline" :label="t('common.cancel')" class="flex-1 justify-center" @click="close" />
-          <UButton icon="i-lucide-phone-call" :label="t('cs.maintenance.confirm')" :loading="saving" :disabled="!canSave" class="flex-1 justify-center" @click="save" />
+          <UButton icon="i-lucide-phone-call" :label="t('cs.maintenance.confirmCta')" :loading="saving" :disabled="!canSave" class="flex-1 justify-center" @click="save" />
         </div>
       </div>
     </template>

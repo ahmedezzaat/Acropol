@@ -39,6 +39,7 @@ watch(open, (isOpen) => {
   doneOn.value = today();
   doneNote.value = "";
   signed.value = false;
+  noSignature.value = false;
   signaturePad.value?.clear();
   nextMonths.value = null;
   nextWhen.value = "";
@@ -70,6 +71,8 @@ const money = (v: number) => `${v.toLocaleString("en-US")} ${t("common.currency"
 // The customer signs on the technician's phone; for the technician assigned to this
 // visit the signature is required, for anyone else it is optional.
 const signed = ref(false);
+// nobody was there to sign for the customer: the visit is saved without a signature
+const noSignature = ref(false);
 const signaturePad = ref<{ toBlob: () => Promise<Blob | null>; clear: () => void } | null>(null);
 const mustSign = computed(() => props.products.some((p) => !!p.maintenance_technician_id && p.maintenance_technician_id === me.value?.sub));
 
@@ -77,7 +80,7 @@ const valid = computed(
   () =>
     props.products.length > 0 &&
     feesList.value.length === props.products.length &&
-    (!mustSign.value || signed.value) &&
+    (!mustSign.value || signed.value || noSignature.value) &&
     !!doneOn.value &&
     feesList.value.every((f) => f.loaded && f.checked) &&
     feesList.value[0]!.fee !== null &&
@@ -98,7 +101,7 @@ async function save() {
 
   // the customer's signature, kept in a private bucket
   let signaturePath: string | null = null;
-  if (signed.value) {
+  if (signed.value && !noSignature.value) {
     const blob = await signaturePad.value?.toBlob();
     if (blob) {
       const path = `${customerId}/${Date.now()}.png`;
@@ -204,9 +207,15 @@ async function save() {
         <!-- The customer signs with a finger -->
         <div class="space-y-2 border-t border-default pt-4">
           <p class="text-sm font-medium text-highlighted">{{ t("cs.maintenance.customerSignature") }} <span v-if="mustSign" class="text-error">*</span></p>
-          <SignaturePad ref="signaturePad" v-model:signed="signed" />
-          <p v-if="mustSign && !signed" class="text-xs text-warning">{{ t("cs.maintenance.signatureRequired") }}</p>
+          <UCheckbox v-model="noSignature" :label="t('cs.maintenance.noOneToSign')" />
+          <SignaturePad v-show="!noSignature" ref="signaturePad" v-model:signed="signed" />
+          <p v-if="mustSign && !signed && !noSignature" class="text-xs text-warning">{{ t("cs.maintenance.signatureRequired") }}</p>
         </div>
+
+        <p class="flex items-start gap-2 rounded-[10px] bg-success/10 p-3 text-sm text-success">
+          <UIcon name="i-lucide-send" class="mt-0.5 size-4 shrink-0" />
+          <span>{{ t("cs.maintenance.copySentNote") }}</span>
+        </p>
 
         <UButton :label="t('common.save')" :loading="saving" :disabled="!valid" size="lg" block @click="save" />
       </div>

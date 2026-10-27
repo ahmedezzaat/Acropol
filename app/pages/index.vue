@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: "dashboard" });
 
-const { hasAnyModulePermission, isAdmin, loaded, loadFailed } = usePermissions();
+const { hasAnyModulePermission, hasPermission, isAdmin, loaded, loadFailed } = usePermissions();
 const supabase = useSupabaseClient();
 
 async function signInAgain() {
@@ -12,6 +12,18 @@ const { t } = useI18n();
 
 const visibleModules = computed(() =>
   MODULES.filter((m) => m.key !== "settings" && m.resources.some((r) => hasAnyModulePermission(r.key))),
+);
+// A technician lands straight on their work orders instead of the module picker.
+const me = useSupabaseUser();
+const hasWorkOrders = computed(() => CONFIRMED_VISIT_ACTIONS.some((a) => hasPermission("cs_maintenance", a)));
+watch(
+  loaded,
+  async (isLoaded) => {
+    if (!isLoaded || !me.value || isAdmin.value || !hasWorkOrders.value) return;
+    const { data } = await supabase.from("profiles").select("is_technician").eq("id", me.value.sub).maybeSingle();
+    if (data?.is_technician) await navigateTo("/cs/confirmed-visits", { replace: true });
+  },
+  { immediate: true },
 );
 const canSettings = computed(() => isAdmin.value || hasAnyModulePermission("settings"));
 </script>

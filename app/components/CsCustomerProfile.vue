@@ -799,13 +799,11 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
                   <template v-if="!p.maintenance_declined_at">
                     <UButton v-if="p.next_maintenance_at && !isConfirmed(p) && canScheduleMaintenance" icon="i-lucide-phone-call" size="sm" :label="t('cs.maintenance.confirm')" @click="openConfirm(p)" />
                     <UButton
-                      v-if="p.next_maintenance_at && canDoMaintenance"
+                      v-if="p.next_maintenance_at && isConfirmed(p) && canDoMaintenance"
                       icon="i-lucide-check"
                       size="sm"
                       color="success"
                       variant="soft"
-                      :disabled="!isConfirmed(p)"
-                      :title="isConfirmed(p) ? undefined : t('cs.maintenance.confirmFirst')"
                       :label="t('cs.maintenance.markDone')"
                       @click="openDone(p)"
                     />

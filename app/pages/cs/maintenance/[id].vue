@@ -428,11 +428,9 @@ async function onSaved() {
                       @click="openAssign"
                     />
                     <UButton
-                      v-if="product.next_maintenance_at && can.complete"
+                      v-if="product.next_maintenance_at && confirmed && can.complete"
                       icon="i-lucide-check"
                       color="success"
-                      :disabled="!confirmed"
-                      :title="confirmed ? undefined : t('cs.maintenance.confirmFirst')"
                       :label="t('cs.maintenance.markDone')"
                       @click="openDone"
                     />

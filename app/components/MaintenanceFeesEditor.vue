@@ -12,6 +12,8 @@ const props = withDefaults(defineProps<{
   required?: boolean;
   // the visit fee is entered once per visit: off for the visit's other products
   showFee?: boolean;
+  // before the visit (at confirmation): parts are what should be replaced, the total is an estimate
+  planning?: boolean;
 }>(), { showFee: true });
 const model = defineModel<FeesState>({ required: true });
 
@@ -105,7 +107,7 @@ function setQty(p: FeePart, v: number | null) {
     <!-- Spare parts -->
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-2">
-        <p class="text-sm font-medium text-highlighted">{{ t("cs.maintenance.sparePartsUsed") }} <span v-if="required" class="text-error">*</span></p>
+        <p class="text-sm font-medium text-highlighted">{{ t(planning ? "cs.maintenance.sparePartsPlanned" : "cs.maintenance.sparePartsUsed") }} <span v-if="required" class="text-error">*</span></p>
         <UInput v-if="lines.length > 8" v-model="search" icon="i-lucide-search" size="sm" :placeholder="t('cs.maintenance.filterParts')" class="w-44" />
       </div>
       <p v-if="loaded && !lines.length" class="text-xs text-muted">{{ t("cs.maintenance.noSparePartsDefined") }}</p>
@@ -119,7 +121,7 @@ function setQty(p: FeePart, v: number | null) {
             <UInputNumber :model-value="p.qty" :min="0" size="sm" :aria-label="t('cs.maintenance.partQty')" class="w-28 shrink-0" @update:model-value="(v: number | null) => setQty(p, v)" />
           </li>
         </ul>
-        <UCheckbox v-model="noParts" :disabled="used.length > 0" :label="t('cs.maintenance.noPartsUsed')" />
+        <UCheckbox v-if="!planning" v-model="noParts" :disabled="used.length > 0" :label="t('cs.maintenance.noPartsUsed')" />
       </template>
     </div>
 
@@ -130,7 +132,7 @@ function setQty(p: FeePart, v: number | null) {
     <dl class="space-y-1 rounded-[10px] bg-muted p-3 text-sm">
       <div v-if="showFee" class="flex justify-between"><dt class="text-muted">{{ t("cs.maintenance.visitCost") }}</dt><dd>{{ money(fee ?? 0) }}</dd></div>
       <div class="flex justify-between"><dt class="text-muted">{{ t("cs.maintenance.partsTotal") }}</dt><dd>{{ money(partsTotal) }}</dd></div>
-      <div class="flex justify-between border-t border-default pt-1 text-base font-semibold text-highlighted"><dt>{{ t("cs.maintenance.finalFees") }}</dt><dd>{{ money(total) }}</dd></div>
+      <div class="flex justify-between border-t border-default pt-1 text-base font-semibold text-highlighted"><dt>{{ t(planning ? "cs.maintenance.finalFeesPlanned" : "cs.maintenance.finalFees") }}</dt><dd>{{ money(total) }}</dd></div>
     </dl>
   </div>
 </template>

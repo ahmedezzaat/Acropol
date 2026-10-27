@@ -184,9 +184,9 @@ function ago(value: string | undefined) {
   return rtf.format(0, "day");
 }
 
-// ---- The list. A customer opens on its own page (/cs/customers/:id).
+// ---- The list. A customer opens on its own page (/cs/customers/:id), in a new tab.
 function openCustomer(id: string) {
-  navigateTo(`/cs/customers/${id}`);
+  navigateTo(`/cs/customers/${id}`, { open: { target: "_blank" } });
 }
 function productCount(customerId: string) {
   return stagesOf(customerId).length;

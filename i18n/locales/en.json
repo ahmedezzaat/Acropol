@@ -1394,10 +1394,11 @@
       "confirm": "Confirm visit",
       "confirmedBadge": "Confirmed",
       "awaitingConfirmation": "Awaiting confirmation",
+      "confirmCta": "Convert to work order",
       "confirmTitle": "Confirm the visit",
       "confirmHint": "Call the customer and agree the visit. Only a confirmed visit can be marked as done.",
       "confirmWhen": "Visit date and time",
-      "confirmNote": "Who confirmed, and notes",
+      "confirmNote": "Notes",
       "confirmAlso": "Also confirm the customer's other appointments on the same day",
       "confirmedSaved": "Visit confirmed",
       "confirmFailed": "Couldn't confirm the visit",
@@ -1430,6 +1431,8 @@
       "visitCost": "Visit cost",
       "partsTotal": "Spare parts",
       "finalFees": "Final fees collected",
+      "sparePartsPlanned": "Spare parts to be replaced",
+      "finalFeesPlanned": "Estimated total",
       "partsRequired": "Enter the quantity of each part used, or tick that no spare parts were used.",
       "filterParts": "Search parts…",
       "usedParts": "Spare parts: {list}",
@@ -1439,6 +1442,8 @@
       "signHere": "Sign here",
       "clearSignature": "Clear",
       "signatureRequired": "The customer must sign before saving.",
+      "noOneToSign": "No one is available to sign for the customer",
+      "copySentNote": "A copy of this work order will be sent to the customer once it is submitted.",
       "signatureFailed": "Could not save the signature",
       "viewSignature": "Signature"
     },
@@ -1455,11 +1460,11 @@
       "printCustomer": "Print customer"
     },
     "confirmedVisits": {
-      "title": "Confirmed visits",
+      "title": "Work orders",
       "all": "All",
       "allTechnicians": "All technicians",
       "empty": "No confirmed visits match.",
-      "hint": "A visit appears here once the customer has confirmed it by phone (Confirm visit in the maintenance list).",
+      "hint": "A visit becomes a work order and appears here once the customer has confirmed it by phone (Confirm visit in the maintenance list).",
       "selected": "{count} visit(s) selected",
       "count": "{count} visit(s)",
       "mixed": "Several technicians",
@@ -1512,7 +1517,7 @@
       "applied": "Offered from the customer's area; change it if needed."
     },
     "myVisits": {
-      "title": "My visits",
+      "title": "Work orders",
       "yesterday": "Yesterday",
       "today": "Today",
       "tomorrow": "Tomorrow",

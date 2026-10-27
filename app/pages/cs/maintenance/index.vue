@@ -630,13 +630,11 @@ function openRecord(productId: string) {
                 @click.stop="openConfirm(row.original.p)"
               />
               <UButton
-                v-if="row.original.appointment && can.complete"
+                v-if="row.original.appointment && row.original.confirmed && can.complete"
                 icon="i-lucide-check"
                 size="xs"
                 color="success"
                 variant="soft"
-                :disabled="!row.original.confirmed"
-                :title="row.original.confirmed ? undefined : t('cs.maintenance.confirmFirst')"
                 :label="t('cs.maintenance.markDone')"
                 @click.stop="openDone(row.original.p)"
               />
@@ -705,13 +703,11 @@ function openRecord(productId: string) {
               <div class="flex items-center gap-1">
                 <UButton v-if="r.appointment && !r.confirmed && can.schedule" icon="i-lucide-phone-call" size="xs" variant="soft" :label="t('cs.maintenance.confirm')" @click.stop="openConfirm(r.p)" />
                 <UButton
-                  v-if="r.appointment && can.complete"
+                  v-if="r.appointment && r.confirmed && can.complete"
                   icon="i-lucide-check"
                   size="xs"
                   color="success"
                   variant="soft"
-                  :disabled="!r.confirmed"
-                  :title="r.confirmed ? undefined : t('cs.maintenance.confirmFirst')"
                   :label="t('cs.maintenance.markDone')"
                   @click.stop="openDone(r.p)"
                 />
