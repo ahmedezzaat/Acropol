@@ -204,7 +204,10 @@ const agentName = (id: string | null) => {
 // ---- Merge: tick two or more customers (people allowed to edit and delete them).
 const UCheckbox = resolveComponent("UCheckbox");
 const canDelete = computed(() => hasPermission("cs_customers", "delete"));
-const canMerge = computed(() => canDelete.value && hasPermission("cs_customers", "edit"));
+const canEdit = computed(() => hasPermission("cs_customers", "edit"));
+const canMerge = computed(() => canDelete.value && canEdit.value);
+// tick customers to delete, merge or move to another area
+const canSelect = computed(() => canDelete.value || canEdit.value);
 const rowSelection = ref<Record<string, boolean>>({});
 const selectedCustomers = computed(() => filtered.value.filter((c) => rowSelection.value[c.id]));
 const productCounts = computed(() => {
@@ -216,9 +219,13 @@ const deleteOpen = ref(false);
 function openBulkDelete() {
   deleteOpen.value = true;
 }
+const areaOpen = ref(false);
 const mergeOpen = ref(false);
 function openMerge() {
   mergeOpen.value = true;
+}
+function selectAllResults() {
+  rowSelection.value = Object.fromEntries(filtered.value.map((c) => [c.id, true]));
 }
 function clearSelection() {
   rowSelection.value = {};
@@ -229,7 +236,7 @@ async function onMerged() {
 }
 
 const columns = computed<TableColumn<CsCustomer>[]>(() => [
-  ...(canDelete.value
+  ...(canSelect.value
     ? [
         {
           id: "select",
@@ -279,6 +286,19 @@ function clearFilters() {
   agentFilter.value = null;
 }
 
+// Export what the list shows now (search and filters applied) as a CSV that opens in Excel.
+function exportCsv() {
+  const cell = (v: string | null | undefined) => `"${(v ?? "").replace(/\s*\n\s*/g, " ").replace(/"/g, '""')}"`;
+  const header = [t("common.name"), t("crm.leads.companyName"), t("common.phone"), t("common.email"), t("cs.customers.area"), t("cs.customers.address")];
+  const lines = filtered.value.map((c) => [c.name, c.company, c.phone, c.email, areaName(c.area_id), c.address].map(cell).join(","));
+  const blob = new Blob(["\ufeff" + [header.map(cell).join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `customers-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 const createOpen = ref(false);
 function openCreate() {
   createOpen.value = true;
@@ -294,6 +314,7 @@ async function onCreated(id: string) {
     <template #header>
       <KPageHeader :title="t('cs.customers.title')" :count="customers?.length ?? 0">
         <template #right>
+          <UButton icon="i-lucide-download" color="neutral" variant="outline" :label="t('cs.customers.exportCsv')" :disabled="!filtered.length" @click="exportCsv" />
           <UButton v-if="hasPermission('cs_customers', 'create')" icon="i-lucide-plus" :label="t('cs.customers.new')" @click="openCreate" />
         </template>
       </KPageHeader>
@@ -358,10 +379,12 @@ async function onCreated(id: string) {
         </div>
 
         <!-- Desktop: table -->
-        <div v-if="canDelete && selectedCustomers.length" class="hidden items-center gap-3 md:flex">
+        <div v-if="canSelect && selectedCustomers.length" class="hidden flex-wrap items-center gap-3 md:flex">
           <span class="text-sm text-muted">{{ t("cs.customers.mergeSelected", { count: selectedCustomers.length }) }}</span>
           <UButton v-if="canMerge" icon="i-lucide-git-merge" size="sm" :label="t('cs.customers.merge')" :disabled="selectedCustomers.length < 2" @click="openMerge" />
-          <UButton icon="i-lucide-trash" size="sm" color="error" variant="soft" :label="t('common.delete')" @click="openBulkDelete" />
+          <UButton v-if="selectedCustomers.length < filtered.length" size="sm" color="neutral" variant="outline" :label="t('cs.customers.selectAllResults', { count: filtered.length })" @click="selectAllResults" />
+          <UButton v-if="canEdit" icon="i-lucide-map-pin" size="sm" :label="t('cs.customers.changeArea')" @click="areaOpen = true" />
+          <UButton v-if="canDelete" icon="i-lucide-trash" size="sm" color="error" variant="soft" :label="t('common.delete')" @click="openBulkDelete" />
           <UButton icon="i-lucide-x" size="sm" color="neutral" variant="ghost" :label="t('cs.customers.clearSelection')" @click="clearSelection" />
         </div>
         <UTable
@@ -459,5 +482,6 @@ async function onCreated(id: string) {
 
   <CustomerFormModal v-model:open="createOpen" @saved="onCreated" />
   <CustomerBulkDeleteModal v-model:open="deleteOpen" :customers="selectedCustomers" :product-counts="productCounts" @deleted="onMerged" />
+  <CustomerBulkAreaModal v-model:open="areaOpen" :customers="selectedCustomers" @saved="onMerged" />
   <CustomerMergeModal v-model:open="mergeOpen" :customers="selectedCustomers" :product-counts="productCounts" @merged="onMerged" />
 </template>

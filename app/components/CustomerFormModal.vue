@@ -144,6 +144,9 @@ async function save() {
   <UModal v-model:open="open" :title="t(editing ? 'cs.customers.edit' : 'cs.customers.new')">
     <template #body>
       <div class="space-y-4">
+        <UFormField v-if="canAssign" :label="t('cs.customers.agentCs')">
+          <USelect v-model="agentId" :items="agentItems" value-key="value" icon="i-lucide-user-round" class="w-full" />
+        </UFormField>
         <UFormField :label="t('crm.leads.leadType')">
           <URadioGroup v-model="type" orientation="horizontal" :items="typeItems" value-key="value" />
         </UFormField>
@@ -155,9 +158,6 @@ async function save() {
         </UFormField>
         <UFormField :label="t('common.phone')">
           <PhoneInput v-model="phone" />
-        </UFormField>
-        <UFormField v-if="canAssign" :label="t('cs.customers.agent')" :help="t('cs.customers.agentHint')">
-          <USelect v-model="agentId" :items="agentItems" value-key="value" icon="i-lucide-user-round" class="w-full" />
         </UFormField>
         <UFormField :label="t('common.extraPhones')">
           <ExtraPhones v-model="extraPhones" />
