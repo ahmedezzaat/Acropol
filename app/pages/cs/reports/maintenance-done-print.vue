@@ -79,6 +79,7 @@ onMounted(() => {
             <th>{{ t("reports.maintenanceDone.technician") }}</th>
             <th>{{ t("reports.maintenanceDone.customer") }}</th>
             <th>{{ t("reports.maintenanceDone.area") }}</th>
+            <th>{{ t("reports.maintenanceDone.contract") }}</th>
             <th class="num">{{ t("reports.maintenanceDone.cost") }}</th>
           </tr>
         </thead>
@@ -88,12 +89,13 @@ onMounted(() => {
             <td>{{ r.technician_name || "—" }}</td>
             <td>{{ r.customer_name }}</td>
             <td>{{ r.area_name || "—" }}</td>
+            <td class="nowrap"><bdi dir="ltr">{{ r.contract_codes || "—" }}</bdi></td>
             <td class="num nowrap">{{ r.cost ? money(r.cost) : "—" }}</td>
           </tr>
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="4">{{ t("reports.maintenanceDone.totalCost") }}</td>
+            <td colspan="5">{{ t("reports.maintenanceDone.totalCost") }}</td>
             <td class="num nowrap">{{ money(totalCost) }}</td>
           </tr>
         </tfoot>

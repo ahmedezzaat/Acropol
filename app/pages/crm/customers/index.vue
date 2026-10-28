@@ -22,6 +22,7 @@ interface Customer {
   extra_phones?: string[] | null;
   email: string | null;
   assigned_to: string | null;
+  created_at?: string;
 }
 
 interface Profile {
@@ -37,7 +38,7 @@ const { data: customers, refresh, status } = await useAsyncData<Customer[]>(
   "crm-customers",
   async () =>
     fetchAll<Customer>((from, to) =>
-      supabase.from("customers").select("id, name, company, phone, extra_phones, email, assigned_to").order("name").order("id").range(from, to) as never,
+      supabase.from("customers").select("id, name, company, phone, extra_phones, email, assigned_to, created_at").order("created_at", { ascending: false }).order("id").range(from, to) as never,
     ),
 );
 

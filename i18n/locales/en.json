@@ -1058,6 +1058,9 @@
         "w1": "1 week"
       },
       "deadlinePick": "Choose the deadline",
+      "dealFiles": "The deal's files",
+      "dealFilesHint": "Pick files already on the deal to attach them to the request without uploading them again.",
+      "linkFilesFailed": "The request was sent, but some of the deal's files could not be attached.",
       "attachFiles": "Attach files (optional)",
       "files": "Files",
       "requestedBy": "Requested by {name}",
@@ -1632,6 +1635,10 @@
     "period": "Period",
     "workOrder": {
       "title": "Work order",
+      "printAll": "Print all work orders ({count})",
+      "printSelected": "Print the selected work orders ({count})",
+      "bulkFailed": "Could not prepare the printout.",
+      "contract": "Contract no.",
       "print": "Print the work order",
       "doneOn": "Done on",
       "customer": "Customer",
@@ -1649,6 +1656,7 @@
       "customer": "Customer",
       "area": "Area",
       "cost": "Cost",
+      "contract": "Contract no.",
       "totalCost": "Total cost"
     },
     "maintenanceRescheduled": {

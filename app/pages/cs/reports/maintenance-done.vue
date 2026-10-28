@@ -67,6 +67,29 @@ function setArea(v: unknown) {
   area.value = typeof v === "string" && v ? v : ALL;
 }
 
+// Selecting visits to print their work orders together (none selected: every visit shown)
+const selected = ref<Record<string, boolean>>({});
+const selectedKeys = computed(() => rows.value.filter((r) => selected.value[r.visit_key]).map((r) => r.visit_key));
+const allSelected = computed(() => rows.value.length > 0 && selectedKeys.value.length === rows.value.length);
+function toggleAll(on: boolean) {
+  selected.value = on ? Object.fromEntries(rows.value.map((r) => [r.visit_key, true])) : {};
+}
+watch(rows, () => (selected.value = {}));
+// The work orders open in one document (one per page), to print or save as PDF. The visits are
+// handed over through the browser's storage, so a long list does not make a long address.
+function printWorkOrders() {
+  const keys = selectedKeys.value.length ? selectedKeys.value : rows.value.map((r) => r.visit_key);
+  if (!keys.length) return;
+  const token = `wo-${Date.now()}`;
+  try {
+    localStorage.setItem(token, JSON.stringify(keys));
+  } catch {
+    toast.add({ title: t("reports.workOrder.bulkFailed"), color: "error" });
+    return;
+  }
+  window.open(`/cs/reports/work-order-print?batch=${token}`, "_blank");
+}
+
 const totalCost = computed(() => rows.value.reduce((n, r) => n + r.cost, 0));
 const money = (v: number) => formatReportMoney(v, t("common.currency"));
 
@@ -125,6 +148,16 @@ function exportPdf() {
         <div class="flex flex-wrap items-center gap-2">
           <KBadge :label="t('reports.rows', { count: rows.length })" tone="primary" />
           <KBadge :label="`${t('reports.maintenanceDone.totalCost')}: ${money(totalCost)}`" tone="success" />
+          <UButton
+            v-if="rows.length"
+            icon="i-lucide-printer"
+            color="neutral"
+            variant="outline"
+            size="sm"
+            class="ms-auto"
+            :label="selectedKeys.length ? t('reports.workOrder.printSelected', { count: selectedKeys.length }) : t('reports.workOrder.printAll', { count: rows.length })"
+            @click="printWorkOrders"
+          />
         </div>
 
         <div v-if="loading" class="flex justify-center py-16">
@@ -135,22 +168,26 @@ function exportPdf() {
           <table class="w-full min-w-[40rem] text-sm">
             <thead>
               <tr class="border-b border-default text-start text-xs text-muted">
+                <th class="w-10 px-3 py-3"><UCheckbox :model-value="allSelected" :aria-label="t('common.selectAll')" @update:model-value="(v: boolean | 'indeterminate') => toggleAll(v === true)" /></th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("reports.maintenanceDone.date") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("reports.maintenanceDone.technician") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("reports.maintenanceDone.customer") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("reports.maintenanceDone.area") }}</th>
+                <th class="px-4 py-3 text-start font-medium">{{ t("reports.maintenanceDone.contract") }}</th>
                 <th class="px-4 py-3 text-end font-medium">{{ t("reports.maintenanceDone.cost") }}</th>
                 <th class="w-12 px-2 py-3"><span class="sr-only">{{ t("reports.workOrder.print") }}</span></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-default">
               <tr v-for="r in rows" :key="r.visit_key" class="hover:bg-elevated">
+                <td class="px-3 py-3"><UCheckbox v-model="selected[r.visit_key]" :aria-label="t('common.selectRow')" /></td>
                 <td class="whitespace-nowrap px-4 py-3">{{ formatDMY(r.done_on) }}</td>
                 <td class="px-4 py-3">{{ r.technician_name || "—" }}</td>
                 <td class="px-4 py-3">
                   <NuxtLink :to="`/cs/customers/${r.customer_id}`" class="font-medium text-highlighted hover:text-primary">{{ r.customer_name }}</NuxtLink>
                 </td>
                 <td class="px-4 py-3">{{ r.area_name || "—" }}</td>
+                <td class="px-4 py-3"><bdi dir="ltr">{{ r.contract_codes || "—" }}</bdi></td>
                 <td class="whitespace-nowrap px-4 py-3 text-end font-medium">{{ r.cost ? money(r.cost) : "—" }}</td>
                 <td class="px-2 py-2 text-end">
                   <UButton icon="i-lucide-printer" color="neutral" variant="ghost" size="sm" :title="t('reports.workOrder.print')" :aria-label="t('reports.workOrder.print')" :to="`/cs/reports/work-order-print?visit=${r.visit_key}`" target="_blank" />
@@ -159,7 +196,7 @@ function exportPdf() {
             </tbody>
             <tfoot>
               <tr class="border-t border-default bg-muted font-semibold">
-                <td class="px-4 py-3" colspan="4">{{ t("reports.total") }} · {{ t("reports.rows", { count: rows.length }) }}</td>
+                <td class="px-4 py-3" colspan="6">{{ t("reports.total") }} · {{ t("reports.rows", { count: rows.length }) }}</td>
                 <td class="whitespace-nowrap px-4 py-3 text-end">{{ money(totalCost) }}</td>
                 <td />
               </tr>

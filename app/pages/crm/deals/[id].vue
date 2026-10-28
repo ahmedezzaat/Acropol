@@ -75,6 +75,7 @@ interface DealAttachment {
   uploaded_by: string | null;
   created_at: string;
   kind: string | null;
+  work_item_id: string | null;
 }
 
 interface Pipeline {
@@ -269,6 +270,12 @@ const DEADLINES = [
 const deadlineItems = computed(() => DEADLINES.map((d) => ({ value: d.value, label: t(d.label) })));
 const sendDeadline = ref<string | null>(null);
 const sendFiles = ref<File[]>([]);
+// files the deal already has can be attached too, so nothing is uploaded twice
+const sendExisting = ref<string[]>([]);
+const existingFiles = computed(() => (attachments.value ?? []).filter((a) => !a.work_item_id));
+function toggleExisting(id: string, on: boolean) {
+  sendExisting.value = on ? [...new Set([...sendExisting.value, id])] : sendExisting.value.filter((x) => x !== id);
+}
 // what the request is about: the product category
 const sendCategory = ref<string | null>(null);
 const { data: sendCategories } = await useAsyncData<{ id: string; name: string }[]>("crm-deal-send-categories", async () => {
@@ -285,6 +292,7 @@ function openSend() {
   sendDeadline.value = null;
   sendCategory.value = null;
   sendFiles.value = [];
+  sendExisting.value = [];
   sendOpen.value = true;
 }
 function closeSend() {
@@ -346,6 +354,10 @@ async function sendToWork() {
     }
     const { error: rowError } = await supabase.from("deal_attachments").insert({ deal_id: dealId, file_name: file.name, storage_path: path, work_item_id: created.id });
     if (rowError) toast.add({ title: t("files.uploadFailed"), description: `${file.name}: ${rowError.message}`, color: "error" });
+  }
+  if (sendExisting.value.length) {
+    const { error: linkError } = await supabase.rpc("link_deal_files_to_work_item", { p_work_item_id: created.id, p_attachment_ids: sendExisting.value });
+    if (linkError) toast.add({ title: t("crm.work.linkFilesFailed"), description: linkError.message, color: "warning" });
   }
   sendingToWork.value = false;
   refreshAttachments();
@@ -411,7 +423,7 @@ const { data: attachments, refresh: refreshAttachments } = await useAsyncData<De
   async () => {
     const { data, error } = await supabase
       .from("deal_attachments")
-      .select("id, file_name, storage_path, uploaded_by, created_at, kind")
+      .select("id, file_name, storage_path, uploaded_by, created_at, kind, work_item_id")
       .eq("deal_id", dealId)
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -1787,6 +1799,24 @@ function isPastDue(iso: string | null) {
       </UFormField>
       <UFormField :label="t('crm.work.deadline')" required>
         <USelect :model-value="sendDeadline ?? undefined" :items="deadlineItems" value-key="value" :placeholder="t('crm.work.deadlinePick')" class="w-full" @update:model-value="setDeadline" />
+      </UFormField>
+      <UFormField v-if="existingFiles.length" :label="t('crm.work.dealFiles')" :help="t('crm.work.dealFilesHint')">
+        <ul class="max-h-44 space-y-1 overflow-y-auto rounded-[10px] border border-default p-2">
+          <li v-for="f in existingFiles" :key="f.id">
+            <UCheckbox
+              :model-value="sendExisting.includes(f.id)"
+              @update:model-value="(v: boolean | 'indeterminate') => toggleExisting(f.id, v === true)"
+            >
+              <template #label>
+                <span class="flex min-w-0 items-center gap-2">
+                  <span class="truncate"><bdi>{{ f.file_name }}</bdi></span>
+                  <KBadge v-if="f.kind === 'quote'" :label="t('files.quoteSection')" tone="primary" />
+                  <KBadge v-else-if="f.kind === 'contract'" :label="t('files.contractSection')" tone="success" />
+                </span>
+              </template>
+            </UCheckbox>
+          </li>
+        </ul>
       </UFormField>
       <UFormField :label="t('crm.work.attachFiles')">
         <UFileUpload v-model="sendFiles" multiple class="w-full" />

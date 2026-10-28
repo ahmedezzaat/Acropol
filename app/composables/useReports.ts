@@ -9,6 +9,7 @@ export interface MaintenanceDoneRow {
   area_name: string | null;
   cost: number;
   products: number;
+  contract_codes: string | null;
 }
 
 export interface MaintenanceRescheduledRow {

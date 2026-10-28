@@ -1463,7 +1463,16 @@ export type Database = {
           area_name: string | null;
           cost: number;
           products: number;
+          contract_codes: string | null;
         }[];
+      };
+      report_work_order: {
+        Args: { p_visit_key: string };
+        Returns: unknown;
+      };
+      report_work_orders: {
+        Args: { p_visit_keys: string[] };
+        Returns: unknown;
       };
       deals_with_activity: {
         Args: Record<string, never>;
@@ -1480,6 +1489,10 @@ export type Database = {
       cs_customer_deal_files: {
         Args: { p_customer_id: string };
         Returns: { id: string; deal_id: string; deal_title: string; file_name: string; storage_path: string; kind: string | null; uploaded_by: string | null; created_at: string }[];
+      };
+      link_deal_files_to_work_item: {
+        Args: { p_work_item_id: string; p_attachment_ids: string[] };
+        Returns: number;
       };
       work_item_contacts: {
         Args: { p_pipeline_id: string };

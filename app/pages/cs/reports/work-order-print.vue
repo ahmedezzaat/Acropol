@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// The printable work order (أمر الشغل) of one done visit: customer contact details, what was
+// The printable work order (أمر الشغل) of a done visit — or of many, one per page: customer contact details, what was
 // done and what it cost, the notes, the next maintenance and the customer's signature.
-// Opens the print dialog by itself — choose "Save as PDF" there. ?visit=<visit key>.
+// Opens the print dialog by itself — choose "Save as PDF" there. ?visit=<visit key> or ?batch=<token>.
 definePageMeta({
   layout: false,
   crmPermission: { module: "reports", action: "maintenance_done" },
@@ -12,8 +12,9 @@ const supabase = useSupabaseClient();
 const { t, locale } = useI18n();
 
 interface Part { name: string; quantity: number; unit_price: number }
-interface Entry { product_name: string; category_name: string | null; cost: number | null; visit_cost: number | null; note: string | null; parts: Part[] | null; next_at: string | null; next_note: string | null }
+interface Entry { product_name: string; category_name: string | null; contract_code: string | null; cost: number | null; visit_cost: number | null; note: string | null; parts: Part[] | null; next_at: string | null; next_note: string | null }
 interface WorkOrder {
+  key?: string;
   customer: { name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area: string | null };
   visit: { done_on: string; note: string | null };
   technician: string | null;
@@ -21,50 +22,60 @@ interface WorkOrder {
   entries: Entry[];
 }
 
-const visitKey = typeof route.query.visit === "string" ? route.query.visit : "";
-const error = ref<string | null>(null);
-const signatureUrl = ref<string | null>(null);
-
-const { data: order } = await useAsyncData<WorkOrder | null>("report-work-order", async () => {
-  const { data, error: rpcError } = await supabase.rpc("report_work_order", { p_visit_key: visitKey });
-  if (rpcError) {
-    error.value = rpcError.message;
-    return null;
+// one visit (?visit=<key>) or many (?batch=<token>, the keys left in the browser's storage by the report)
+function visitKeys(): string[] {
+  const batch = typeof route.query.batch === "string" ? route.query.batch : null;
+  if (batch) {
+    try {
+      const keys = JSON.parse(localStorage.getItem(batch) ?? "[]");
+      return Array.isArray(keys) ? keys.filter((k): k is string => typeof k === "string") : [];
+    } catch {
+      return [];
+    }
   }
-  return data as unknown as WorkOrder;
-});
+  return typeof route.query.visit === "string" ? [route.query.visit] : [];
+}
+const error = ref<string | null>(null);
+const orders = ref<WorkOrder[]>([]);
+const signatureUrls = ref<Record<number, string>>({});
+const loaded = ref(false);
 
 const money = (v: number | null | undefined) => formatReportMoney(Number(v ?? 0), t("common.currency"));
-const entries = computed(() => order.value?.entries ?? []);
-const totalCost = computed(() => entries.value.reduce((n, e) => n + Number(e.cost ?? 0), 0));
-// the parts of the whole visit, and the visit fee (entered once, on the first product)
+const totalOf = (o: WorkOrder) => o.entries.reduce((n, e) => n + Number(e.cost ?? 0), 0);
+// the parts of a product, and the contract number(s) of the visit
 const partsTotal = (e: Entry) => (e.parts ?? []).reduce((n, p) => n + p.quantity * p.unit_price, 0);
-const phones = computed(() => {
-  const c = order.value?.customer;
-  if (!c) return [];
-  return [
-    ...(c.phone ? [{ phone: c.phone, name: null as string | null }] : []),
-    ...(c.extra_phones ?? []).map((p, i) => ({ phone: p, name: c.extra_phone_names?.[i] || null })),
-  ];
-});
-const orderNo = visitKey.slice(0, 8).toUpperCase();
+const contractsOf = (o: WorkOrder) => [...new Set(o.entries.map((e) => e.contract_code).filter((c): c is string => !!c))].join(", ");
+const phonesOf = (o: WorkOrder) => [
+  ...(o.customer.phone ? [{ phone: o.customer.phone, name: null as string | null }] : []),
+  ...(o.customer.extra_phones ?? []).map((p, i) => ({ phone: p, name: o.customer.extra_phone_names?.[i] || null })),
+];
 
 function doPrint() {
   window.print();
 }
 onMounted(async () => {
-  // the signature is a private file: a short-lived link, loaded before the print dialog opens
-  const path = order.value?.signature_path;
-  if (path) {
-    const { data } = await supabase.storage.from("visit-signatures").createSignedUrl(path, 600);
-    signatureUrl.value = data?.signedUrl ?? null;
-    if (signatureUrl.value) await new Promise<void>((resolve) => {
-      const img = new Image();
-      img.onload = img.onerror = () => resolve();
-      img.src = signatureUrl.value!;
-    });
+  const keys = visitKeys();
+  if (keys.length) {
+    const { data, error: rpcError } = await supabase.rpc("report_work_orders", { p_visit_keys: keys });
+    if (rpcError) error.value = rpcError.message;
+    else orders.value = (data ?? []) as unknown as WorkOrder[];
   }
-  if (order.value) setTimeout(doPrint, 400);
+  loaded.value = true;
+  // the signatures are private files: short-lived links, loaded before the print dialog opens
+  await Promise.all(
+    orders.value.map(async (o, i) => {
+      if (!o.signature_path) return;
+      const { data } = await supabase.storage.from("visit-signatures").createSignedUrl(o.signature_path, 600);
+      if (!data?.signedUrl) return;
+      signatureUrls.value[i] = data.signedUrl;
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = img.onerror = () => resolve();
+        img.src = data.signedUrl;
+      });
+    }),
+  );
+  if (orders.value.length) setTimeout(doPrint, 400);
 });
 </script>
 
@@ -76,85 +87,86 @@ onMounted(async () => {
       <span class="hint">{{ t("reports.printHint") }}</span>
     </div>
 
-    <article class="sheet" :dir="locale === 'ar' ? 'rtl' : 'ltr'">
-      <p v-if="!order" class="empty">{{ error ?? t("reports.noData") }}</p>
-      <template v-else>
-        <header class="doc-head">
-          <div class="brand">{{ t("nav.appName") }}</div>
-          <div class="doc-title">{{ t("reports.workOrder.title") }} <span class="no">#{{ orderNo }}</span></div>
-        </header>
+    <p v-if="loaded && !orders.length" class="empty">{{ error ?? t("reports.noData") }}</p>
 
-        <dl class="meta">
-          <div><dt>{{ t("reports.workOrder.doneOn") }}</dt><dd>{{ formatDMY(order.visit.done_on) }}</dd></div>
-          <div><dt>{{ t("reports.maintenanceDone.technician") }}</dt><dd>{{ order.technician || "—" }}</dd></div>
-        </dl>
+    <article v-for="(o, oi) in orders" :key="oi" class="sheet" :dir="locale === 'ar' ? 'rtl' : 'ltr'">
+      <header class="doc-head">
+        <div class="brand">{{ t("nav.appName") }}</div>
+        <div class="doc-title">{{ t("reports.workOrder.title") }}</div>
+      </header>
 
-        <h3 class="sub">{{ t("reports.workOrder.customer") }}</h3>
-        <dl class="info">
-          <div><dt>{{ t("common.name") }}</dt><dd>{{ order.customer.company ? `${order.customer.company} — ${order.customer.name}` : order.customer.name }}</dd></div>
-          <div>
-            <dt>{{ t("common.phone") }}</dt>
-            <dd><span v-for="(p, i) in phones" :key="i" class="phone" dir="ltr">{{ p.phone }}<template v-if="p.name"> ({{ p.name }})</template></span><template v-if="!phones.length">—</template></dd>
-          </div>
-          <div v-if="order.customer.email"><dt>{{ t("common.email") }}</dt><dd dir="ltr">{{ order.customer.email }}</dd></div>
-          <div><dt>{{ t("cs.customers.area") }}</dt><dd>{{ order.customer.area || "—" }}</dd></div>
-          <div class="wide"><dt>{{ t("cs.customers.address") }}</dt><dd>{{ order.customer.address || "—" }}</dd></div>
-        </dl>
+      <dl class="meta">
+        <div><dt>{{ t("reports.workOrder.doneOn") }}</dt><dd>{{ formatDMY(o.visit.done_on) }}</dd></div>
+        <div><dt>{{ t("reports.maintenanceDone.technician") }}</dt><dd>{{ o.technician || "—" }}</dd></div>
+        <div v-if="contractsOf(o)"><dt>{{ t("reports.maintenanceDone.contract") }}</dt><dd dir="ltr">{{ contractsOf(o) }}</dd></div>
+      </dl>
 
-        <h3 class="sub">{{ t("reports.workOrder.work") }}</h3>
-        <div v-for="(e, i) in entries" :key="i" class="entry">
-          <div class="entry-head">
-            <strong>{{ e.product_name }}</strong>
-            <span v-if="e.category_name" class="muted"> · {{ e.category_name }}</span>
-          </div>
-          <table v-if="e.parts?.length" class="rows">
-            <thead>
-              <tr>
-                <th>{{ t("reports.sparePartsUsed.part") }}</th>
-                <th class="num">{{ t("reports.sparePartsUsed.qty") }}</th>
-                <th class="num">{{ t("reports.sparePartsUsed.unitPrice") }}</th>
-                <th class="num">{{ t("reports.sparePartsUsed.lineTotal") }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(p, j) in e.parts" :key="j">
-                <td>{{ p.name }}</td>
-                <td class="num">{{ p.quantity }}</td>
-                <td class="num nowrap">{{ money(p.unit_price) }}</td>
-                <td class="num nowrap">{{ money(p.quantity * p.unit_price) }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-else class="muted small">{{ t("reports.workOrder.noParts") }}</p>
-          <div class="costs">
-            <span v-if="e.visit_cost !== null">{{ t("cs.maintenance.visitCost") }}: {{ money(e.visit_cost) }}</span>
-            <span v-if="e.parts?.length">{{ t("cs.maintenance.partsTotal") }}: {{ money(partsTotal(e)) }}</span>
-            <strong>{{ t("reports.maintenanceDone.cost") }}: {{ money(e.cost) }}</strong>
-          </div>
-          <p v-if="e.note" class="note">{{ e.note }}</p>
+      <h3 class="sub">{{ t("reports.workOrder.customer") }}</h3>
+      <dl class="info">
+        <div><dt>{{ t("common.name") }}</dt><dd>{{ o.customer.company ? `${o.customer.company} — ${o.customer.name}` : o.customer.name }}</dd></div>
+        <div>
+          <dt>{{ t("common.phone") }}</dt>
+          <dd><span v-for="(p, i) in phonesOf(o)" :key="i" class="phone" dir="ltr">{{ p.phone }}<template v-if="p.name"> ({{ p.name }})</template></span><template v-if="!phonesOf(o).length">—</template></dd>
         </div>
-        <div class="grand"><span>{{ t("reports.maintenanceDone.totalCost") }}</span><span>{{ money(totalCost) }}</span></div>
+        <div v-if="o.customer.email"><dt>{{ t("common.email") }}</dt><dd dir="ltr">{{ o.customer.email }}</dd></div>
+        <div><dt>{{ t("cs.customers.area") }}</dt><dd>{{ o.customer.area || "—" }}</dd></div>
+        <div class="wide"><dt>{{ t("cs.customers.address") }}</dt><dd>{{ o.customer.address || "—" }}</dd></div>
+      </dl>
 
-        <template v-if="order.visit.note">
-          <h3 class="sub">{{ t("reports.workOrder.notes") }}</h3>
-          <p class="note">{{ order.visit.note }}</p>
-        </template>
-
-        <template v-if="entries.some((e) => e.next_at)">
-          <h3 class="sub">{{ t("reports.workOrder.next") }}</h3>
-          <ul class="next">
-            <li v-for="(e, i) in entries.filter((x) => x.next_at)" :key="i">
-              <strong>{{ e.product_name }}</strong> — {{ formatDMYTime(e.next_at!, locale) }}<template v-if="e.next_note"> · {{ e.next_note }}</template>
-            </li>
-          </ul>
-        </template>
-
-        <h3 class="sub">{{ t("cs.maintenance.customerSignature") }}</h3>
-        <div class="signature">
-          <img v-if="signatureUrl" :src="signatureUrl" alt="" />
-          <span v-else class="muted small">{{ t("reports.workOrder.noSignature") }}</span>
+      <h3 class="sub">{{ t("reports.workOrder.work") }}</h3>
+      <div v-for="(e, i) in o.entries" :key="i" class="entry">
+        <div class="entry-head">
+          <strong>{{ e.product_name }}</strong>
+          <span v-if="e.category_name" class="muted"> · {{ e.category_name }}</span>
+          <span v-if="e.contract_code" class="muted"> · {{ t("reports.maintenanceDone.contract") }}: <bdi dir="ltr">{{ e.contract_code }}</bdi></span>
         </div>
+        <table v-if="e.parts?.length" class="rows">
+          <thead>
+            <tr>
+              <th>{{ t("reports.sparePartsUsed.part") }}</th>
+              <th class="num">{{ t("reports.sparePartsUsed.qty") }}</th>
+              <th class="num">{{ t("reports.sparePartsUsed.unitPrice") }}</th>
+              <th class="num">{{ t("reports.sparePartsUsed.lineTotal") }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(p, j) in e.parts" :key="j">
+              <td>{{ p.name }}</td>
+              <td class="num">{{ p.quantity }}</td>
+              <td class="num nowrap">{{ money(p.unit_price) }}</td>
+              <td class="num nowrap">{{ money(p.quantity * p.unit_price) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="muted small">{{ t("reports.workOrder.noParts") }}</p>
+        <div class="costs">
+          <span v-if="e.visit_cost !== null">{{ t("cs.maintenance.visitCost") }}: {{ money(e.visit_cost) }}</span>
+          <span v-if="e.parts?.length">{{ t("cs.maintenance.partsTotal") }}: {{ money(partsTotal(e)) }}</span>
+          <strong>{{ t("reports.maintenanceDone.cost") }}: {{ money(e.cost) }}</strong>
+        </div>
+        <p v-if="e.note" class="note">{{ e.note }}</p>
+      </div>
+      <div class="grand"><span>{{ t("reports.maintenanceDone.totalCost") }}</span><span>{{ money(totalOf(o)) }}</span></div>
+
+      <template v-if="o.visit.note">
+        <h3 class="sub">{{ t("reports.workOrder.notes") }}</h3>
+        <p class="note">{{ o.visit.note }}</p>
       </template>
+
+      <template v-if="o.entries.some((e) => e.next_at)">
+        <h3 class="sub">{{ t("reports.workOrder.next") }}</h3>
+        <ul class="next">
+          <li v-for="(e, i) in o.entries.filter((x) => x.next_at)" :key="i">
+            <strong>{{ e.product_name }}</strong> — {{ formatDMYTime(e.next_at!, locale) }}<template v-if="e.next_note"> · {{ e.next_note }}</template>
+          </li>
+        </ul>
+      </template>
+
+      <h3 class="sub">{{ t("cs.maintenance.customerSignature") }}</h3>
+      <div class="signature">
+        <img v-if="signatureUrls[oi]" :src="signatureUrls[oi]" alt="" />
+        <span v-else class="muted small">{{ t("reports.workOrder.noSignature") }}</span>
+      </div>
     </article>
   </div>
 </template>
@@ -165,7 +177,7 @@ onMounted(async () => {
 .btn { background: #1d4ed8; color: #fff; border: 0; padding: 8px 16px; font-size: 14px; cursor: pointer; text-decoration: none; }
 .btn.ghost { background: #fff; color: #111827; border: 1px solid #d1d5db; }
 .hint { color: #6b7280; font-size: 12px; }
-.sheet { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 14mm 12mm; font-size: 12px; line-height: 1.5; }
+.sheet { width: 210mm; min-height: 297mm; margin: 0 auto 16px; background: #fff; padding: 14mm 12mm; font-size: 12px; line-height: 1.5; }
 .doc-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #111827; padding-bottom: 8px; margin-bottom: 12px; }
 .brand { font-size: 18px; font-weight: 700; }
 .doc-title { font-size: 16px; font-weight: 600; }
@@ -195,7 +207,7 @@ dd { margin: 0; font-weight: 500; }
 .signature { border: 1px solid #d1d5db; height: 30mm; width: 70mm; display: flex; align-items: center; justify-content: center; break-inside: avoid; }
 .signature img { max-width: 100%; max-height: 100%; }
 .empty { text-align: center; padding: 40px 0; color: #6b7280; }
-@media print { .sheet-wrap { background: #fff; padding: 0; } .sheet { width: auto; min-height: 0; padding: 0; } .no-print { display: none; } }
+@media print { .sheet-wrap { background: #fff; padding: 0; } .sheet { width: auto; min-height: 0; padding: 0; margin: 0; break-after: page; } .sheet:last-of-type { break-after: auto; } .no-print { display: none; } }
 </style>
 
 <style>
