@@ -123,6 +123,25 @@ export const MODULES: ModuleDef[] = [
         ],
       },
       {
+        key: "crm_customers",
+        labelKey: "resources.crm_customers.label",
+        actions: [
+          ...crud("crm_customers"),
+          { key: "assign", labelKey: "resources.crm_customers.actions.assign" },
+          { key: "view_all", labelKey: "resources.crm_customers.actions.view_all" },
+        ],
+      },
+    ],
+  },
+  {
+    // The technical office: the boards of the sub-workflows. The resource keeps its
+    // original key ("crm_work") so the permissions already granted keep working.
+    key: "technical_office",
+    labelKey: "modules.technical_office.label",
+    icon: "i-lucide-drafting-compass",
+    route: "/technical-office",
+    resources: [
+      {
         // The boards of the sub-workflows (e.g. the technical office): see them, and
         // move / assign the items. Any action opens the boards.
         key: "crm_work",
@@ -133,12 +152,14 @@ export const MODULES: ModuleDef[] = [
         ],
       },
       {
-        key: "crm_customers",
-        labelKey: "resources.crm_customers.label",
+        // The files uploaded from the technical office (they show in the deal's Files tab too).
+        key: "crm_work_files",
+        labelKey: "resources.crm_work_files.label",
         actions: [
-          ...crud("crm_customers"),
-          { key: "assign", labelKey: "resources.crm_customers.actions.assign" },
-          { key: "view_all", labelKey: "resources.crm_customers.actions.view_all" },
+          { key: "view", labelKey: "resources.crm_work_files.actions.view" },
+          { key: "create", labelKey: "resources.crm_work_files.actions.create" },
+          { key: "edit", labelKey: "resources.crm_work_files.actions.edit" },
+          { key: "delete", labelKey: "resources.crm_work_files.actions.delete" },
         ],
       },
     ],
@@ -160,6 +181,8 @@ export const MODULES: ModuleDef[] = [
           { key: "assign", labelKey: "resources.cs_customers.actions.assign" },
           // Without it an agent sees only the customers assigned to them.
           { key: "view_all", labelKey: "resources.cs_customers.actions.view_all" },
+          // Export the customers list to CSV.
+          { key: "export", labelKey: "resources.cs_customers.actions.export" },
         ],
       },
       {

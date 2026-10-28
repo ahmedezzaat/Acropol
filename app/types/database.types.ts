@@ -1053,9 +1053,9 @@ export type Database = {
         Relationships: [];
       };
       work_items: {
-        Row: { id: string; work_pipeline_id: string; stage_id: string; deal_id: string; title: string; assigned_to: string | null; request_note: string | null; deadline: string | null; created_by: string | null; created_at: string; stage_changed_at: string };
-        Insert: { id?: string; work_pipeline_id: string; stage_id: string; deal_id: string; title: string; assigned_to?: string | null; request_note?: string | null; deadline?: string | null; created_by?: string | null; created_at?: string; stage_changed_at?: string };
-        Update: { id?: string; work_pipeline_id?: string; stage_id?: string; deal_id?: string; title?: string; assigned_to?: string | null; request_note?: string | null; deadline?: string | null; created_by?: string | null; created_at?: string; stage_changed_at?: string };
+        Row: { id: string; work_pipeline_id: string; stage_id: string; deal_id: string; title: string; assigned_to: string | null; request_note: string | null; deadline: string | null; product_category_id: string | null; created_by: string | null; created_at: string; stage_changed_at: string };
+        Insert: { id?: string; work_pipeline_id: string; stage_id: string; deal_id: string; title: string; assigned_to?: string | null; request_note?: string | null; deadline?: string | null; product_category_id?: string | null; created_by?: string | null; created_at?: string; stage_changed_at?: string };
+        Update: { id?: string; work_pipeline_id?: string; stage_id?: string; deal_id?: string; title?: string; assigned_to?: string | null; request_note?: string | null; deadline?: string | null; product_category_id?: string | null; created_by?: string | null; created_at?: string; stage_changed_at?: string };
         Relationships: [];
       };
       spare_parts: {
@@ -1476,6 +1476,10 @@ export type Database = {
       cs_merge_customers: {
         Args: { p_keep: string; p_merge: string[] };
         Returns: number;
+      };
+      work_item_contacts: {
+        Args: { p_pipeline_id: string };
+        Returns: { work_item_id: string; deal_agent_id: string | null; contact_name: string | null; contact_phone: string | null }[];
       };
       cs_assignable_agents: {
         Args: Record<string, never>;

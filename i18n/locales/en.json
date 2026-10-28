@@ -113,6 +113,9 @@
     },
     "customer_service": {
       "label": "Customer Service"
+    },
+    "technical_office": {
+      "label": "Technical office"
     }
   },
   "resources": {
@@ -171,7 +174,8 @@
         "edit": "Edit (incl. products & progress)",
         "delete": "Delete",
         "assign": "Assign customers to agents",
-        "view_all": "View all customers"
+        "view_all": "View all customers",
+        "export": "Export CSV"
       }
     },
     "cs_maintenance": {
@@ -209,6 +213,15 @@
       "actions": {
         "view": "See every board",
         "edit": "Move and assign items"
+      }
+    },
+    "crm_work_files": {
+      "label": "Technical office files",
+      "actions": {
+        "view": "View files",
+        "create": "Add files",
+        "edit": "Rename files",
+        "delete": "Delete files"
       }
     }
   },
@@ -1011,6 +1024,17 @@
       "requestNote": "What do you need?",
       "requestNoteHint": "Describe what you want from them.",
       "deadline": "Deadline",
+      "dealAgent": "Deal agent",
+      "productCategory": "Product category",
+      "productCategoryPick": "Pick the product category",
+      "contact": "Contact",
+      "call": "Call",
+      "assignedTo": "Assigned to",
+      "stage": "Stage",
+      "quoteFiles": "Quote",
+      "officeFiles": "Technical office files",
+      "requesterFiles": "Files uploaded by the requester",
+      "openDeal": "Open the deal",
       "overdue": "Overdue",
       "note": "Request",
       "confirmSend": "Send",
@@ -1051,6 +1075,7 @@
     "dealUnassignedRule": "The rule \"{rule}\" unassigned the deal: {name}. Reassign it.",
     "dealsUnassigned": "The rule \"{rule}\" unassigned {count} deals in {stage}. Reassign them.",
     "visitPending": "{by} requested a {kind} for {name} on {date}. It needs your approval.",
+    "workStageChanged": "{name} moved to \"{stage}\" on {board}",
     "visitPendingNoBy": "A {kind} request for {name} on {date} needs your approval.",
     "visitPendingFinal": "Team leader approved a {kind} request by {by} for {name} on {date}. It needs final approval.",
     "visitUpdate": {
@@ -1555,6 +1580,12 @@
     "deleteTitle": "Delete file",
     "deleteBody": "Delete the file {name}? This cannot be undone.",
     "tab": "Files",
+    "rename": "Rename file",
+    "renameFailed": "Could not rename the file",
+    "quoteSection": "Quote",
+    "contractSection": "Contract",
+    "otherSection": "Other files",
+    "emptySection": "No files in this section.",
     "detailsTab": "Details",
     "fromWork": "From {name}"
   },

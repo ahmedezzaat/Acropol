@@ -314,7 +314,7 @@ async function onCreated(id: string) {
     <template #header>
       <KPageHeader :title="t('cs.customers.title')" :count="customers?.length ?? 0">
         <template #right>
-          <UButton icon="i-lucide-download" color="neutral" variant="outline" :label="t('cs.customers.exportCsv')" :disabled="!filtered.length" @click="exportCsv" />
+          <UButton v-if="hasPermission('cs_customers', 'export')" icon="i-lucide-download" color="neutral" variant="outline" :label="t('cs.customers.exportCsv')" :disabled="!filtered.length" @click="exportCsv" />
           <UButton v-if="hasPermission('cs_customers', 'create')" icon="i-lucide-plus" :label="t('cs.customers.new')" @click="openCreate" />
         </template>
       </KPageHeader>

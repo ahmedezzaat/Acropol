@@ -74,6 +74,7 @@ interface DealAttachment {
   storage_path: string;
   uploaded_by: string | null;
   created_at: string;
+  kind: string | null;
 }
 
 interface Pipeline {
@@ -257,13 +258,21 @@ const DEADLINES = [
 const deadlineItems = computed(() => DEADLINES.map((d) => ({ value: d.value, label: t(d.label) })));
 const sendDeadline = ref<string | null>(null);
 const sendFiles = ref<File[]>([]);
+// what the request is about: the product category
+const sendCategory = ref<string | null>(null);
+const { data: sendCategories } = await useAsyncData<{ id: string; name: string }[]>("crm-deal-send-categories", async () => {
+  const { data } = await supabase.from("product_categories").select("id, name").order("sort_order");
+  return data ?? [];
+});
+const sendCategoryItems = computed(() => (sendCategories.value ?? []).map((c) => ({ label: c.name, value: c.id })));
 function setDeadline(v: unknown) {
   sendDeadline.value = typeof v === "string" && v ? v : null;
 }
-const sendValid = computed(() => !!sendNote.value.trim() && !!sendDeadline.value);
+const sendValid = computed(() => !!sendNote.value.trim() && !!sendDeadline.value && !!sendCategory.value);
 function openSend() {
   sendNote.value = "";
   sendDeadline.value = null;
+  sendCategory.value = null;
   sendFiles.value = [];
   sendOpen.value = true;
 }
@@ -298,18 +307,17 @@ async function sendToWork() {
   if (!first) return;
   sendingToWork.value = true;
   const hours = DEADLINES.find((d) => d.value === sendDeadline.value)?.hours ?? 24;
-  const { data: created, error } = await supabase
-    .from("work_items")
-    .insert({
-      work_pipeline_id: target.id,
-      stage_id: first.id,
-      deal_id: dealId,
-      title: contactName.value || deal.value.title,
-      request_note: sendNote.value.trim(),
-      deadline: new Date(Date.now() + hours * 3_600_000).toISOString(),
-    })
-    .select("id")
-    .single();
+  const row = {
+    work_pipeline_id: target.id,
+    stage_id: first.id,
+    deal_id: dealId,
+    title: contactName.value || deal.value.title,
+    request_note: sendNote.value.trim(),
+    deadline: new Date(Date.now() + hours * 3_600_000).toISOString(),
+  };
+  let { data: created, error } = await supabase.from("work_items").insert({ ...row, product_category_id: sendCategory.value }).select("id").single();
+  // the category column arrives with a migration: until then send without it
+  if (error?.code === "42703") ({ data: created, error } = await supabase.from("work_items").insert(row).select("id").single());
   if (error || !created) {
     sendingToWork.value = false;
     toast.add({ title: t("crm.work.sendFailed"), description: error?.message, color: "error" });
@@ -390,7 +398,7 @@ const { data: attachments, refresh: refreshAttachments } = await useAsyncData<De
   async () => {
     const { data, error } = await supabase
       .from("deal_attachments")
-      .select("id, file_name, storage_path, uploaded_by, created_at")
+      .select("id, file_name, storage_path, uploaded_by, created_at, kind")
       .eq("deal_id", dealId)
       .order("created_at", { ascending: false });
     if (error) throw error;
@@ -401,6 +409,8 @@ const { data: attachments, refresh: refreshAttachments } = await useAsyncData<De
 // Uploads to the private deal-attachments bucket, then records the row
 // that tracks it — the offer_sent DB trigger checks this table, so the
 // row must exist before the stage update that follows.
+// The quote section: Offer sent asks for a file only while it is empty.
+const hasQuote = computed(() => (attachments.value ?? []).some((a) => a.kind === "quote"));
 async function uploadDealAttachment(file: File): Promise<{ error: string | null }> {
   const path = `${dealId}/${Date.now()}-${file.name}`;
   const { error: uploadError } = await supabase.storage.from("deal-attachments").upload(path, file);
@@ -408,7 +418,7 @@ async function uploadDealAttachment(file: File): Promise<{ error: string | null 
 
   const { error: insertError } = await supabase
     .from("deal_attachments")
-    .insert({ deal_id: dealId, file_name: file.name, storage_path: path });
+    .insert({ deal_id: dealId, file_name: file.name, storage_path: path, kind: "quote" });
   if (insertError) return { error: insertError.message };
 
   return { error: null };
@@ -745,7 +755,7 @@ async function confirmStageChange() {
   if (pendingStage.value?.reason_category && !pendingReasonId.value) return;
   if (isWonStage.value && (pendingValue.value == null || !pendingCloseDate.value)) return;
   if (isWonStage.value && !wonProductsOk.value) return;
-  if (isOfferSentStage.value && !pendingFile.value) return;
+  if (isOfferSentStage.value && !hasQuote.value && !pendingFile.value) return;
 
   changingStage.value = true;
 
@@ -1001,7 +1011,7 @@ const completeSubmitDisabled = computed(() => {
   if (completeStage.value?.reason_category && !completeReasonId.value) return true;
   if (completeIsWonStage.value && (completeValue.value == null || !completeCloseDate.value)) return true;
   if (completeIsWonStage.value && completeStageChanged.value && !wonProductsOk.value) return true;
-  if (completeIsOfferSentStage.value && !completeFile.value) return true;
+  if (completeIsOfferSentStage.value && !hasQuote.value && !completeFile.value) return true;
   if (!needsNextAction.value) return false;
   return !nextActivityType.value || !scheduledDate.value || !scheduledTime.value;
 });
@@ -1440,7 +1450,7 @@ function isPastDue(iso: string | null) {
                 <span class="font-medium text-highlighted">{{ subPipeline.name }}</span>
               </div>
               <div v-if="subItem" class="flex flex-wrap items-center gap-2">
-                <UButton v-if="canOpenBoard" :to="`/crm/work/${subPipeline.id}`" color="neutral" variant="outline" icon="i-lucide-kanban" :label="t('crm.work.openBoard')" />
+                <UButton v-if="canOpenBoard" :to="`/technical-office/${subPipeline.id}`" color="neutral" variant="outline" icon="i-lucide-kanban" :label="t('crm.work.openBoard')" />
                 <UButton v-if="canSendToWork" color="error" variant="ghost" icon="i-lucide-undo-2" :label="t('crm.work.withdraw')" @click="askWithdraw" />
               </div>
               <UButton v-else-if="canSendToWork" icon="i-lucide-send" :label="t('crm.work.send', { name: subPipeline.name })" @click="openSend" />
@@ -1755,6 +1765,9 @@ function isPastDue(iso: string | null) {
 
   <KDialog v-model:open="sendOpen" :title="t('crm.work.sendTitle', { name: subPipeline?.name ?? '' })">
     <div class="space-y-4">
+      <UFormField :label="t('crm.work.productCategory')" required>
+        <USelect v-model="sendCategory" :items="sendCategoryItems" value-key="value" icon="i-lucide-tags" :placeholder="t('crm.work.productCategoryPick')" class="w-full" />
+      </UFormField>
       <UFormField :label="t('crm.work.requestNote')" required>
         <UTextarea v-model="sendNote" :rows="4" :placeholder="t('crm.work.requestNoteHint')" class="w-full" autofocus />
       </UFormField>
@@ -1839,7 +1852,7 @@ function isPastDue(iso: string | null) {
           </UFormField>
           <WonProductsFields v-if="!wonHasProducts" v-model="wonProducts" :defaults="{ contract_date: pendingCloseDate, sales_person_id: deal?.assigned_to ?? null }" />
         </template>
-        <template v-if="isOfferSentStage">
+        <template v-if="isOfferSentStage && !hasQuote">
           <UAlert
             icon="i-lucide-paperclip"
             color="warning"
@@ -1868,7 +1881,7 @@ function isPastDue(iso: string | null) {
             (!!pendingStage?.reason_category && !pendingReasonId) ||
             (isWonStage && (pendingValue == null || !pendingCloseDate)) ||
             (isWonStage && !wonProductsOk) ||
-            (isOfferSentStage && !pendingFile)
+            (isOfferSentStage && !hasQuote && !pendingFile)
           "
           block
           @click="confirmStageChange"
@@ -1969,7 +1982,7 @@ function isPastDue(iso: string | null) {
           />
         </template>
 
-        <template v-if="completeIsOfferSentStage">
+        <template v-if="completeIsOfferSentStage && !hasQuote">
           <UAlert
             icon="i-lucide-paperclip"
             color="warning"

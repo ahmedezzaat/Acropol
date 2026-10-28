@@ -11,7 +11,8 @@ export interface AppNotification {
     | "deal_unassigned"
     | "deals_unassigned"
     | "visit_pending"
-    | "visit_update";
+    | "visit_update"
+    | "work_stage_changed";
   params: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -135,6 +136,13 @@ export function useNotifications() {
           link: `/crm/visits?open=${p.visit_id}`,
         };
       }
+      case "work_stage_changed":
+        return {
+          icon: "i-lucide-kanban",
+          color: "info" as const,
+          text: t("notifications.workStageChanged", { ...base, board: String(p.board ?? ""), stage: String(p.to_stage ?? "") }),
+          link: `/crm/deals/${p.deal_id}`,
+        };
       case "visit_update": {
         const status = String(p.status ?? "approved");
         return {

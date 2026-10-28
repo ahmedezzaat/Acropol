@@ -20,7 +20,7 @@ const resourceRoutes: Record<string, string> = {
 
 const route = useRoute();
 
-// The boards of the sub-workflows (e.g. the technical office), as links in the CRM menu.
+// The boards of the sub-workflows (e.g. the technical office), as links in the Technical office menu.
 const workBoards = useState<{ id: string; name: string }[]>("work-boards", () => []);
 async function loadWorkBoards() {
   if (!hasAnyModulePermission("crm_work")) {
@@ -48,7 +48,7 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
   // for the matching hide on the deal page.
   const resourceLinks = m.resources
     // Leads has its own "view" permission for the tab.
-    .filter((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)) && r.key !== "crm_quotes" && r.key !== "crm_work")
+    .filter((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)) && r.key !== "crm_quotes")
     .map((r) => ({ label: t(r.labelKey), to: resourceRoutes[r.key] }));
   if (m.key === "customer_service") {
     const customers = hasAnyModulePermission("cs_customers");
@@ -69,12 +69,16 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
       ...(REPORTS.some((r) => hasPermission("reports", r.key)) ? [{ label: t("reports.title"), to: "/cs/reports" }] : []),
     ];
   }
+  if (m.key === "technical_office") {
+    return workBoards.value
+      .filter((b) => hasPermission("crm_work", "view") || hasPermission("crm_work", b.id))
+      .map((b) => ({ label: b.name, to: `/technical-office/${b.id}` }));
+  }
   if (m.key !== "crm") return resourceLinks;
   return [
     { label: t("crm.dashboard.title"), to: "/crm/dashboard" },
     ...resourceLinks,
     ...(hasAnyModulePermission("crm_deals") ? [{ label: t("crm.calendar.title"), to: "/crm/calendar" }] : []),
-    ...workBoards.value.filter((b) => hasPermission("crm_work", "view") || hasPermission("crm_work", b.id)).map((b) => ({ label: b.name, to: `/crm/work/${b.id}` })),
   ];
 }
 

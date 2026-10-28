@@ -113,6 +113,9 @@
     },
     "customer_service": {
       "label": "خدمة العملاء"
+    },
+    "technical_office": {
+      "label": "المكتب الفني"
     }
   },
   "resources": {
@@ -171,7 +174,8 @@
         "edit": "تعديل (يشمل المنتجات والتقدم)",
         "delete": "حذف",
         "assign": "إسناد العملاء للموظفين",
-        "view_all": "عرض كل العملاء"
+        "view_all": "عرض كل العملاء",
+        "export": "تصدير CSV"
       }
     },
     "cs_maintenance": {
@@ -209,6 +213,15 @@
       "actions": {
         "view": "رؤية كل اللوحات",
         "edit": "تحريك العناصر وإسنادها"
+      }
+    },
+    "crm_work_files": {
+      "label": "ملفات المكتب الفني",
+      "actions": {
+        "view": "عرض الملفات",
+        "create": "إضافة ملفات",
+        "edit": "تعديل اسم الملف",
+        "delete": "حذف الملفات"
       }
     }
   },
@@ -1011,6 +1024,17 @@
       "requestNote": "ما المطلوب؟",
       "requestNoteHint": "اكتب ما تريده منهم.",
       "deadline": "الموعد النهائي",
+      "dealAgent": "مسؤول الصفقة",
+      "productCategory": "فئة المنتج",
+      "productCategoryPick": "اختر فئة المنتج",
+      "contact": "جهة الاتصال",
+      "call": "اتصال",
+      "assignedTo": "المُسند إليه",
+      "stage": "المرحلة",
+      "quoteFiles": "عرض السعر",
+      "officeFiles": "ملفات المكتب الفني",
+      "requesterFiles": "ملفات مرفوعة من مقدّم الطلب",
+      "openDeal": "فتح الصفقة",
       "overdue": "متأخر",
       "note": "الطلب",
       "confirmSend": "إرسال",
@@ -1051,6 +1075,7 @@
     "dealUnassignedRule": "ألغت القاعدة «{rule}» إسناد الصفقة: {name}. أعد إسنادها.",
     "dealsUnassigned": "ألغت القاعدة «{rule}» إسناد {count} صفقة في المرحلة {stage}. أعد إسنادها.",
     "visitPending": "طلب {by} {kind} للصفقة {name} بتاريخ {date}. تحتاج موافقتك.",
+    "workStageChanged": "تم نقل {name} إلى مرحلة «{stage}» في {board}",
     "visitPendingNoBy": "طلب {kind} للصفقة {name} بتاريخ {date} يحتاج موافقتك.",
     "visitPendingFinal": "وافق قائد الفريق على طلب {kind} من {by} للصفقة {name} بتاريخ {date}. يحتاج موافقة نهائية.",
     "visitUpdate": {
@@ -1556,7 +1581,13 @@
     "deleteBody": "هل تريد حذف الملف {name}؟ لا يمكن التراجع عن ذلك.",
     "tab": "الملفات",
     "detailsTab": "التفاصيل",
-    "fromWork": "من {name}"
+    "fromWork": "من {name}",
+    "rename": "تعديل اسم الملف",
+    "renameFailed": "تعذر تعديل اسم الملف",
+    "quoteSection": "عرض السعر",
+    "contractSection": "العقد",
+    "otherSection": "ملفات أخرى",
+    "emptySection": "لا توجد ملفات في هذا القسم."
   },
   "reports": {
     "title": "تقارير خدمة العملاء",
