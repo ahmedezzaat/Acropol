@@ -155,7 +155,8 @@
         "edit": "تعديل",
         "delete": "حذف",
         "assign": "إسناد العملاء",
-        "view_all": "عرض جميع العملاء"
+        "view_all": "عرض جميع العملاء",
+        "push_to_cs": "إرسال العملاء إلى خدمة العملاء"
       }
     },
     "crm_visits": {
@@ -901,6 +902,12 @@
       }
     },
     "customers": {
+      "pushToCs": "إرسال إلى خدمة العملاء",
+      "pushTitle": "إرسال {name} إلى خدمة العملاء",
+      "pushHint": "أكمل البيانات الناقصة وأسند العميل إلى موظف خدمة العملاء. لا يتم مسح أي بيانات موجودة.",
+      "pushConfirm": "إرسال إلى خدمة العملاء",
+      "pushed": "تم إرسال العميل إلى خدمة العملاء",
+      "pushFailed": "تعذّر إرسال العميل",
       "title": "العملاء",
       "newCustomer": "عميل جديد",
       "searchPlaceholder": "ابحث في العملاء...",
@@ -1024,6 +1031,7 @@
       "requestNote": "ما المطلوب؟",
       "requestNoteHint": "اكتب ما تريده منهم.",
       "deadline": "الموعد النهائي",
+      "withdrawNotAllowed": "يمكن سحب الطلب لمن أرسله أو لمن يعمل على اللوحة فقط.",
       "dealAgent": "مسؤول الصفقة",
       "productCategory": "فئة المنتج",
       "productCategoryPick": "اختر فئة المنتج",
@@ -1075,6 +1083,7 @@
     "dealUnassignedRule": "ألغت القاعدة «{rule}» إسناد الصفقة: {name}. أعد إسنادها.",
     "dealsUnassigned": "ألغت القاعدة «{rule}» إسناد {count} صفقة في المرحلة {stage}. أعد إسنادها.",
     "visitPending": "طلب {by} {kind} للصفقة {name} بتاريخ {date}. تحتاج موافقتك.",
+    "workRequestCreated": "طلب جديد في {board}: {name}",
     "workStageChanged": "تم نقل {name} إلى مرحلة «{stage}» في {board}",
     "visitPendingNoBy": "طلب {kind} للصفقة {name} بتاريخ {date} يحتاج موافقتك.",
     "visitPendingFinal": "وافق قائد الفريق على طلب {kind} من {by} للصفقة {name} بتاريخ {date}. يحتاج موافقة نهائية.",

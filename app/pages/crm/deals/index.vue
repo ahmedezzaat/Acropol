@@ -33,6 +33,7 @@ interface Stage {
   system_key: "new" | "won" | "competitor" | "archive" | "offer_sent" | null;
   max_stay_days: number | null;
   max_stay_hours: number | null;
+  sub_pipeline_id: string | null;
 }
 
 interface Reason {
@@ -93,12 +94,29 @@ const { data: pipelines } = __ad1;
 const __ad2 = useAsyncData<Stage[]>("crm-deals-stages", async () => {
   const { data, error } = await supabase
     .from("pipeline_stages")
-    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key, max_stay_days, max_stay_hours")
+    .select("id, pipeline_id, name, sort_order, is_closed, reason_category, system_key, max_stay_days, max_stay_hours, sub_pipeline_id")
     .order("sort_order");
   if (error) throw error;
   return data ?? [];
 });
 const { data: allStages } = __ad2;
+
+// Where a deal stands in its sub-workflow (e.g. the technical office), shown on its card.
+const { data: subWork } = useAsyncData("crm-deals-sub-work", async () => {
+  const [items, stages] = await Promise.all([
+    supabase.from("work_items").select("deal_id, work_pipeline_id, stage_id"),
+    supabase.from("work_pipeline_stages").select("id, name"),
+  ]);
+  return {
+    items: (items.data ?? []) as { deal_id: string; work_pipeline_id: string; stage_id: string }[],
+    stageNames: Object.fromEntries((stages.data ?? []).map((st) => [st.id, st.name as string])),
+  };
+});
+function subStageName(deal: { id: string; stage_id: string }) {
+  // the request sent to a sub-workflow, wherever the deal is now
+  const item = subWork.value?.items.find((i) => i.deal_id === deal.id);
+  return item ? subWork.value?.stageNames[item.stage_id] ?? null : null;
+}
 
 const __ad3 = useAsyncData<Reason[]>("crm-deals-reasons", async () => {
   const { data, error } = await supabase
@@ -1225,6 +1243,12 @@ function openDeal(deal: Deal) {
                   {{ stageAgeLabel(deal) }}
                 </span>
               </div>
+              <div v-if="subStageName(deal)" class="mt-1.5 flex">
+                <span class="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  <UIcon name="i-lucide-git-fork" class="size-3 shrink-0" />
+                  <span class="truncate">{{ subStageName(deal) }}</span>
+                </span>
+              </div>
               <p v-if="lastNote(deal.id)" class="mt-2 line-clamp-2 border-s-2 border-default ps-2 text-xs text-toned">
                 {{ lastNote(deal.id) }}
               </p>
@@ -1291,6 +1315,12 @@ function openDeal(deal: Deal) {
             <div v-if="dealCategories(deal).length" class="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
               <UIcon name="i-lucide-tag" class="size-3 shrink-0" />
               <span class="truncate">{{ dealCategories(deal).join(" · ") }}</span>
+            </div>
+            <div v-if="subStageName(deal)" class="mt-1.5 flex">
+              <span class="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                <UIcon name="i-lucide-git-fork" class="size-3 shrink-0" />
+                <span class="truncate">{{ subStageName(deal) }}</span>
+              </span>
             </div>
             <p v-if="lastNote(deal.id)" class="mt-2 line-clamp-2 border-s-2 border-default ps-2 text-xs text-toned">
               {{ lastNote(deal.id) }}

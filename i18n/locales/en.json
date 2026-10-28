@@ -155,7 +155,8 @@
         "edit": "Edit",
         "delete": "Delete",
         "assign": "Assign customers",
-        "view_all": "View all customers"
+        "view_all": "View all customers",
+        "push_to_cs": "Push customers to Customer Service"
       }
     },
     "crm_visits": {
@@ -901,6 +902,12 @@
       }
     },
     "customers": {
+      "pushToCs": "Push to Customer Service",
+      "pushTitle": "Push {name} to Customer Service",
+      "pushHint": "Fill in what is missing and assign the customer to a Customer Service agent. Nothing already set is cleared.",
+      "pushConfirm": "Push to Customer Service",
+      "pushed": "The customer was pushed to Customer Service",
+      "pushFailed": "Could not push the customer",
       "title": "Customers",
       "newCustomer": "New customer",
       "searchPlaceholder": "Search customers...",
@@ -1024,6 +1031,7 @@
       "requestNote": "What do you need?",
       "requestNoteHint": "Describe what you want from them.",
       "deadline": "Deadline",
+      "withdrawNotAllowed": "Only the person who sent the request, or someone who works the board, can withdraw it.",
       "dealAgent": "Deal agent",
       "productCategory": "Product category",
       "productCategoryPick": "Pick the product category",
@@ -1075,6 +1083,7 @@
     "dealUnassignedRule": "The rule \"{rule}\" unassigned the deal: {name}. Reassign it.",
     "dealsUnassigned": "The rule \"{rule}\" unassigned {count} deals in {stage}. Reassign them.",
     "visitPending": "{by} requested a {kind} for {name} on {date}. It needs your approval.",
+    "workRequestCreated": "New request on {board}: {name}",
     "workStageChanged": "{name} moved to \"{stage}\" on {board}",
     "visitPendingNoBy": "A {kind} request for {name} on {date} needs your approval.",
     "visitPendingFinal": "Team leader approved a {kind} request by {by} for {name} on {date}. It needs final approval.",

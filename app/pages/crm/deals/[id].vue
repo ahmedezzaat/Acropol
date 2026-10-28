@@ -212,12 +212,13 @@ interface WorkItemInfo {
   id: string;
   work_pipeline_id: string;
   stage_id: string;
+  created_by: string | null;
 }
 const { data: workInfo, refresh: refreshWorkInfo } = await useAsyncData(`crm-deal-${dealId}-work`, async () => {
   const [pipelines, stages, items] = await Promise.all([
     supabase.from("work_pipelines").select("id, name").order("sort_order"),
     supabase.from("work_pipeline_stages").select("id, work_pipeline_id, name, sort_order").order("sort_order"),
-    supabase.from("work_items").select("id, work_pipeline_id, stage_id").eq("deal_id", dealId),
+    supabase.from("work_items").select("id, work_pipeline_id, stage_id, created_by").eq("deal_id", dealId),
   ]);
   return {
     pipelines: (pipelines.data ?? []) as { id: string; name: string }[],
@@ -225,7 +226,9 @@ const { data: workInfo, refresh: refreshWorkInfo } = await useAsyncData(`crm-dea
     items: (items.data ?? []) as WorkItemInfo[],
   };
 });
-const subPipeline = computed(() => workInfo.value?.pipelines.find((p) => p.id === currentStage.value?.sub_pipeline_id) ?? null);
+// The sub-workflow of the deal's stage — or, once the deal has moved on, the one it was already sent to.
+const stageSubPipeline = computed(() => workInfo.value?.pipelines.find((p) => p.id === currentStage.value?.sub_pipeline_id) ?? null);
+const subPipeline = computed(() => stageSubPipeline.value ?? workInfo.value?.pipelines.find((p) => workInfo.value?.items.some((i) => i.work_pipeline_id === p.id)) ?? null);
 const subItem = computed(() => (subPipeline.value ? workInfo.value?.items.find((i) => i.work_pipeline_id === subPipeline.value!.id) ?? null : null));
 // every stage of the workflow, in order, to show where the deal is now
 const subStages = computed(() => (subPipeline.value ? (workInfo.value?.stages.filter((s) => s.work_pipeline_id === subPipeline.value!.id) ?? []) : []));
@@ -242,7 +245,15 @@ onMounted(() => {
 });
 const subItemStage = computed(() => workInfo.value?.stages.find((s) => s.id === subItem.value?.stage_id)?.name ?? "");
 const canSendToWork = computed(() => canEdit.value);
+// withdrawing: who works the boards, or whoever sent the request
+const me = useSupabaseUser();
+const canWithdraw = computed(() => hasPermission("crm_work", "edit") || (canEdit.value && !!subItem.value?.created_by && subItem.value.created_by === me.value?.sub));
+// a new request can only be sent from the stage that leads to the workflow
+const canSendNew = computed(() => canEdit.value && !!stageSubPipeline.value);
 // the board is opened with its own permission, or "see every board"
+// Pushing the customer to Customer Service is offered once the deal is won.
+const canPushToCs = computed(() => currentStage.value?.system_key === "won" && !!deal.value?.customer_id && hasPermission("crm_customers", "push_to_cs"));
+const pushOpen = ref(false);
 const canOpenBoard = computed(() => !!subPipeline.value && (hasPermission("crm_work", "view") || hasPermission("crm_work", subPipeline.value.id)));
 const sendingToWork = ref(false);
 // sending asks what is wanted and by when; both are required
@@ -289,10 +300,12 @@ async function withdrawFromWork() {
   const item = subItem.value;
   if (!item) return;
   withdrawing.value = true;
-  const { error } = await supabase.from("work_items").delete().eq("id", item.id);
+  // a delete that the database refuses silently removes nothing: ask for the removed row back
+  const { data: removed, error } = await supabase.from("work_items").delete().eq("id", item.id).select("id");
   withdrawing.value = false;
-  if (error) {
-    toast.add({ title: t("crm.work.withdrawFailed"), description: error.message, color: "error" });
+  if (error || !removed?.length) {
+    toast.add({ title: t("crm.work.withdrawFailed"), description: error?.message ?? t("crm.work.withdrawNotAllowed"), color: "error" });
+    await refreshWorkInfo();
     return;
   }
   withdrawOpen.value = false;
@@ -1334,6 +1347,7 @@ function isPastDue(iso: string | null) {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
+          <UButton v-if="canPushToCs" icon="i-lucide-send" color="primary" variant="soft" :label="t('crm.customers.pushToCs')" @click="pushOpen = true" />
           <UButton v-if="canDelete" icon="i-lucide-trash" color="error" variant="soft" :loading="deleting" @click="remove" />
         </template>
       </UDashboardNavbar>
@@ -1451,9 +1465,9 @@ function isPastDue(iso: string | null) {
               </div>
               <div v-if="subItem" class="flex flex-wrap items-center gap-2">
                 <UButton v-if="canOpenBoard" :to="`/technical-office/${subPipeline.id}`" color="neutral" variant="outline" icon="i-lucide-kanban" :label="t('crm.work.openBoard')" />
-                <UButton v-if="canSendToWork" color="error" variant="ghost" icon="i-lucide-undo-2" :label="t('crm.work.withdraw')" @click="askWithdraw" />
+                <UButton v-if="canWithdraw" color="error" variant="ghost" icon="i-lucide-undo-2" :label="t('crm.work.withdraw')" @click="askWithdraw" />
               </div>
-              <UButton v-else-if="canSendToWork" icon="i-lucide-send" :label="t('crm.work.send', { name: subPipeline.name })" @click="openSend" />
+              <UButton v-else-if="canSendNew" icon="i-lucide-send" :label="t('crm.work.send', { name: subPipeline.name })" @click="openSend" />
             </div>
             <!-- Where the deal is in the workflow -->
             <ol v-if="subItem" class="flex flex-wrap items-center gap-1.5">
@@ -1783,6 +1797,8 @@ function isPastDue(iso: string | null) {
       <UButton icon="i-lucide-send" :label="t('crm.work.confirmSend')" :loading="sendingToWork" :disabled="!sendValid" @click="sendToWork" />
     </template>
   </KDialog>
+
+  <PushToCsModal v-if="canPushToCs && deal?.customer_id" v-model:open="pushOpen" :customer-id="deal.customer_id" :customer-name="deal.title" />
 
   <VisitRequestModal v-model:open="visitModalOpen" :deal-id="dealId" @saved="refreshVisits" />
 

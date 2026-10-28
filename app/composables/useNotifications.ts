@@ -12,7 +12,8 @@ export interface AppNotification {
     | "deals_unassigned"
     | "visit_pending"
     | "visit_update"
-    | "work_stage_changed";
+    | "work_stage_changed"
+    | "work_request_created";
   params: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -136,6 +137,13 @@ export function useNotifications() {
           link: `/crm/visits?open=${p.visit_id}`,
         };
       }
+      case "work_request_created":
+        return {
+          icon: "i-lucide-inbox",
+          color: "primary" as const,
+          text: t("notifications.workRequestCreated", { ...base, board: String(p.board ?? "") }),
+          link: `/technical-office/${p.work_pipeline_id}`,
+        };
       case "work_stage_changed":
         return {
           icon: "i-lucide-kanban",

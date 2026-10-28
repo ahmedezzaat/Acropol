@@ -128,6 +128,8 @@ export const MODULES: ModuleDef[] = [
         actions: [
           ...crud("crm_customers"),
           { key: "assign", labelKey: "resources.crm_customers.actions.assign" },
+          // Push a customer to Customer Service: fill the gaps, assign an agent, add products.
+          { key: "push_to_cs", labelKey: "resources.crm_customers.actions.push_to_cs" },
           { key: "view_all", labelKey: "resources.crm_customers.actions.view_all" },
         ],
       },
