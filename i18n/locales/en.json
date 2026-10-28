@@ -1592,6 +1592,7 @@
     "emptyDeal": "No files attached to this deal yet.",
     "emptyCustomer": "No files yet. Files attached to this customer's deals appear here.",
     "uploadFailed": "Failed to upload file",
+    "download": "Download",
     "openFailed": "Could not open the file",
     "deleteFailed": "Could not delete the file",
     "deleteTitle": "Delete file",

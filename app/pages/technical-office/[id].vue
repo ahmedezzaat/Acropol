@@ -180,6 +180,21 @@ async function uploadFiles(item: Item, event: Event, kind: "quote" | null = null
   uploadingId.value = null;
   await load();
 }
+// Saves the file straight to the user's disk: the signed link asks the browser to download it
+// under its own name instead of showing it.
+async function downloadFile(f: { storage_path: string; file_name: string }) {
+  const { data, error } = await supabase.storage.from("deal-attachments").createSignedUrl(f.storage_path, 60, { download: f.file_name });
+  if (error || !data) {
+    toast.add({ title: t("files.openFailed"), description: error?.message, color: "error" });
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = data.signedUrl;
+  a.download = f.file_name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 async function openFile(f: FileRow) {
   const { data } = await supabase.storage.from("deal-attachments").createSignedUrl(f.storage_path, 60);
   if (data) window.open(data.signedUrl, "_blank");
@@ -378,6 +393,7 @@ async function assign(item: Item, v: unknown) {
             :rows="g.rows"
             :input-id="`up-${g.key}-${selected.id}`"
             @open="openFile"
+            @download="(f: { id: string }) => downloadFile(files.find((x) => x.id === f.id)!)"
           />
         </section>
 
@@ -394,6 +410,7 @@ async function assign(item: Item, v: unknown) {
             :uploading="uploadingId === selected.id"
             @pick="(e: Event) => uploadFiles(selected!, e, g.key === 'quote' ? 'quote' : null)"
             @open="openFile"
+            @download="(f: { id: string }) => downloadFile(files.find((x) => x.id === f.id)!)"
           />
         </section>
       </div>

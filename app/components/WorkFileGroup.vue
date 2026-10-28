@@ -13,7 +13,7 @@ defineProps<{
   canUpload?: boolean;
   uploading?: boolean;
 }>();
-const emit = defineEmits<{ pick: [event: Event]; open: [file: FileItem] }>();
+const emit = defineEmits<{ pick: [event: Event]; open: [file: FileItem]; download: [file: FileItem] }>();
 const { t } = useI18n();
 
 function fileIcon(name: string) {
@@ -44,11 +44,13 @@ function fileIcon(name: string) {
     <p v-if="!rows.length" class="rounded-[10px] border border-dashed border-default px-3 py-2.5 text-center text-xs text-muted">{{ t("files.emptySection") }}</p>
     <ul v-else class="space-y-1.5">
       <li v-for="f in rows" :key="f.id">
-        <button type="button" class="group flex w-full items-center gap-3 rounded-[10px] border border-default bg-default p-2 text-start transition hover:border-primary/50 hover:bg-muted" @click="emit('open', f)">
-          <span class="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-primary/10 text-primary"><UIcon :name="fileIcon(f.file_name)" class="size-4" /></span>
-          <span class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted"><bdi>{{ f.file_name }}</bdi></span>
-          <UIcon name="i-lucide-download" class="size-4 shrink-0 text-muted group-hover:text-primary" />
-        </button>
+        <div class="flex items-center gap-1 rounded-[10px] border border-default bg-default p-2 transition hover:border-primary/50 hover:bg-muted">
+          <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-start" :title="t('files.open')" @click="emit('open', f)">
+            <span class="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-primary/10 text-primary"><UIcon :name="fileIcon(f.file_name)" class="size-4" /></span>
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted"><bdi>{{ f.file_name }}</bdi></span>
+          </button>
+          <UButton icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :aria-label="t('files.download')" :title="t('files.download')" @click="emit('download', f)" />
+        </div>
       </li>
     </ul>
   </div>
