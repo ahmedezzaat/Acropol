@@ -60,6 +60,7 @@ interface Customer {
   id: string;
   name: string;
   phone: string | null;
+  extra_phones?: string[] | null;
 }
 
 interface LeadOption {
@@ -152,7 +153,7 @@ const __ad5 = useAsyncData<Deal[]>("crm-deals", async () => {
 const { data: deals, refresh, status } = __ad5;
 
 const __ad6 = useAsyncData<Customer[]>("crm-deals-customers", async () =>
-  fetchAll<Customer>((from, to) => supabase.from("customers").select("id, name, phone").order("name").order("id").range(from, to) as never),
+  fetchAll<Customer>((from, to) => supabase.from("customers").select("id, name, phone, extra_phones").order("name").order("id").range(from, to) as never),
 );
 const { data: customers, refresh: refreshCustomers } = __ad6;
 
@@ -297,6 +298,15 @@ function dealContactName(deal: Deal) {
   const lead = leadsList.value?.find((l) => l.id === deal.lead_id);
   if (!lead) return "—";
   return lead.lead_type === "company" && lead.company_name ? lead.company_name : lead.name;
+}
+// every number the deal's contact has (main, extra / second), for the search
+function dealContactPhones(deal: Deal): (string | null)[] {
+  if (deal.customer_id) {
+    const c = customers.value?.find((x) => x.id === deal.customer_id);
+    return [c?.phone ?? null, ...(c?.extra_phones ?? [])];
+  }
+  const l = leadsList.value?.find((x) => x.id === deal.lead_id);
+  return [l?.phone ?? null, l?.phone2 ?? null];
 }
 function dealContactPhone(deal: Deal) {
   if (deal.customer_id) return customers.value?.find((c) => c.id === deal.customer_id)?.phone ?? null;
@@ -444,7 +454,7 @@ function matchesFilters(deal: Deal) {
   if (dealSearch.value) {
     const q = dealSearch.value.toLowerCase();
     const matchesName = dealContactName(deal).toLowerCase().includes(q);
-    const matchesPhone = phoneMatches(dealContactPhone(deal), dealSearch.value);
+    const matchesPhone = anyPhoneMatches(dealContactPhones(deal), dealSearch.value);
     if (!matchesName && !matchesPhone) return false;
   }
   return true;

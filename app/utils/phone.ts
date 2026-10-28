@@ -30,6 +30,11 @@ export function toWhatsAppLink(phone: string | null | undefined): string | null 
 // digits (ignoring formatting) contain it, or the country-code-normalized
 // forms do (so "01099307789" and "+201099307789" find each other, and a
 // partial tail like "9307789" still matches via the raw-digit check).
+// Does the query match any of a person's numbers (the main one and the extra / second ones)?
+export function anyPhoneMatches(phones: (string | null | undefined)[], query: string): boolean {
+  return phones.some((p) => phoneMatches(p, query));
+}
+
 export function phoneMatches(stored: string | null | undefined, query: string): boolean {
   const rawQuery = query.replace(/\D/g, "");
   if (!rawQuery) return false;

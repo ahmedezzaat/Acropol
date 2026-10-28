@@ -30,7 +30,7 @@ const dates = computed(() => dateIndex(stageDates.value ?? []));
 
 const { data: customers } = await useAsyncData<CsCustomer[]>("cs-installations-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
-    supabase.from("customers").select("id, name, company, phone, email, address, area_id").order("id").range(from, to) as never,
+    supabase.from("customers").select("id, name, company, phone, extra_phones, email, address, area_id").order("id").range(from, to) as never,
   ),
 );
 const { data: categories } = await useAsyncData<{ id: string; name: string }[]>("cs-installations-categories", async () => {
@@ -81,7 +81,7 @@ const beforeCategory = computed(() =>
     if (search.value) {
       const q = search.value.toLowerCase();
       const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${p.name} ${p.contract_code ?? ""} ${c?.phone ?? ""} ${c?.address ?? ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
+      if (!hay.includes(q) && !anyPhoneMatches([c?.phone, ...(c?.extra_phones ?? [])], search.value)) return false;
     }
     return true;
   }),

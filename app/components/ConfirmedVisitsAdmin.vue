@@ -43,7 +43,7 @@ const __ad1 = useAsyncData<CsProduct[]>("cs-confirmed-visits", async () =>
 const { data: products, refresh, status } = __ad1;
 const __ad2 = useAsyncData<CsCustomer[]>("cs-confirmed-visits-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
-    supabase.from("customers").select("id, name, company, phone, address, area_id").order("id").range(from, to) as never,
+    supabase.from("customers").select("id, name, company, phone, extra_phones, address, area_id").order("id").range(from, to) as never,
   ),
 );
 const { data: customers } = __ad2;
@@ -153,7 +153,7 @@ const passesFilters = (v: Visit) => {
   if (search.value) {
     const q = search.value.toLowerCase();
     const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${c?.address ?? ""} ${v.products.map((p) => `${p.name} ${p.contract_code ?? ""}`).join(" ")}`.toLowerCase();
-    if (!hay.includes(q)) return false;
+    if (!hay.includes(q) && !anyPhoneMatches([c?.phone, ...(c?.extra_phones ?? [])], search.value)) return false;
   }
   return true;
 };

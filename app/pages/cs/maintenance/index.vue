@@ -34,7 +34,7 @@ const __ad1 = useAsyncData<CsProduct[]>("cs-maintenance", async () =>
 const { data: allProducts, refresh, status } = __ad1;
 const __ad2 = useAsyncData<CsCustomer[]>("cs-maintenance-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
-    supabase.from("customers").select("id, name, company, phone, email, address, area_id").order("id").range(from, to) as never,
+    supabase.from("customers").select("id, name, company, phone, extra_phones, email, address, area_id").order("id").range(from, to) as never,
   ),
 );
 const { data: customers } = __ad2;
@@ -344,7 +344,7 @@ const filtered = computed(() =>
     if (search.value) {
       const q = search.value.toLowerCase();
       const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${r.p.name} ${r.p.contract_code ?? ""} ${r.p.next_maintenance_note ?? ""}`.toLowerCase();
-      if (!hay.includes(q)) return false;
+      if (!hay.includes(q) && !anyPhoneMatches([c?.phone, ...(c?.extra_phones ?? [])], search.value)) return false;
     }
     return true;
   }),
