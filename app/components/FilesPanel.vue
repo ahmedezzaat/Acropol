@@ -6,6 +6,9 @@ const props = defineProps<{
   dealId?: string;
   customerId?: string;
   canEdit?: boolean;
+  // Customer Service view for people who cannot open deals: only the quote and contract
+  // files of the customer's deals, through a function made for it
+  csMode?: boolean;
 }>();
 const emit = defineEmits<{ changed: [] }>();
 
@@ -42,6 +45,13 @@ const picker = ref<HTMLInputElement | null>(null);
 
 async function load() {
   loading.value = true;
+  if (props.csMode && props.customerId) {
+    const { data: files } = await supabase.rpc("cs_customer_deal_files", { p_customer_id: props.customerId });
+    rows.value = (files ?? []).map((f) => ({ ...f, from_work_pipeline_id: null })) as FileRow[];
+    dealTitles.value = Object.fromEntries((files ?? []).map((f) => [f.deal_id, f.deal_title]));
+    loading.value = false;
+    return;
+  }
   let dealIds: string[] = [];
   if (props.dealId) {
     dealIds = [props.dealId];
@@ -79,6 +89,8 @@ async function load() {
 onMounted(load);
 
 const showDeal = computed(() => !!props.customerId && !props.dealId);
+// without access to deals there is no link to the deal to follow
+const linkDeals = computed(() => showDeal.value && !props.csMode);
 const canManage = computed(() => !!props.dealId && !!props.canEdit);
 
 function iconFor(name: string) {
@@ -226,7 +238,7 @@ async function confirmRemove() {
             {{ formatDMYTime(r.created_at) }}<template v-if="r.uploaded_by && people[r.uploaded_by]"> · {{ people[r.uploaded_by] }}</template>
           </div>
         </button>
-        <NuxtLink v-if="showDeal" :to="`/crm/deals/${r.deal_id}`" class="hidden shrink-0 items-center gap-1 text-xs text-primary sm:flex" @click.stop>
+        <NuxtLink v-if="linkDeals" :to="`/crm/deals/${r.deal_id}`" class="hidden shrink-0 items-center gap-1 text-xs text-primary sm:flex" @click.stop>
           <UIcon name="i-lucide-handshake" class="size-3.5" />
           <span class="max-w-40 truncate">{{ dealTitles[r.deal_id] || t("files.deal") }}</span>
         </NuxtLink>

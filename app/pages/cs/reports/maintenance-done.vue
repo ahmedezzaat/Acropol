@@ -140,6 +140,7 @@ function exportPdf() {
                 <th class="px-4 py-3 text-start font-medium">{{ t("reports.maintenanceDone.customer") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("reports.maintenanceDone.area") }}</th>
                 <th class="px-4 py-3 text-end font-medium">{{ t("reports.maintenanceDone.cost") }}</th>
+                <th class="w-12 px-2 py-3"><span class="sr-only">{{ t("reports.workOrder.print") }}</span></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-default">
@@ -151,12 +152,16 @@ function exportPdf() {
                 </td>
                 <td class="px-4 py-3">{{ r.area_name || "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3 text-end font-medium">{{ r.cost ? money(r.cost) : "—" }}</td>
+                <td class="px-2 py-2 text-end">
+                  <UButton icon="i-lucide-printer" color="neutral" variant="ghost" size="sm" :title="t('reports.workOrder.print')" :aria-label="t('reports.workOrder.print')" :to="`/cs/reports/work-order-print?visit=${r.visit_key}`" target="_blank" />
+                </td>
               </tr>
             </tbody>
             <tfoot>
               <tr class="border-t border-default bg-muted font-semibold">
                 <td class="px-4 py-3" colspan="4">{{ t("reports.total") }} · {{ t("reports.rows", { count: rows.length }) }}</td>
                 <td class="whitespace-nowrap px-4 py-3 text-end">{{ money(totalCost) }}</td>
+                <td />
               </tr>
             </tfoot>
           </table>

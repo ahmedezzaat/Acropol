@@ -32,6 +32,7 @@ interface Item {
   title: string;
   assigned_to: string | null;
   stage_changed_at: string;
+  position?: number | null;
   request_note: string | null;
   deadline: string | null;
   product_category_id: string | null;
@@ -83,6 +84,9 @@ async function load() {
   const catOf = new Map((itemCats ?? []).map((r) => [r.id, r.product_category_id]));
   for (const it of items.value) it.product_category_id = catOf.get(it.id) ?? null;
   people.value = (pr.data ?? []) as Person[];
+  const { data: positions } = await supabase.from("work_items").select("id, position").eq("work_pipeline_id", id);
+  const posOfId = new Map((positions ?? []).map((r) => [r.id as string, (r as { position?: number }).position ?? null]));
+  for (const it of items.value) it.position = posOfId.get(it.id) ?? null;
   const ids = items.value.map((x) => x.id);
   files.value = ids.length ? (((await supabase.from("deal_attachments").select("id, work_item_id, file_name, storage_path, from_work_pipeline_id, kind").in("work_item_id", ids)).data ?? []) as FileRow[]) : [];
   loading.value = false;
@@ -100,7 +104,54 @@ const personName = (id: string | null) => {
   const p = people.value.find((x) => x.id === id);
   return p ? p.full_name || p.email : null;
 };
-const itemsOf = (stageId: string) => items.value.filter((i) => i.stage_id === stageId);
+// a card's place in its column: its saved position, or (before the column exists) when it entered the stage
+const posOf = (i: Item) => i.position ?? new Date(i.stage_changed_at).getTime() / 1000;
+const itemsOf = (stageId: string) => items.value.filter((i) => i.stage_id === stageId).sort((a, b) => posOf(a) - posOf(b));
+
+// ---- Drag and drop: reorder inside a column, or move to another one
+const dragId = ref<string | null>(null);
+const dropTarget = ref<{ stageId: string; beforeId: string | null } | null>(null);
+function onDragStart(e: DragEvent, it: Item) {
+  if (!canEdit.value) return;
+  dragId.value = it.id;
+  e.dataTransfer?.setData("text/plain", it.id);
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+}
+function onDragEnd() {
+  dragId.value = null;
+  dropTarget.value = null;
+}
+// over a card: drop before or after it, by which half the pointer is in
+function onCardDragOver(e: DragEvent, stageId: string, it: Item) {
+  if (!dragId.value) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const before = e.clientY < rect.top + rect.height / 2;
+  const list = itemsOf(stageId).filter((x) => x.id !== dragId.value);
+  const index = list.findIndex((x) => x.id === it.id);
+  dropTarget.value = { stageId, beforeId: before ? it.id : list[index + 1]?.id ?? null };
+}
+// over the empty part of a column: drop at the end
+function onColumnDragOver(e: DragEvent, stageId: string) {
+  if (!dragId.value) return;
+  e.preventDefault();
+  dropTarget.value = { stageId, beforeId: null };
+}
+async function onDrop(e: DragEvent) {
+  e.preventDefault();
+  const target = dropTarget.value;
+  const item = items.value.find((i) => i.id === dragId.value);
+  onDragEnd();
+  if (!target || !item || !canEdit.value) return;
+  const list = itemsOf(target.stageId).filter((x) => x.id !== item.id);
+  const at = target.beforeId ? list.findIndex((x) => x.id === target.beforeId) : list.length;
+  const index = at < 0 ? list.length : at;
+  const prev = list[index - 1];
+  const next = list[index];
+  const position = prev && next ? (posOf(prev) + posOf(next)) / 2 : prev ? posOf(prev) + 1 : next ? posOf(next) - 1 : Date.now() / 1000;
+  await place(item, target.stageId, position);
+}
 const overdue = (i: Item) => !!i.deadline && new Date(i.deadline).getTime() < Date.now();
 const filesOf = (itemId: string) => files.value.filter((f) => f.work_item_id === itemId && (!f.from_work_pipeline_id || canSeeWorkFiles.value));
 // People who work this board attach files to an item; they are tagged as coming from it
@@ -150,6 +201,27 @@ const fileGroups = computed(() => {
 });
 const daysIn = (i: Item) => Math.max(0, Math.floor((Date.now() - new Date(i.stage_changed_at).getTime()) / 86_400_000));
 
+// Puts a card at a position in a stage (the stage may be the same), saving it.
+async function place(item: Item, stageId: string, position: number) {
+  const before = { stage: item.stage_id, at: item.stage_changed_at, position: item.position };
+  const changedStage = stageId !== item.stage_id;
+  item.position = position;
+  if (changedStage) {
+    item.stage_id = stageId;
+    item.stage_changed_at = new Date().toISOString();
+  }
+  const patch: Record<string, unknown> = { position };
+  if (changedStage) patch.stage_id = stageId;
+  let { error } = await supabase.from("work_items").update(patch).eq("id", item.id);
+  // the position column arrives with a migration: until then only the stage is saved
+  if (error?.code === "42703" || error?.code === "PGRST204") ({ error } = changedStage ? await supabase.from("work_items").update({ stage_id: stageId }).eq("id", item.id) : { error: null });
+  if (error) {
+    item.stage_id = before.stage;
+    item.stage_changed_at = before.at;
+    item.position = before.position;
+    toast.add({ title: t("crm.work.moveFailed"), description: error.message, color: "error" });
+  }
+}
 async function moveTo(item: Item, stageId: string) {
   if (!canEdit.value || stageId === item.stage_id) return;
   const before = { stage: item.stage_id, at: item.stage_changed_at };
@@ -204,9 +276,16 @@ async function assign(item: Item, v: unknown) {
               <h3 class="text-sm font-semibold text-highlighted">{{ stage.name }}</h3>
               <KBadge :label="String(itemsOf(stage.id).length)" tone="neutral" />
             </header>
-            <div class="min-h-24 space-y-2 rounded-[14px] bg-muted p-2">
+            <div class="min-h-24 space-y-2 rounded-[14px] bg-muted p-2 transition" :class="dropTarget?.stageId === stage.id && 'ring-2 ring-primary/40'" @dragover="onColumnDragOver($event, stage.id)" @drop="onDrop">
               <p v-if="!itemsOf(stage.id).length" class="px-2 py-4 text-center text-xs text-muted">{{ t("crm.work.empty") }}</p>
-              <article v-for="it in itemsOf(stage.id)" :key="it.id" class="kords-card cursor-pointer space-y-2 p-3 text-sm transition hover:border-primary" @click="openId = it.id">
+              <article v-for="it in itemsOf(stage.id)" :key="it.id" class="kords-card cursor-pointer space-y-2 p-3 text-sm transition hover:border-primary"
+                :class="[canEdit && 'cursor-grab active:cursor-grabbing', dragId === it.id && 'opacity-40', dropTarget?.beforeId === it.id && dragId !== it.id && 'border-t-4 border-t-primary']"
+                :draggable="canEdit"
+                @dragstart="onDragStart($event, it)"
+                @dragend="onDragEnd"
+                @dragover="onCardDragOver($event, stage.id, it)"
+                @drop="onDrop"
+                @click="openId = it.id">
                 <div class="font-semibold text-highlighted">{{ it.title }}</div>
                 <div class="space-y-1 text-xs text-toned">
                   <div v-if="categoryOf(it)" class="flex items-center gap-1.5">

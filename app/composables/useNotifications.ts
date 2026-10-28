@@ -13,7 +13,10 @@ export interface AppNotification {
     | "visit_pending"
     | "visit_update"
     | "work_stage_changed"
-    | "work_request_created";
+    | "work_request_created"
+    | "work_assigned"
+    | "work_request_withdrawn"
+    | "work_request_done";
   params: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -137,6 +140,27 @@ export function useNotifications() {
           link: `/crm/visits?open=${p.visit_id}`,
         };
       }
+      case "work_request_done":
+        return {
+          icon: "i-lucide-circle-check",
+          color: "success" as const,
+          text: t("notifications.workRequestDone", { ...base, board: String(p.board ?? ""), stage: String(p.to_stage ?? "") }),
+          link: `/crm/deals/${p.deal_id}`,
+        };
+      case "work_assigned":
+        return {
+          icon: "i-lucide-user-check",
+          color: "primary" as const,
+          text: by ? t("notifications.workAssignedBy", { ...base, board: String(p.board ?? "") }) : t("notifications.workAssigned", { ...base, board: String(p.board ?? "") }),
+          link: `/technical-office/${p.work_pipeline_id}`,
+        };
+      case "work_request_withdrawn":
+        return {
+          icon: "i-lucide-undo-2",
+          color: "warning" as const,
+          text: by ? t("notifications.workWithdrawnBy", { ...base, board: String(p.board ?? "") }) : t("notifications.workWithdrawn", { ...base, board: String(p.board ?? "") }),
+          link: `/technical-office/${p.work_pipeline_id}`,
+        };
       case "work_request_created":
         return {
           icon: "i-lucide-inbox",

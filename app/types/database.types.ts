@@ -1477,6 +1477,10 @@ export type Database = {
         Args: { p_keep: string; p_merge: string[] };
         Returns: number;
       };
+      cs_customer_deal_files: {
+        Args: { p_customer_id: string };
+        Returns: { id: string; deal_id: string; deal_title: string; file_name: string; storage_path: string; kind: string | null; uploaded_by: string | null; created_at: string }[];
+      };
       work_item_contacts: {
         Args: { p_pipeline_id: string };
         Returns: { work_item_id: string; deal_agent_id: string | null; contact_name: string | null; contact_phone: string | null }[];

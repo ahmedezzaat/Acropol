@@ -196,6 +196,7 @@ const { data: deals } = useAsyncData<LinkedDeal[]>(`cs-customer-${customerId}-de
 });
 
 const mainTab = ref<"main" | "files">("main");
+// Everyone who sees the customer gets the Files tab; without access to deals it holds the proposal and contract files only.
 const mainTabs = computed(() => [
   { value: "main", label: t("cs.profile.products") },
   { value: "files", label: t("files.tab") },
@@ -650,9 +651,9 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
 
       <!-- ===== Main: the products ===== -->
       <section class="min-w-0 space-y-4">
-        <UTabs v-if="canSeeDeals" v-model="mainTab" :items="mainTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs" />
+        <UTabs v-model="mainTab" :items="mainTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs" />
 
-        <FilesPanel v-if="canSeeDeals && mainTab === 'files'" :customer-id="customerId" />
+        <FilesPanel v-if="mainTab === 'files'" :customer-id="customerId" :cs-mode="!canSeeDeals" />
 
         <div v-show="mainTab === 'main'" class="space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
