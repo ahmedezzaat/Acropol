@@ -38,6 +38,15 @@ export function useNotifications() {
   const { t, locale } = useI18n();
   const { kindLabel, loadTypes } = useVisits();
 
+  const { hasPermission, hasAnyModulePermission } = usePermissions();
+  // Where a technical office notification leads: the board for people who work it, the deal
+  // for everyone else (a salesperson has no access to the board and would land on "no access").
+  function workLink(p: Record<string, unknown>) {
+    const board = String(p.work_pipeline_id ?? "");
+    if (hasPermission("crm_work", "view") || (board && hasPermission("crm_work", board))) return `/technical-office/${board}`;
+    return hasAnyModulePermission("crm_deals") ? `/crm/deals/${p.deal_id}` : "/";
+  }
+
   const items = useState<AppNotification[]>("notifications", () => []);
   const open = useState<boolean>("notifications-open", () => false);
   const profiles = useState<ProfileName[]>("notifications-profiles", () => []);
@@ -152,21 +161,21 @@ export function useNotifications() {
           icon: "i-lucide-user-check",
           color: "primary" as const,
           text: by ? t("notifications.workAssignedBy", { ...base, board: String(p.board ?? "") }) : t("notifications.workAssigned", { ...base, board: String(p.board ?? "") }),
-          link: `/technical-office/${p.work_pipeline_id}`,
+          link: workLink(p),
         };
       case "work_request_withdrawn":
         return {
           icon: "i-lucide-undo-2",
           color: "warning" as const,
           text: by ? t("notifications.workWithdrawnBy", { ...base, board: String(p.board ?? "") }) : t("notifications.workWithdrawn", { ...base, board: String(p.board ?? "") }),
-          link: `/technical-office/${p.work_pipeline_id}`,
+          link: workLink(p),
         };
       case "work_request_created":
         return {
           icon: "i-lucide-inbox",
           color: "primary" as const,
           text: t("notifications.workRequestCreated", { ...base, board: String(p.board ?? "") }),
-          link: `/technical-office/${p.work_pipeline_id}`,
+          link: workLink(p),
         };
       case "work_stage_changed":
         return {

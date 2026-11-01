@@ -84,6 +84,8 @@ async function load() {
   const catOf = new Map((itemCats ?? []).map((r) => [r.id, r.product_category_id]));
   for (const it of items.value) it.product_category_id = catOf.get(it.id) ?? null;
   people.value = (pr.data ?? []) as Person[];
+  const { data: boardUsers } = await supabase.rpc("work_board_assignees", { p_pipeline_id: id });
+  assignees.value = (boardUsers ?? []) as Person[];
   const { data: positions } = await supabase.from("work_items").select("id, position").eq("work_pipeline_id", id);
   const posOfId = new Map((positions ?? []).map((r) => [r.id as string, (r as { position?: number }).position ?? null]));
   for (const it of items.value) it.position = posOfId.get(it.id) ?? null;
@@ -96,10 +98,18 @@ watch(pipelineId, load);
 
 useHead({ title: computed(() => pipelineName.value) });
 
-const personOptions = computed(() => [
-  { label: t("crm.work.unassigned"), value: null as string | null },
-  ...people.value.map((p) => ({ label: p.full_name || p.email, value: p.id as string | null })),
-]);
+// Who a card can be assigned to: the people who can open this board. A card already held by
+// someone who no longer can keeps showing them.
+const assignees = ref<Person[]>([]);
+const personOptionsFor = (item: Item) => {
+  const list = [...assignees.value];
+  const current = item.assigned_to ? people.value.find((p) => p.id === item.assigned_to) : null;
+  if (current && !list.some((p) => p.id === current.id)) list.push(current);
+  return [
+    { label: t("crm.work.unassigned"), value: null as string | null },
+    ...list.map((p) => ({ label: p.full_name || p.email, value: p.id as string | null })),
+  ];
+};
 const personName = (id: string | null) => {
   const p = people.value.find((x) => x.id === id);
   return p ? p.full_name || p.email : null;
@@ -423,7 +433,7 @@ async function assign(item: Item, v: unknown) {
             <USelect
               v-if="canEdit"
               :model-value="selected.assigned_to"
-              :items="personOptions"
+              :items="personOptionsFor(selected)"
               value-key="value"
               icon="i-lucide-user"
               class="w-full"

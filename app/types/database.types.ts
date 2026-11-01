@@ -1494,6 +1494,10 @@ export type Database = {
         Args: { p_work_item_id: string; p_attachment_ids: string[] };
         Returns: number;
       };
+      work_board_assignees: {
+        Args: { p_pipeline_id: string };
+        Returns: { id: string; full_name: string | null; email: string }[];
+      };
       work_item_contacts: {
         Args: { p_pipeline_id: string };
         Returns: { work_item_id: string; deal_agent_id: string | null; contact_name: string | null; contact_phone: string | null }[];
