@@ -143,19 +143,24 @@ async function signOut() {
       </template>
 
       <template #footer="{ collapsed }">
-        <div class="flex w-full items-center gap-2" :class="collapsed && 'justify-center'">
-          <UAvatar :alt="user?.email ?? ''" size="sm" />
-          <span v-if="!collapsed" class="truncate text-sm text-muted">{{ user?.email }}</span>
+        <div class="w-full space-y-2">
+          <div class="flex w-full items-center gap-2" :class="collapsed && 'justify-center'">
+            <UAvatar :alt="user?.email ?? ''" size="sm" />
+            <span v-if="!collapsed" class="truncate text-sm text-muted">{{ user?.email }}</span>
+          </div>
+          <!-- Always visible at the bottom of the menu, a full-width button with its label -->
+          <UButton
+            icon="i-lucide-log-out"
+            :label="collapsed ? undefined : t('nav.signOut')"
+            :aria-label="t('nav.signOut')"
+            :title="t('nav.signOut')"
+            color="error"
+            variant="soft"
+            size="lg"
+            block
+            @click="signOut"
+          />
         </div>
-        <UButton
-          :icon="collapsed ? 'i-lucide-log-out' : undefined"
-          :label="collapsed ? undefined : t('nav.signOut')"
-          color="neutral"
-          variant="ghost"
-          block
-          class="mt-2"
-          @click="signOut"
-        />
       </template>
     </UDashboardSidebar>
 
@@ -163,8 +168,9 @@ async function signOut() {
 
     <!-- On phones the sidebar is tucked behind the menu button, so the bell
     also floats in the corner. -->
-    <div class="fixed bottom-4 end-4 z-40 border border-default bg-default shadow-md lg:hidden">
+    <div class="fixed bottom-4 end-4 z-40 flex items-center border border-default bg-default shadow-md lg:hidden">
       <NotificationBell />
+      <UButton icon="i-lucide-log-out" color="error" variant="ghost" size="lg" :aria-label="t('nav.signOut')" :title="t('nav.signOut')" @click="signOut" />
     </div>
     <NotificationPanel />
   </UDashboardGroup>
