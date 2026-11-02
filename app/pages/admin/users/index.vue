@@ -148,6 +148,9 @@ const editState = reactive({
 // someone who signs in with a phone number and has no email carries a placeholder address
 const isPhoneOnly = (u: Profile) => u.email.endsWith("@phone.acropol.invalid");
 const emailShown = (u: Profile) => (isPhoneOnly(u) ? (u.phone ?? "") : u.email);
+// a new password for this person (blank: keep the current one)
+const editPassword = ref("");
+const editPasswordValid = computed(() => editPassword.value === "" || editPassword.value.length >= 8);
 const editEmailValid = computed(() => editState.email === "" ? !!editState.phone.trim() : z.email().safeParse(editState.email).success);
 
 function openEdit(user: Profile) {
@@ -160,6 +163,7 @@ function openEdit(user: Profile) {
   editState.is_active = user.is_active;
   editState.can_login = user.can_login;
   editState.is_technician = user.is_technician;
+  editPassword.value = "";
   editOpen.value = true;
 }
 
@@ -173,6 +177,10 @@ async function saveEdit() {
       // an empty email leaves the placeholder one as it is
       body: { ...fields, ...(email ? { email } : {}), phone: editState.phone.trim() || null },
     });
+    if (editPassword.value) {
+      await $fetch(`/api/admin/users/${editTarget.value.id}/reset-password`, { method: "POST", body: { password: editPassword.value } });
+      editPassword.value = "";
+    }
     toast.add({ title: t("admin.users.userUpdated"), color: "success" });
     editOpen.value = false;
     refreshUsers();
@@ -356,9 +364,12 @@ async function saveReset() {
         <UCheckbox v-model="editState.is_active" :label="t('admin.users.activeCanSignIn')" />
         <UCheckbox v-model="editState.can_login" :label="t('admin.users.canLogin')" />
         <UCheckbox v-model="editState.is_technician" :label="t('admin.users.isTechnician')" />
+        <UFormField v-if="editState.can_login" :label="t('admin.users.newPassword')" :help="t('admin.users.editPasswordHint')" :error="editPasswordValid ? undefined : t('validation.minLength', { min: 8 })">
+          <UInput v-model="editPassword" type="password" autocomplete="new-password" class="w-full" />
+        </UFormField>
         <p v-if="!editState.can_login" class="text-xs text-muted">{{ t("admin.users.noLoginHint") }}</p>
         <p v-else-if="editTarget && !editTarget.can_login" class="text-xs text-muted">{{ t("admin.users.enableLoginHint") }}</p>
-        <UButton :label="t('common.save')" :loading="editing" :disabled="!editEmailValid" block @click="saveEdit" />
+        <UButton :label="t('common.save')" :loading="editing" :disabled="!editEmailValid || !editPasswordValid" block @click="saveEdit" />
       </div>
     </template>
   </UModal>

@@ -62,6 +62,8 @@ const categories = ref<Record<string, string>>({});
 const categoryOf = (i: Item) => (i.product_category_id ? categories.value[i.product_category_id] ?? null : null);
 // the deal behind each card: its agent, and the lead's (or customer's) name and phone
 const contacts = ref<Record<string, { deal_agent_id: string | null; contact_name: string | null; contact_phone: string | null }>>({});
+// a failed read must not look like an empty board: say what went wrong
+const loadError = ref<string | null>(null);
 const loading = ref(true);
 
 async function load() {
@@ -76,6 +78,8 @@ async function load() {
   const { data: cats } = await supabase.from("product_categories").select("id, name");
   categories.value = Object.fromEntries((cats ?? []).map((c) => [c.id, c.name]));
   contacts.value = Object.fromEntries((ct.data ?? []).map((c) => [c.work_item_id, c]));
+  loadError.value = p.error?.message ?? s.error?.message ?? i.error?.message ?? (!s.data?.length ? t("crm.work.noStages") : null);
+  if (loadError.value) console.error("technical office board", { pipeline: id, board: p.error, stages: s.error, items: i.error });
   pipelineName.value = p.data?.name ?? "";
   stages.value = (s.data ?? []) as Stage[];
   items.value = (i.data ?? []) as Item[];
@@ -294,7 +298,8 @@ async function assign(item: Item, v: unknown) {
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>
       <template v-else>
-        <p v-if="!items.length" class="mb-4 text-sm text-muted">{{ t("crm.work.noItems") }}</p>
+        <UAlert v-if="loadError" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="t('crm.work.loadFailed')" :description="loadError" class="mb-4" />
+        <p v-else-if="!items.length" class="mb-4 text-sm text-muted">{{ t("crm.work.noItems") }}</p>
         <div class="flex items-start gap-3 overflow-x-auto pb-4">
           <section v-for="(stage, si) in stages" :key="stage.id" class="w-72 shrink-0 space-y-2">
             <header class="flex items-center justify-between px-1">
