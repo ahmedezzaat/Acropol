@@ -4,6 +4,8 @@
 interface FileItem {
   id: string;
   file_name: string;
+  // who uploaded it and when, shown under the name
+  meta?: string;
 }
 defineProps<{
   label: string;
@@ -49,7 +51,10 @@ function fileIcon(name: string) {
         <div class="flex items-center gap-1 rounded-[10px] border border-default bg-default p-2 transition hover:border-primary/50 hover:bg-muted">
           <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-start" :title="t('files.open')" @click="emit('open', f)">
             <span class="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-primary/10 text-primary"><UIcon :name="fileIcon(f.file_name)" class="size-4" /></span>
-            <span class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted"><bdi>{{ f.file_name }}</bdi></span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium text-highlighted"><bdi>{{ f.file_name }}</bdi></span>
+              <span v-if="f.meta" class="block truncate text-xs text-muted">{{ f.meta }}</span>
+            </span>
           </button>
           <UButton icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :aria-label="t('files.download')" :title="t('files.download')" @click="emit('download', f)" />
           <UButton v-if="deletable?.(f)" icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" :aria-label="t('common.delete')" :title="t('common.delete')" @click="emit('remove', f)" />

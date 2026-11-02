@@ -49,6 +49,8 @@ interface FileRow {
   storage_path: string;
   from_work_pipeline_id: string | null;
   kind: string | null;
+  uploaded_by?: string | null;
+  created_at?: string;
 }
 interface Person {
   id: string;
@@ -99,7 +101,7 @@ async function load() {
   const posOfId = new Map((positions ?? []).map((r) => [r.id as string, (r as { position?: number }).position ?? null]));
   for (const it of items.value) it.position = posOfId.get(it.id) ?? null;
   const ids = items.value.map((x) => x.id);
-  files.value = ids.length ? (((await supabase.from("deal_attachments").select("id, work_item_id, file_name, storage_path, from_work_pipeline_id, kind").in("work_item_id", ids)).data ?? []) as FileRow[]) : [];
+  files.value = ids.length ? (((await supabase.from("deal_attachments").select("id, work_item_id, file_name, storage_path, from_work_pipeline_id, kind, uploaded_by, created_at").in("work_item_id", ids)).data ?? []) as FileRow[]) : [];
   loading.value = false;
 }
 await load();
@@ -249,7 +251,10 @@ const detailOpen = computed({ get: () => !!selected.value, set: (v) => { if (!v)
 const stageOf = (i: Item) => stages.value.find((s) => s.id === i.stage_id);
 // the files of the open card: the technical office's own, and the requester's
 const fileGroups = computed(() => {
-  const rows = selected.value ? filesOf(selected.value.id) : [];
+  let rows = selected.value ? filesOf(selected.value.id) : [];
+  // when it was uploaded (with the hour) and by whom
+  const meta = (f: FileRow) => [f.created_at ? formatDMYTime(f.created_at, locale.value) : "", f.uploaded_by ? personName(f.uploaded_by) ?? "" : ""].filter(Boolean).join(" · ");
+  rows = rows.map((f) => ({ ...f, meta: meta(f) })) as typeof rows;
   return [
     // the quote (عرض السعر) is added from here and belongs to the deal's quote section
     { key: "quote", labelKey: "crm.work.quoteFiles", icon: "i-lucide-file-text", rows: rows.filter((f) => f.kind === "quote") },

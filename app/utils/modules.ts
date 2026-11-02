@@ -164,6 +164,8 @@ export const MODULES: ModuleDef[] = [
           { key: "delete", labelKey: "resources.crm_work_files.actions.delete" },
           // From the deal's Files tab: move a technical office file into the proposal section.
           { key: "move_to_quote", labelKey: "resources.crm_work_files.actions.move_to_quote" },
+          // ...and back: move a proposal file into the technical office's files.
+          { key: "move_from_quote", labelKey: "resources.crm_work_files.actions.move_from_quote" },
         ],
       },
       {

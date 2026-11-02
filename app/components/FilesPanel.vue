@@ -28,6 +28,7 @@ const { hasPermission } = usePermissions();
 const canViewWork = computed(() => hasPermission("crm_work_files", "view"));
 const canEditWork = computed(() => hasPermission("crm_work_files", "edit"));
 const canMoveToQuote = computed(() => hasPermission("crm_work_files", "move_to_quote"));
+const canMoveFromQuote = computed(() => hasPermission("crm_work_files", "move_from_quote"));
 const canDeleteWork = computed(() => hasPermission("crm_work_files", "delete"));
 const canRemove = (r: { kind: string | null; from_work_pipeline_id: string | null }) =>
   canManage.value && r.kind !== "contract" && (!r.from_work_pipeline_id || canDeleteWork.value);
@@ -188,6 +189,20 @@ async function moveToQuote(row: FileRow) {
   emit("changed");
 }
 
+// ...and back: a proposal file into the technical office's files.
+async function moveToWork(row: FileRow) {
+  moving.value = row.id;
+  const { error } = await supabase.rpc("move_quote_file_to_work", { p_attachment_id: row.id });
+  moving.value = null;
+  if (error) {
+    toast.add({ title: t("files.moveFailed"), description: error.message, color: "error" });
+    return;
+  }
+  toast.add({ title: t("files.movedToWork"), color: "success" });
+  await load();
+  emit("changed");
+}
+
 const removing = ref<FileRow | null>(null);
 const removeOpen = computed({ get: () => !!removing.value, set: (v) => { if (!v) removing.value = null; } });
 const deleting = ref(false);
@@ -268,6 +283,16 @@ async function confirmRemove() {
           :label="t('files.moveToQuote')"
           :loading="moving === r.id"
           @click="moveToQuote(r)"
+        />
+        <UButton
+          v-if="canMoveFromQuote && r.kind === 'quote'"
+          icon="i-lucide-arrow-right-left"
+          color="neutral"
+          variant="soft"
+          size="xs"
+          :label="t('files.moveToWork')"
+          :loading="moving === r.id"
+          @click="moveToWork(r)"
         />
         <UButton v-if="r.from_work_pipeline_id && canEditWork" icon="i-lucide-pencil" color="neutral" variant="ghost" size="sm" :aria-label="t('files.rename')" @click="askRename(r)" />
         <UButton

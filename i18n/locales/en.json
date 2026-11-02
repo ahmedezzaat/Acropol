@@ -230,7 +230,8 @@
         "create": "Add files",
         "edit": "Rename files",
         "delete": "Delete files",
-        "move_to_quote": "Move a file to the proposal"
+        "move_to_quote": "Move a file to the proposal",
+        "move_from_quote": "Move a proposal file to the technical office's files"
       }
     }
   },
@@ -850,6 +851,9 @@
           "assignedTo": "Assigned to {to}",
           "unassigned": "Unassigned",
           "unassignedByRule": "Automatically unassigned by rule “{rule}”",
+          "assignedFromTo": "Reassigned from {from} to {to}",
+          "unassignedFrom": "Unassigned from {from}",
+          "unassignedByRuleFrom": "Unassigned from {from} automatically by the rule \"{rule}\"",
           "automationActor": "Automation"
         },
         "openActivityExists": "This deal already has an open scheduled activity. Complete it first, then schedule the next one.",
@@ -1609,6 +1613,8 @@
     "deleteTitle": "Delete file",
     "deleteBody": "Delete the file {name}? This cannot be undone.",
     "tab": "Files",
+    "moveToWork": "Move to technical office files",
+    "movedToWork": "The file was moved to the technical office's files",
     "moveToQuote": "Move to proposal",
     "movedToQuote": "The file was moved to the proposal",
     "moveFailed": "Could not move the file",

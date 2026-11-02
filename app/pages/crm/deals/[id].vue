@@ -1228,15 +1228,21 @@ function activityTitle(activity: Activity) {
         from: stageName(activity.metadata.from_stage_id as string),
         to: stageName(activity.metadata.to_stage_id as string),
       });
-    case "assigned":
+    case "assigned": {
+      // the event keeps who the deal was assigned to before ("from"), so it can be shown
+      const from = activity.metadata.from ? profileLabel(activity.metadata.from as string) : null;
       if (activity.metadata.automation_rule_id) {
-        return t("crm.deals.timeline.events.unassignedByRule", {
-          rule: (activity.metadata.automation_rule_name as string) ?? "",
-        });
+        const rule = (activity.metadata.automation_rule_name as string) ?? "";
+        return from
+          ? t("crm.deals.timeline.events.unassignedByRuleFrom", { from, rule })
+          : t("crm.deals.timeline.events.unassignedByRule", { rule });
       }
-      return activity.metadata.to
-        ? t("crm.deals.timeline.events.assignedTo", { to: profileLabel(activity.metadata.to as string) })
-        : t("crm.deals.timeline.events.unassigned");
+      if (activity.metadata.to) {
+        const to = profileLabel(activity.metadata.to as string);
+        return from ? t("crm.deals.timeline.events.assignedFromTo", { from, to }) : t("crm.deals.timeline.events.assignedTo", { to });
+      }
+      return from ? t("crm.deals.timeline.events.unassignedFrom", { from }) : t("crm.deals.timeline.events.unassigned");
+    }
     default:
       return activityTypeName(activity.type);
   }

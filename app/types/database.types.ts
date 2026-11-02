@@ -1498,6 +1498,10 @@ export type Database = {
         Args: { p_pipeline_id: string };
         Returns: { id: string; full_name: string | null; email: string }[];
       };
+      move_quote_file_to_work: {
+        Args: { p_attachment_id: string };
+        Returns: undefined;
+      };
       move_work_file_to_quote: {
         Args: { p_attachment_id: string };
         Returns: undefined;
