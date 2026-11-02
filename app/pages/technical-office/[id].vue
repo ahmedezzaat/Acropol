@@ -57,6 +57,8 @@ const pipelineName = ref("");
 const stages = ref<Stage[]>([]);
 const items = ref<Item[]>([]);
 const people = ref<Person[]>([]);
+// the board's own users (declared before load(), which fills it)
+const assignees = ref<Person[]>([]);
 const files = ref<FileRow[]>([]);
 const categories = ref<Record<string, string>>({});
 const categoryOf = (i: Item) => (i.product_category_id ? categories.value[i.product_category_id] ?? null : null);
@@ -104,7 +106,6 @@ useHead({ title: computed(() => pipelineName.value) });
 
 // Who a card can be assigned to: the people who can open this board. A card already held by
 // someone who no longer can keeps showing them.
-const assignees = ref<Person[]>([]);
 const personOptionsFor = (item: Item) => {
   const list = [...assignees.value];
   const current = item.assigned_to ? people.value.find((p) => p.id === item.assigned_to) : null;
