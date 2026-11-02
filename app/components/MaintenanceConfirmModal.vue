@@ -10,6 +10,7 @@ const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
 const supabase = useSupabaseClient();
+const { hasPermission } = usePermissions();
 const me = useSupabaseUser();
 const toast = useToast();
 const { t } = useI18n();
@@ -20,6 +21,12 @@ const note = ref("");
 const fees = ref<FeesState>({ parts: [], fee: null, total: 0, checked: false, loaded: false });
 const initialParts = computed(() => (props.product?.maintenance_confirm_parts as FeePart[] | null | undefined) ?? null);
 const reason = ref("");
+// the price list for the spare parts (individual customers' list unless another one fits), and
+// whether the prices can be changed here, for this order only
+const priceLists = ref<{ id: string; name: string; is_default: boolean }[]>([]);
+const priceListId = ref<string | null>(null);
+const canOverridePrices = computed(() => hasPermission("cs_maintenance", "override_prices"));
+const priceListItems = computed(() => priceLists.value.map((l) => ({ label: l.name, value: l.id })));
 const saving = ref(false);
 
 interface Sibling {
@@ -58,6 +65,9 @@ watch(open, async (isOpen) => {
   reason.value = "";
   technicianId.value = null;
   siblings.value = [];
+  const { data: lists } = await supabase.from("spare_part_price_lists").select("id, name, is_default").order("sort_order").order("created_at");
+  priceLists.value = (lists ?? []) as typeof priceLists.value;
+  priceListId.value = props.product.maintenance_confirm_price_list_id ?? priceLists.value.find((l) => l.is_default)?.id ?? null;
   const { data: techs } = await supabase.from("profiles").select("id, full_name, email").eq("is_technician", true).eq("is_active", true).order("full_name");
   technicians.value = (techs ?? []) as Technician[];
   // The same customer's other unconfirmed appointments that day: one call, one visit.
@@ -102,13 +112,14 @@ async function save() {
       maintenance_assigned_at?: string;
       maintenance_confirm_parts?: Json | null;
       maintenance_confirm_fee?: number | null;
+      maintenance_confirm_price_list_id?: string | null;
     } = {
       maintenance_confirmed_at: nowIso,
       maintenance_confirmed_by: by,
       maintenance_confirm_note: text,
       ...(moved ? { next_maintenance_at: newAt } : {}),
       // what the visit is expected to cost is settled on the visit itself, not its same-day companions
-      ...(target.id === product.id ? { maintenance_confirm_parts: fees.value.parts.length ? (fees.value.parts as unknown as Json) : null, maintenance_confirm_fee: fees.value.fee } : {}),
+      ...(target.id === product.id ? { maintenance_confirm_parts: fees.value.parts.length ? (fees.value.parts as unknown as Json) : null, maintenance_confirm_fee: fees.value.fee, maintenance_confirm_price_list_id: priceListId.value } : {}),
       ...(technicianId.value ? { maintenance_technician_id: technicianId.value, maintenance_assigned_at: nowIso } : {}),
     };
     const { error } = await supabase.from("customer_products").update(patch).eq("id", target.id);
@@ -161,7 +172,10 @@ function close() {
         <UFormField v-if="willMove" :label="t('cs.maintenance.rescheduleReason')" required>
           <UTextarea v-model="reason" :rows="2" :placeholder="t('cs.maintenance.rescheduleReasonHint')" class="w-full" />
         </UFormField>
-        <MaintenanceFeesEditor v-model="fees" planning :product="product" :active="open" :initial-parts="initialParts" :initial-fee="product.maintenance_confirm_fee ?? null" />
+        <UFormField v-if="priceLists.length > 1" :label="t('cs.maintenance.priceList')">
+          <USelect v-model="priceListId" :items="priceListItems" value-key="value" icon="i-lucide-tags" class="w-full" />
+        </UFormField>
+        <MaintenanceFeesEditor v-model="fees" planning :price-list-id="priceListId" :editable-prices="canOverridePrices" :product="product" :active="open" :initial-parts="initialParts" :initial-fee="product.maintenance_confirm_fee ?? null" />
         <UFormField :label="t('cs.maintenance.confirmNote')">
           <UTextarea v-model="note" :rows="2" class="w-full" />
         </UFormField>

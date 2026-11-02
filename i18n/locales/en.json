@@ -76,6 +76,7 @@
     "minLength": "Must be at least {min} characters"
   },
   "common": {
+    "close": "Close",
     "save": "Save",
     "currency": "EGP",
     "cancel": "Cancel",
@@ -187,6 +188,7 @@
         "complete": "Mark maintenance done",
         "cancel": "Cancel / resume maintenance",
         "note": "Add notes",
+        "override_prices": "Change spare part prices when confirming a visit",
         "view_confirmed_own": "See my confirmed visits",
         "view_confirmed_all": "See all confirmed visits"
       }
@@ -1460,6 +1462,9 @@
       "confirmedBadge": "Confirmed",
       "awaitingConfirmation": "Awaiting confirmation",
       "confirmCta": "Convert to work order",
+      "priceList": "Price list",
+      "partPrice": "Part price",
+      "priceEdited": "Edited",
       "confirmTitle": "Confirm the visit",
       "confirmHint": "Call the customer and agree the visit. Only a confirmed visit can be marked as done.",
       "confirmWhen": "Visit date and time",
@@ -1546,6 +1551,14 @@
       "calGap": "No visits"
     },
     "spareParts": {
+      "priceLists": "Price lists",
+      "manageLists": "Manage price lists",
+      "defaultPrice": "Default price",
+      "useDefaultPrice": "Use the default price",
+      "defaultList": "Default (individual customers)",
+      "newListName": "New list name (e.g. Companies)",
+      "listsHint": "The default list holds the individual customers' prices. A part with no price in a list uses its default price.",
+      "listFailed": "Could not save the price list",
       "title": "Spare parts",
       "subtitle": "Pick a product category, then add its spare parts with their price.",
       "category": "Category",

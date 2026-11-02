@@ -55,6 +55,7 @@ export interface CsProduct {
   maintenance_confirm_note?: string | null;
   maintenance_confirm_parts?: { id: string; name: string; price: number; qty: number }[] | null;
   maintenance_confirm_fee?: number | null;
+  maintenance_confirm_price_list_id?: string | null;
   maintenance_technician_id?: string | null;
   maintenance_assigned_at?: string | null;
   next_maintenance_at: string | null;

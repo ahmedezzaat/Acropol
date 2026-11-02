@@ -213,6 +213,8 @@ export const MODULES: ModuleDef[] = [
           { key: "note", labelKey: "resources.cs_maintenance.actions.note" },
           // The Confirmed visits page: only the visits assigned to me, or every one.
           { key: "view_confirmed_own", labelKey: "resources.cs_maintenance.actions.view_confirmed_own" },
+          // Change the spare part prices on the confirm-visit / done windows (before the work order is made).
+          { key: "override_prices", labelKey: "resources.cs_maintenance.actions.override_prices" },
           { key: "view_confirmed_all", labelKey: "resources.cs_maintenance.actions.view_confirmed_all" },
         ],
       },

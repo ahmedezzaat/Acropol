@@ -13,6 +13,8 @@ const supabase = useSupabaseClient();
 const me = useSupabaseUser();
 const toast = useToast();
 const { t } = useI18n();
+const { hasPermission } = usePermissions();
+const canOverridePrices = computed(() => hasPermission("cs_maintenance", "override_prices"));
 
 const doneOn = ref("");
 const doneNote = ref("");
@@ -174,7 +176,7 @@ async function save() {
         <template v-if="feesList.length === products.length">
           <div v-for="(p, i) in products" :key="p.id" :class="products.length > 1 && 'space-y-3 rounded-[10px] border border-default p-3'">
             <p v-if="products.length > 1" class="text-sm font-semibold text-highlighted">{{ p.name }}</p>
-            <MaintenanceFeesEditor v-model="feesList[i]!" :product="p" :active="open" :initial-parts="initialPartsOf(p)" :initial-fee="i === 0 ? initialFee : null" :show-fee="i === 0" required />
+            <MaintenanceFeesEditor v-model="feesList[i]!" :product="p" :active="open" :initial-parts="initialPartsOf(p)" :initial-fee="i === 0 ? initialFee : null" :show-fee="i === 0" :price-list-id="p.maintenance_confirm_price_list_id ?? null" :editable-prices="canOverridePrices" required />
           </div>
         </template>
 
