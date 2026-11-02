@@ -1559,6 +1559,8 @@
       "newListName": "New list name (e.g. Companies)",
       "listsHint": "The default list holds the individual customers' prices. A part with no price in a list uses its default price.",
       "listFailed": "Could not save the price list",
+      "priceList": "Spare parts price list",
+      "customerListHint": "The confirm-visit window starts on this list; it can still be changed for one visit.",
       "title": "Spare parts",
       "subtitle": "Pick a product category, then add its spare parts with their price.",
       "category": "Category",

@@ -67,7 +67,13 @@ watch(open, async (isOpen) => {
   siblings.value = [];
   const { data: lists } = await supabase.from("spare_part_price_lists").select("id, name, is_default").order("sort_order").order("created_at");
   priceLists.value = (lists ?? []) as typeof priceLists.value;
-  priceListId.value = props.product.maintenance_confirm_price_list_id ?? priceLists.value.find((l) => l.is_default)?.id ?? null;
+  // the list chosen for this visit, else the customer's own list, else the default one
+  const { data: cust } = await supabase.from("customers").select("price_list_id").eq("id", props.product.customer_id).maybeSingle();
+  priceListId.value =
+    props.product.maintenance_confirm_price_list_id ??
+    (cust as { price_list_id?: string | null } | null)?.price_list_id ??
+    priceLists.value.find((l) => l.is_default)?.id ??
+    null;
   const { data: techs } = await supabase.from("profiles").select("id, full_name, email").eq("is_technician", true).eq("is_active", true).order("full_name");
   technicians.value = (techs ?? []) as Technician[];
   // The same customer's other unconfirmed appointments that day: one call, one visit.

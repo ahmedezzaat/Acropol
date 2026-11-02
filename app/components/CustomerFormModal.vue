@@ -28,6 +28,10 @@ const extraPhones = ref<ExtraContact[]>([]);
 const email = ref("");
 const address = ref("");
 const areaId = ref<string | null>(null);
+// the customer's spare parts price list (none: the default, the individual customers' one)
+const priceLists = ref<{ id: string; name: string; is_default: boolean }[]>([]);
+const priceListId = ref<string | null>(null);
+const initialPriceListId = ref<string | null>(null);
 
 watch(open, async (isOpen) => {
   if (!isOpen) return;
@@ -49,7 +53,19 @@ watch(open, async (isOpen) => {
   email.value = c?.email ?? "";
   address.value = c?.address ?? "";
   areaId.value = c?.area_id ?? null;
+  const { data: lists } = await supabase.from("spare_part_price_lists").select("id, name, is_default").order("sort_order").order("created_at");
+  priceLists.value = (lists ?? []) as typeof priceLists.value;
+  priceListId.value = null;
+  if (c) {
+    const { data: row } = await supabase.from("customers").select("price_list_id").eq("id", c.id).maybeSingle();
+    priceListId.value = (row as { price_list_id?: string | null } | null)?.price_list_id ?? null;
+  }
+  initialPriceListId.value = priceListId.value;
 });
+const priceListItems = computed(() => [
+  { label: t("cs.spareParts.defaultList"), value: null as string | null },
+  ...priceLists.value.filter((l) => !l.is_default).map((l) => ({ label: l.name, value: l.id as string | null })),
+]);
 
 const areaItems = computed(() => [
   { label: t("cs.customers.noArea"), value: null },
@@ -89,6 +105,8 @@ async function save() {
     email: email.value.trim() || null,
     address: address.value.trim() || null,
     area_id: areaId.value,
+    // sent only when changed, so saving still works where the column is not there yet
+    ...(priceListId.value !== initialPriceListId.value ? { price_list_id: priceListId.value } : {}),
     // Only someone allowed to assign sends the agent; for a new customer the
     // database defaults the rest to the creator's own view.
     ...(canAssign.value ? { cs_agent_id: agentId.value } : props.customer ? {} : { cs_agent_id: (me.value?.sub as string | undefined) ?? null }),
@@ -164,6 +182,9 @@ async function save() {
         </UFormField>
         <UFormField :label="t('common.email')">
           <UInput v-model="email" type="email" class="w-full" />
+        </UFormField>
+        <UFormField v-if="priceLists.length > 1" :label="t('cs.spareParts.priceList')" :help="t('cs.spareParts.customerListHint')">
+          <USelect v-model="priceListId" :items="priceListItems" value-key="value" icon="i-lucide-tags" class="w-full" />
         </UFormField>
         <UFormField :label="t('cs.customers.area')">
           <USelect v-model="areaId" :items="areaItems" value-key="value" class="w-full" />
