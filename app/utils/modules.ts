@@ -162,6 +162,17 @@ export const MODULES: ModuleDef[] = [
           { key: "create", labelKey: "resources.crm_work_files.actions.create" },
           { key: "edit", labelKey: "resources.crm_work_files.actions.edit" },
           { key: "delete", labelKey: "resources.crm_work_files.actions.delete" },
+          // From the deal's Files tab: move a technical office file into the proposal section.
+          { key: "move_to_quote", labelKey: "resources.crm_work_files.actions.move_to_quote" },
+        ],
+      },
+      {
+        // The proposal (عرض السعر) section of a card's window on the board.
+        key: "crm_work_quotes",
+        labelKey: "resources.crm_work_quotes.label",
+        actions: [
+          { key: "view", labelKey: "resources.crm_work_quotes.actions.view" },
+          { key: "create", labelKey: "resources.crm_work_quotes.actions.create" },
         ],
       },
     ],

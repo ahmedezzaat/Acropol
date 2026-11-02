@@ -27,6 +27,7 @@ const { hasPermission } = usePermissions();
 // Files uploaded from the technical office have their own permissions.
 const canViewWork = computed(() => hasPermission("crm_work_files", "view"));
 const canEditWork = computed(() => hasPermission("crm_work_files", "edit"));
+const canMoveToQuote = computed(() => hasPermission("crm_work_files", "move_to_quote"));
 const canDeleteWork = computed(() => hasPermission("crm_work_files", "delete"));
 const canRemove = (r: { kind: string | null; from_work_pipeline_id: string | null }) =>
   canManage.value && r.kind !== "contract" && (!r.from_work_pipeline_id || canDeleteWork.value);
@@ -172,6 +173,21 @@ async function saveRename() {
   await load();
 }
 
+// Move a technical office file into the proposal (عرض السعر) section of the deal.
+const moving = ref<string | null>(null);
+async function moveToQuote(row: FileRow) {
+  moving.value = row.id;
+  const { error } = await supabase.rpc("move_work_file_to_quote", { p_attachment_id: row.id });
+  moving.value = null;
+  if (error) {
+    toast.add({ title: t("files.moveFailed"), description: error.message, color: "error" });
+    return;
+  }
+  toast.add({ title: t("files.movedToQuote"), color: "success" });
+  await load();
+  emit("changed");
+}
+
 const removing = ref<FileRow | null>(null);
 const removeOpen = computed({ get: () => !!removing.value, set: (v) => { if (!v) removing.value = null; } });
 const deleting = ref(false);
@@ -243,6 +259,16 @@ async function confirmRemove() {
           <span class="max-w-40 truncate">{{ dealTitles[r.deal_id] || t("files.deal") }}</span>
         </NuxtLink>
         <UButton icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :aria-label="t('files.open')" @click="open(r)" />
+        <UButton
+          v-if="canMoveToQuote && r.from_work_pipeline_id && !r.kind"
+          icon="i-lucide-arrow-right-left"
+          color="neutral"
+          variant="soft"
+          size="xs"
+          :label="t('files.moveToQuote')"
+          :loading="moving === r.id"
+          @click="moveToQuote(r)"
+        />
         <UButton v-if="r.from_work_pipeline_id && canEditWork" icon="i-lucide-pencil" color="neutral" variant="ghost" size="sm" :aria-label="t('files.rename')" @click="askRename(r)" />
         <UButton
           v-if="canRemove(r)"

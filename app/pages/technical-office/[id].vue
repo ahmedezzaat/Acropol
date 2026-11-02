@@ -17,6 +17,9 @@ const pipelineId = computed(() => route.params.id as string);
 const canEdit = computed(() => hasPermission("crm_work", "edit"));
 const canAddFiles = computed(() => canEdit.value && hasPermission("crm_work_files", "create"));
 const canSeeWorkFiles = computed(() => hasPermission("crm_work_files", "view"));
+// the proposal (عرض السعر) section of the card: seeing it, and uploading to it
+const canSeeQuote = computed(() => hasPermission("crm_work_quotes", "view"));
+const canUploadQuote = computed(() => canEdit.value && hasPermission("crm_work_quotes", "create"));
 // a board is seen with its own permission, or "see every board"
 if (!hasPermission("crm_work", "view") && !hasPermission("crm_work", pipelineId.value)) await navigateTo("/403", { replace: true });
 
@@ -210,6 +213,31 @@ async function downloadFile(f: { storage_path: string; file_name: string }) {
   a.click();
   a.remove();
 }
+// Deleting a file the technical office uploaded: its own permission. Files the requester attached
+// belong to the deal and are not deleted from here.
+const canDeleteFiles = computed(() => hasPermission("crm_work_files", "delete"));
+const canDeleteFile = (f: { id: string }) => canDeleteFiles.value && !!files.value.find((x) => x.id === f.id)?.from_work_pipeline_id;
+const removingFile = ref<FileRow | null>(null);
+const removeFileOpen = computed({ get: () => !!removingFile.value, set: (v) => { if (!v) removingFile.value = null; } });
+const removingFileBusy = ref(false);
+function askRemoveFile(f: FileRow) {
+  removingFile.value = f;
+}
+async function confirmRemoveFile() {
+  const f = removingFile.value;
+  if (!f) return;
+  removingFileBusy.value = true;
+  // the stored file first: its rule looks the file up through the row
+  const { error: storageError } = await supabase.storage.from("deal-attachments").remove([f.storage_path]);
+  const { data: removed, error } = storageError ? { data: null, error: storageError } : await supabase.from("deal_attachments").delete().eq("id", f.id).select("id");
+  removingFileBusy.value = false;
+  if (error || !removed?.length) {
+    toast.add({ title: t("files.deleteFailed"), description: error?.message, color: "error" });
+    return;
+  }
+  removingFile.value = null;
+  files.value = files.value.filter((x) => x.id !== f.id);
+}
 async function openFile(f: FileRow) {
   const { data } = await supabase.storage.from("deal-attachments").createSignedUrl(f.storage_path, 60);
   if (data) window.open(data.signedUrl, "_blank");
@@ -352,6 +380,18 @@ async function assign(item: Item, v: unknown) {
     </template>
   </UDashboardPanel>
 
+  <UModal v-model:open="removeFileOpen" :title="t('files.deleteTitle')">
+    <template #body>
+      <p class="text-sm text-toned">{{ t("files.deleteBody", { name: removingFile?.file_name ?? "" }) }}</p>
+    </template>
+    <template #footer>
+      <div class="flex w-full justify-end gap-2">
+        <UButton color="neutral" variant="outline" :label="t('common.cancel')" @click="removingFile = null" />
+        <UButton color="error" :label="t('common.delete')" :loading="removingFileBusy" @click="confirmRemoveFile" />
+      </div>
+    </template>
+  </UModal>
+
   <!-- The full card: opens over the board instead of a separate page -->
   <UModal v-model:open="detailOpen" :ui="{ content: 'max-w-2xl' }">
     <template #header>
@@ -409,24 +449,28 @@ async function assign(item: Item, v: unknown) {
             :rows="g.rows"
             :input-id="`up-${g.key}-${selected.id}`"
             @open="openFile"
+            :deletable="canDeleteFile"
             @download="(f: { id: string }) => downloadFile(files.find((x) => x.id === f.id)!)"
+            @remove="(f: { id: string }) => askRemoveFile(files.find((x) => x.id === f.id)!)"
           />
         </section>
 
         <!-- The technical office's side: the quote and its own files -->
         <section class="space-y-4 rounded-[14px] border border-default p-3">
           <WorkFileGroup
-            v-for="g in fileGroups.filter((x) => x.key !== 'requester')"
+            v-for="g in fileGroups.filter((x) => x.key !== 'requester' && (x.key !== 'quote' || canSeeQuote))"
             :key="g.key"
             :label="t(g.labelKey)"
             :icon="g.icon"
             :rows="g.rows"
             :input-id="`up-${g.key}-${selected.id}`"
-            :can-upload="canAddFiles"
+            :can-upload="g.key === 'quote' ? canUploadQuote : canAddFiles"
             :uploading="uploadingId === selected.id"
             @pick="(e: Event) => uploadFiles(selected!, e, g.key === 'quote' ? 'quote' : null)"
             @open="openFile"
+            :deletable="canDeleteFile"
             @download="(f: { id: string }) => downloadFile(files.find((x) => x.id === f.id)!)"
+            @remove="(f: { id: string }) => askRemoveFile(files.find((x) => x.id === f.id)!)"
           />
         </section>
       </div>

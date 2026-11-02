@@ -12,8 +12,10 @@ defineProps<{
   inputId: string;
   canUpload?: boolean;
   uploading?: boolean;
+  // files a person may delete (by id)
+  deletable?: (file: FileItem) => boolean;
 }>();
-const emit = defineEmits<{ pick: [event: Event]; open: [file: FileItem]; download: [file: FileItem] }>();
+const emit = defineEmits<{ pick: [event: Event]; open: [file: FileItem]; download: [file: FileItem]; remove: [file: FileItem] }>();
 const { t } = useI18n();
 
 function fileIcon(name: string) {
@@ -50,6 +52,7 @@ function fileIcon(name: string) {
             <span class="min-w-0 flex-1 truncate text-sm font-medium text-highlighted"><bdi>{{ f.file_name }}</bdi></span>
           </button>
           <UButton icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :aria-label="t('files.download')" :title="t('files.download')" @click="emit('download', f)" />
+          <UButton v-if="deletable?.(f)" icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" :aria-label="t('common.delete')" :title="t('common.delete')" @click="emit('remove', f)" />
         </div>
       </li>
     </ul>

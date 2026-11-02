@@ -216,13 +216,21 @@
         "edit": "Move and assign items"
       }
     },
+    "crm_work_quotes": {
+      "label": "Proposal on technical office requests",
+      "actions": {
+        "view": "See the proposal section",
+        "create": "Upload the proposal"
+      }
+    },
     "crm_work_files": {
       "label": "Technical office files",
       "actions": {
         "view": "View files",
         "create": "Add files",
         "edit": "Rename files",
-        "delete": "Delete files"
+        "delete": "Delete files",
+        "move_to_quote": "Move a file to the proposal"
       }
     }
   },
@@ -1601,6 +1609,9 @@
     "deleteTitle": "Delete file",
     "deleteBody": "Delete the file {name}? This cannot be undone.",
     "tab": "Files",
+    "moveToQuote": "Move to proposal",
+    "movedToQuote": "The file was moved to the proposal",
+    "moveFailed": "Could not move the file",
     "rename": "Rename file",
     "renameFailed": "Could not rename the file",
     "quoteSection": "Quote",
