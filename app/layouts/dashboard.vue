@@ -39,7 +39,7 @@ useNotificationsRealtime();
 // /admin only the settings pages, and on the home hub one link per area.
 // The way back to Home is the app name in the sidebar header.
 const accessibleModules = computed(() =>
-  MODULES.filter((m) => m.key !== "settings" && m.resources.some((r) => hasAnyModulePermission(r.key))),
+  MODULES.filter((m) => m.key !== "settings" && m.key !== "tasks" && m.resources.some((r) => hasAnyModulePermission(r.key))),
 );
 const canSettings = computed(() => isAdmin.value || hasAnyModulePermission("settings"));
 
@@ -100,6 +100,7 @@ const items = computed<NavigationMenuItem[][]>(() => {
   return [
     [
       { label: t("nav.home"), icon: "i-lucide-house", to: "/" },
+      { label: t("tasks.title"), icon: "i-lucide-list-checks", to: "/tasks" },
       ...accessibleModules.value.map((m) => ({ label: t(m.labelKey), icon: m.icon, to: m.route })),
       ...(canSettings.value ? [{ label: t("nav.settings"), icon: "i-lucide-settings", to: "/admin" }] : []),
     ],

@@ -112,6 +112,9 @@
     "crm": {
       "label": "إدارة علاقات العملاء"
     },
+    "tasks": {
+      "label": "المهام"
+    },
     "customer_service": {
       "label": "خدمة العملاء"
     },
@@ -120,6 +123,12 @@
     }
   },
   "resources": {
+    "tasks": {
+      "label": "المهام",
+      "actions": {
+        "view_all": "رؤية مهام جميع المستخدمين"
+      }
+    },
     "crm_leads": {
       "label": "العملاء المحتملون",
       "actions": {
@@ -1109,6 +1118,10 @@
     "workAssignedBy": "أسند إليك {by} الطلب {name} في {board}",
     "workWithdrawn": "تم سحب الطلب {name} من {board}",
     "workWithdrawnBy": "سحب {by} الطلب {name} من {board}",
+    "taskAssigned": "تم إسناد مهمة إليك: {name}",
+    "taskAssignedBy": "أسند إليك {by} مهمة: {name}",
+    "taskDone": "تم إنجاز المهمة: {name}",
+    "taskDoneBy": "أنجز {by} المهمة: {name}",
     "workStageChanged": "تم نقل {name} إلى مرحلة «{stage}» في {board}",
     "visitPendingNoBy": "طلب {kind} للصفقة {name} بتاريخ {date} يحتاج موافقتك.",
     "visitPendingFinal": "وافق قائد الفريق على طلب {kind} من {by} للصفقة {name} بتاريخ {date}. يحتاج موافقة نهائية.",
@@ -1612,6 +1625,37 @@
       "call": "اتصال",
       "close": "إغلاق"
     }
+  },
+  "tasks": {
+    "title": "المهام",
+    "new": "مهمة جديدة",
+    "edit": "تعديل المهمة",
+    "titleField": "المهمة",
+    "assignee": "المسند إليه",
+    "me": "أنا",
+    "from": "من {name}",
+    "priorityLabel": "الأولوية",
+    "priority": { "low": "منخفضة", "medium": "متوسطة", "high": "عالية", "urgent": "عاجلة" },
+    "deadline": "الموعد النهائي",
+    "customer": "العميل (اختياري)",
+    "customerHint": "اربط المهمة بعميل إن كانت تخصه.",
+    "customerPlaceholder": "ابحث بالاسم أو الهاتف",
+    "noCustomers": "لا يوجد عملاء مطابقون",
+    "clearCustomer": "إزالة العميل",
+    "note": "ملاحظات",
+    "statusLabel": "الحالة",
+    "status": { "todo": "للتنفيذ", "in_progress": "قيد التنفيذ", "done": "تم" },
+    "scope": { "mine": "مهامي", "given": "كلّفتُ بها غيري", "all": "كل المهام" },
+    "start": "ابدأ",
+    "finish": "تم",
+    "reopen": "إعادة فتح",
+    "overdue": "متأخرة",
+    "empty": "لا توجد مهام",
+    "saved": "تم حفظ المهمة",
+    "saveFailed": "تعذّر حفظ المهمة",
+    "deleteTitle": "حذف المهمة",
+    "deleteBody": "هل تريد حذف المهمة «{name}»؟ لا يمكن التراجع عن ذلك.",
+    "deleteFailed": "تعذّر حذف المهمة"
   },
   "files": {
     "title": "الملفات",

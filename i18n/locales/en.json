@@ -112,6 +112,9 @@
     "crm": {
       "label": "CRM"
     },
+    "tasks": {
+      "label": "Tasks"
+    },
     "customer_service": {
       "label": "Customer Service"
     },
@@ -120,6 +123,12 @@
     }
   },
   "resources": {
+    "tasks": {
+      "label": "Tasks",
+      "actions": {
+        "view_all": "See every user's tasks"
+      }
+    },
     "crm_leads": {
       "label": "Leads",
       "actions": {
@@ -1109,6 +1118,10 @@
     "workAssignedBy": "{by} assigned you {name} on {board}",
     "workWithdrawn": "The request {name} was withdrawn from {board}",
     "workWithdrawnBy": "{by} withdrew the request {name} from {board}",
+    "taskAssigned": "A task was given to you: {name}",
+    "taskAssignedBy": "{by} gave you a task: {name}",
+    "taskDone": "Task done: {name}",
+    "taskDoneBy": "{by} finished the task: {name}",
     "workStageChanged": "{name} moved to \"{stage}\" on {board}",
     "visitPendingNoBy": "A {kind} request for {name} on {date} needs your approval.",
     "visitPendingFinal": "Team leader approved a {kind} request by {by} for {name} on {date}. It needs final approval.",
@@ -1612,6 +1625,37 @@
       "call": "Call",
       "close": "Close"
     }
+  },
+  "tasks": {
+    "title": "Tasks",
+    "new": "New task",
+    "edit": "Edit task",
+    "titleField": "Task",
+    "assignee": "Assigned to",
+    "me": "me",
+    "from": "From {name}",
+    "priorityLabel": "Priority",
+    "priority": { "low": "Low", "medium": "Medium", "high": "High", "urgent": "Urgent" },
+    "deadline": "Deadline",
+    "customer": "Customer (optional)",
+    "customerHint": "Link the task to a customer if it is about one.",
+    "customerPlaceholder": "Search by name or phone",
+    "noCustomers": "No matching customers",
+    "clearCustomer": "Remove the customer",
+    "note": "Notes",
+    "statusLabel": "Status",
+    "status": { "todo": "To do", "in_progress": "In progress", "done": "Done" },
+    "scope": { "mine": "My tasks", "given": "Given to others", "all": "All tasks" },
+    "start": "Start",
+    "finish": "Done",
+    "reopen": "Reopen",
+    "overdue": "Overdue",
+    "empty": "No tasks",
+    "saved": "Task saved",
+    "saveFailed": "Could not save the task",
+    "deleteTitle": "Delete task",
+    "deleteBody": "Delete the task \"{name}\"? This cannot be undone.",
+    "deleteFailed": "Could not delete the task"
   },
   "files": {
     "title": "Files",

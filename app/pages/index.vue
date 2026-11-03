@@ -11,7 +11,7 @@ async function signInAgain() {
 const { t } = useI18n();
 
 const visibleModules = computed(() =>
-  MODULES.filter((m) => m.key !== "settings" && m.resources.some((r) => hasAnyModulePermission(r.key))),
+  MODULES.filter((m) => m.key !== "settings" && m.key !== "tasks" && m.resources.some((r) => hasAnyModulePermission(r.key))),
 );
 // A technician lands straight on their work orders instead of the module picker.
 const me = useSupabaseUser();
@@ -63,6 +63,13 @@ const canSettings = computed(() => isAdmin.value || hasAnyModulePermission("sett
         >
           <UIcon :name="module.icon" class="size-8 text-primary" />
           <span class="font-medium text-highlighted">{{ t(module.labelKey) }}</span>
+        </ULink>
+        <ULink
+          to="/tasks"
+          class="flex flex-col items-center gap-3 rounded-lg border border-default p-6 text-center transition hover:border-primary hover:bg-elevated"
+        >
+          <UIcon name="i-lucide-list-checks" class="size-8 text-primary" />
+          <span class="font-medium text-highlighted">{{ t("tasks.title") }}</span>
         </ULink>
         <ULink
           v-if="canSettings"

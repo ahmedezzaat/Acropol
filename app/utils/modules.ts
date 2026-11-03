@@ -242,6 +242,21 @@ export const MODULES: ModuleDef[] = [
     ],
   },
   {
+    // Tasks are open to everyone (each person sees the tasks they gave or were given); this entry
+    // only lets a role also see everyone's tasks. It has no tile or menu of its own.
+    key: "tasks",
+    labelKey: "modules.tasks.label",
+    icon: "i-lucide-list-checks",
+    route: "/tasks",
+    resources: [
+      {
+        key: "tasks",
+        labelKey: "resources.tasks.label",
+        actions: [{ key: "view_all", labelKey: "resources.tasks.actions.view_all" }],
+      },
+    ],
+  },
+  {
     // Settings is reached through its own entry on the home page and sidebar,
     // not as a module tile; it is listed here so roles can grant its pages.
     key: "settings",

@@ -16,7 +16,9 @@ export interface AppNotification {
     | "work_request_created"
     | "work_assigned"
     | "work_request_withdrawn"
-    | "work_request_done";
+    | "work_request_done"
+    | "task_assigned"
+    | "task_done";
   params: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -149,6 +151,20 @@ export function useNotifications() {
           link: `/crm/visits?open=${p.visit_id}`,
         };
       }
+      case "task_assigned":
+        return {
+          icon: "i-lucide-list-checks",
+          color: "primary" as const,
+          text: by ? t("notifications.taskAssignedBy", base) : t("notifications.taskAssigned", base),
+          link: "/tasks",
+        };
+      case "task_done":
+        return {
+          icon: "i-lucide-circle-check",
+          color: "success" as const,
+          text: by ? t("notifications.taskDoneBy", base) : t("notifications.taskDone", base),
+          link: "/tasks",
+        };
       case "work_request_done":
         return {
           icon: "i-lucide-circle-check",
