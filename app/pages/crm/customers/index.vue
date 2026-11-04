@@ -20,6 +20,7 @@ interface Customer {
   company: string | null;
   phone: string | null;
   extra_phones?: string[] | null;
+  extra_phone_names?: string[] | null;
   email: string | null;
   assigned_to: string | null;
   created_at?: string;
@@ -38,7 +39,7 @@ const { data: customers, refresh, status } = await useAsyncData<Customer[]>(
   "crm-customers",
   async () =>
     fetchAll<Customer>((from, to) =>
-      supabase.from("customers").select("id, name, company, phone, extra_phones, email, assigned_to, created_at").order("created_at", { ascending: false }).order("id").range(from, to) as never,
+      supabase.from("customers").select("id, name, company, phone, extra_phones, extra_phone_names, email, assigned_to, created_at").order("created_at", { ascending: false }).order("id").range(from, to) as never,
     ),
 );
 
@@ -63,7 +64,8 @@ const filteredCustomers = computed(() =>
     (c) =>
       !search.value ||
       `${c.name} ${c.company ?? ""}`.toLowerCase().includes(search.value.toLowerCase()) ||
-      anyPhoneMatches([c.phone, ...(c.extra_phones ?? [])], search.value),
+      anyPhoneMatches([c.phone, ...(c.extra_phones ?? [])], search.value) ||
+      extraNamesMatch(c.extra_phone_names, search.value),
   ),
 );
 

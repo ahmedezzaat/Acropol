@@ -25,6 +25,13 @@ const { data: tasksData, refresh } = await useAsyncData<TaskRow[]>("tasks-list",
   return (data ?? []) as unknown as TaskRow[];
 });
 const tasks = computed(() => tasksData.value ?? []);
+// how many files each task has (read on its own, so the page still works where files are not set up yet)
+const { data: fileCounts, refresh: refreshCounts } = await useAsyncData<Record<string, number>>("tasks-file-counts", async () => {
+  const { data } = await supabase.from("task_attachments").select("task_id");
+  const counts: Record<string, number> = {};
+  for (const r of data ?? []) counts[r.task_id as string] = (counts[r.task_id as string] ?? 0) + 1;
+  return counts;
+});
 const { data: people } = await useAsyncData<{ id: string; full_name: string | null; email: string }[]>("tasks-people", async () => {
   const { data } = await supabase.from("profiles").select("id, full_name, email").eq("is_active", true).order("full_name");
   return data ?? [];
@@ -188,6 +195,9 @@ async function confirmRemove() {
                 </div>
                 <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted">
                   <span class="flex items-center gap-1"><UIcon name="i-lucide-user" class="size-3.5" />{{ x.assigned_to === me?.sub ? t("tasks.me") : personName(x.assigned_to) }}</span>
+                  <button v-if="fileCounts?.[x.id]" type="button" class="flex items-center gap-1 text-primary hover:underline" :title="t('tasks.files')" @click="openEdit(x)">
+                    <UIcon name="i-lucide-paperclip" class="size-3.5" />{{ fileCounts[x.id] }}
+                  </button>
                   <span v-if="x.created_by !== x.assigned_to" class="truncate">{{ t("tasks.from", { name: x.created_by === me?.sub ? t("tasks.me") : personName(x.created_by) }) }}</span>
                 </div>
                 <div v-if="canChange(x)" class="flex items-center justify-between gap-2 pt-1">
@@ -212,7 +222,7 @@ async function confirmRemove() {
     </template>
   </UDashboardPanel>
 
-  <TaskFormModal v-model:open="formOpen" :task="editing" :people="people ?? []" @saved="refresh" />
+  <TaskFormModal v-model:open="formOpen" :task="editing" :people="people ?? []" @saved="() => { refresh(); refreshCounts(); }" @changed="refreshCounts" />
 
   <UModal v-model:open="removeOpen" :title="t('tasks.deleteTitle')">
     <template #body>

@@ -61,6 +61,7 @@ interface Customer {
   name: string;
   phone: string | null;
   extra_phones?: string[] | null;
+  extra_phone_names?: string[] | null;
 }
 
 interface LeadOption {
@@ -153,7 +154,7 @@ const __ad5 = useAsyncData<Deal[]>("crm-deals", async () => {
 const { data: deals, refresh, status } = __ad5;
 
 const __ad6 = useAsyncData<Customer[]>("crm-deals-customers", async () =>
-  fetchAll<Customer>((from, to) => supabase.from("customers").select("id, name, phone, extra_phones").order("name").order("id").range(from, to) as never),
+  fetchAll<Customer>((from, to) => supabase.from("customers").select("id, name, phone, extra_phones, extra_phone_names").order("name").order("id").range(from, to) as never),
 );
 const { data: customers, refresh: refreshCustomers } = __ad6;
 
@@ -454,7 +455,9 @@ function matchesFilters(deal: Deal) {
   if (dealSearch.value) {
     const q = dealSearch.value.toLowerCase();
     const matchesName = dealContactName(deal).toLowerCase().includes(q);
-    const matchesPhone = anyPhoneMatches(dealContactPhones(deal), dealSearch.value);
+    const matchesPhone =
+      anyPhoneMatches(dealContactPhones(deal), dealSearch.value) ||
+      extraNamesMatch(customers.value?.find((c) => c.id === deal.customer_id)?.extra_phone_names, dealSearch.value);
     if (!matchesName && !matchesPhone) return false;
   }
   return true;

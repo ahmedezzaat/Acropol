@@ -162,7 +162,7 @@ const filtered = computed(() =>
     if (search.value) {
       const q = search.value.toLowerCase();
       const hay = `${c.name} ${c.company ?? ""} ${c.email ?? ""} ${c.address ?? ""} ${contractsOf(c.id).join(" ")}`.toLowerCase();
-      if (!hay.includes(q) && !phoneMatches(c.phone, search.value) && !(c.extra_phones ?? []).some((p) => phoneMatches(p, search.value))) return false;
+      if (!hay.includes(q) && !phoneMatches(c.phone, search.value) && !(c.extra_phones ?? []).some((p) => phoneMatches(p, search.value)) && !extraNamesMatch(c.extra_phone_names, search.value)) return false;
     }
     return true;
   }),
