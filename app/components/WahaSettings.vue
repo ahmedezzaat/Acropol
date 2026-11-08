@@ -101,6 +101,22 @@ async function connect() {
     connecting.value = false;
   }
 }
+// Set the webhook on a number that is already connected (after the key was set on the server)
+const applying = ref(false);
+async function applyWebhook() {
+  applying.value = true;
+  connectError.value = null;
+  try {
+    await $fetch("/api/admin/waha-webhook-apply", { method: "POST" });
+    connectNote.value = null;
+    toast.add({ title: t("waha.webhookApplied"), color: "success" });
+  } catch (err: any) {
+    const code = err?.data?.statusMessage ?? err.message;
+    connectError.value = code === "webhook_key_missing" ? t("waha.webhookNotSet") : code;
+  } finally {
+    applying.value = false;
+  }
+}
 const disconnecting = ref(false);
 async function disconnect() {
   disconnecting.value = true;
@@ -158,7 +174,10 @@ async function copy(text: string) {
           <KBadge v-if="sessionStatus" :label="t(`waha.status.${sessionStatus}`)" :tone="sessionStatus === 'WORKING' ? 'success' : sessionStatus === 'FAILED' ? 'error' : 'warning'" />
           <span v-if="linkedNumber" class="text-xs text-muted" dir="ltr">+{{ linkedNumber }}<template v-if="linkedName"> · {{ linkedName }}</template></span>
           <UButton v-if="sessionStatus !== 'WORKING'" icon="i-simple-icons-whatsapp" :label="t('waha.connect')" :loading="connecting" :disabled="!cfg?.hasApiKey" @click="connect" />
-          <UButton v-else color="neutral" variant="outline" icon="i-lucide-unplug" :label="t('waha.disconnect')" :loading="disconnecting" @click="disconnect" />
+          <template v-else>
+            <UButton icon="i-lucide-webhook" :label="t('waha.applyWebhook')" :loading="applying" @click="applyWebhook" />
+            <UButton color="neutral" variant="outline" icon="i-lucide-unplug" :label="t('waha.disconnect')" :loading="disconnecting" @click="disconnect" />
+          </template>
         </div>
         <p v-if="!cfg?.hasApiKey" class="text-xs text-muted">{{ t("waha.saveKeyFirst") }}</p>
         <p v-if="connectNote" class="rounded-[10px] bg-warning/10 p-3 text-xs text-warning">{{ connectNote }}</p>

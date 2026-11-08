@@ -1811,6 +1811,8 @@
     }
   },
   "waha": {
+    "applyWebhook": "ضبط الـ Webhook تلقائيًا",
+    "webhookApplied": "تم ضبط الـ Webhook",
     "connectTitle": "ربط الرقم",
     "connect": "ربط الرقم (QR)",
     "disconnect": "فصل الرقم",

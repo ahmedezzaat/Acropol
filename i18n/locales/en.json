@@ -1811,6 +1811,8 @@
     }
   },
   "waha": {
+    "applyWebhook": "Set the webhook automatically",
+    "webhookApplied": "The webhook was set",
     "connectTitle": "Connect the number",
     "connect": "Connect the number (QR)",
     "disconnect": "Disconnect the number",
