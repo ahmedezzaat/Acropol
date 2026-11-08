@@ -12,7 +12,7 @@ const me = useSupabaseUser();
 const toast = useToast();
 const { t, locale } = useI18n();
 const { hasPermission, isAdmin } = usePermissions();
-const { loadTypes, loadPolicy, loadApprovers, errorText } = useLeave();
+const { loadTypes, loadPolicy, loadApprovers, loadMyApprover, errorText } = useLeave();
 
 interface VacationRow {
   id: string; user_id: string; leave_type_id: string; start_date: string; end_date: string; days: number; note: string | null;
@@ -30,17 +30,20 @@ const canViewAll = computed(() => isAdmin.value || hasPermission("leave", "view_
 const myId = computed(() => me.value?.sub as string);
 
 const { data: setup } = await useAsyncData("leave-setup", async () => {
-  const [types, policy, approvers, people] = await Promise.all([
+  const [types, policy, approvers, people, myApprover] = await Promise.all([
     loadTypes(),
     loadPolicy(),
     loadApprovers(),
     supabase.from("profiles").select("id, full_name, email").order("full_name"),
+    loadMyApprover(),
   ]);
-  return { types, policy, approvers, people: (people.data ?? []) as Approver[] };
+  return { types, policy, approvers, myApprover, people: (people.data ?? []) as Approver[] };
 });
 const types = computed<LeaveType[]>(() => setup.value?.types ?? []);
 const policy = computed<LeavePolicy>(() => setup.value?.policy ?? { delay_max_hours: 2, delay_per_month: 3, weekend_days: [5, 6], year_start_month: 1, default_start: "09:00", default_end: "17:00" });
 const approvers = computed(() => setup.value?.approvers ?? []);
+// the person set to approve my requests: they go there automatically
+const myApprover = computed(() => setup.value?.myApprover ?? null);
 const nameOf = (id: string | null) => {
   const p = setup.value?.people.find((x) => x.id === id);
   return p ? p.full_name || p.email : "—";
@@ -255,8 +258,8 @@ const fmtDay = (d: string) => formatDMY(d);
     </template>
   </UDashboardPanel>
 
-  <LeaveRequestModal v-model:open="vacationOpen" :types="types" :policy="policy" :approvers="approvers" :remaining="remaining" @saved="reloadAll" />
-  <DelayRequestModal v-model:open="delayOpen" :policy="policy" :approvers="approvers" :used-this-month="delayUsed" :schedule="schedule ?? { start: policy.default_start, end: policy.default_end }" @saved="reloadAll" />
+  <LeaveRequestModal v-model:open="vacationOpen" :types="types" :policy="policy" :approvers="approvers" :remaining="remaining" :fixed-approver="myApprover" @saved="reloadAll" />
+  <DelayRequestModal v-model:open="delayOpen" :policy="policy" :approvers="approvers" :used-this-month="delayUsed" :schedule="schedule ?? { start: policy.default_start, end: policy.default_end }" :fixed-approver="myApprover" @saved="reloadAll" />
 
   <UModal v-model:open="decideOpen" :title="deciding?.approve ? t('leave.approve') : t('leave.reject')">
     <template #body>

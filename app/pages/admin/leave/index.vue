@@ -54,18 +54,19 @@ async function addType() {
 }
 
 // ---- People: their own hours and credits (blank: the defaults)
-interface Person { id: string; full_name: string | null; email: string; start: string; end: string; credits: Record<string, number | null> }
+interface Person { id: string; full_name: string | null; email: string; start: string; end: string; credits: Record<string, number | null>; approver: string | null }
 const { data: peopleData, refresh: refreshPeople } = await useAsyncData<Person[]>("admin-leave-people", async () => {
-  const [profiles, schedules, credits] = await Promise.all([
+  const [profiles, schedules, credits, routes] = await Promise.all([
     supabase.from("profiles").select("id, full_name, email").eq("is_active", true).eq("can_login", true).order("full_name"),
     supabase.from("user_work_schedules").select("profile_id, start_time, end_time"),
     supabase.from("leave_user_credits").select("profile_id, leave_type_id, credit"),
+    supabase.from("leave_approval_routes").select("profile_id, approver_id"),
   ]);
   return (profiles.data ?? []).map((p) => {
     const sc = schedules.data?.find((s) => s.profile_id === p.id);
     const cr: Record<string, number | null> = {};
     for (const c of credits.data ?? []) if (c.profile_id === p.id) cr[c.leave_type_id] = Number(c.credit);
-    return { ...p, start: sc?.start_time?.slice(0, 5) ?? "", end: sc?.end_time?.slice(0, 5) ?? "", credits: cr };
+    return { ...p, start: sc?.start_time?.slice(0, 5) ?? "", end: sc?.end_time?.slice(0, 5) ?? "", credits: cr, approver: routes.data?.find((r) => r.profile_id === p.id)?.approver_id ?? null };
   });
 });
 const people = ref<Person[]>([]);
@@ -75,6 +76,11 @@ const shownPeople = computed(() => {
   const q = search.value.trim().toLowerCase();
   return q ? people.value.filter((p) => `${p.full_name ?? ""} ${p.email}`.toLowerCase().includes(q)) : people.value;
 });
+// who can be set as an approver: any active person
+const approverItems = computed(() => [
+  { label: t("leave.settings.noApprover"), value: null as string | null },
+  ...people.value.map((x) => ({ label: x.full_name || x.email, value: x.id as string | null })),
+]);
 const savingPerson = ref<string | null>(null);
 async function savePerson(p: Person) {
   savingPerson.value = p.id;
@@ -86,6 +92,13 @@ async function savePerson(p: Person) {
   } else {
     const { error } = await supabase.from("user_work_schedules").delete().eq("profile_id", p.id);
     failure = error?.message ?? null;
+  }
+  // who approves this person's requests (none: they pick one themselves)
+  {
+    const { error } = p.approver
+      ? await supabase.from("leave_approval_routes").upsert({ profile_id: p.id, approver_id: p.approver }, { onConflict: "profile_id" })
+      : await supabase.from("leave_approval_routes").delete().eq("profile_id", p.id);
+    failure = failure ?? error?.message ?? null;
   }
   for (const ty of types.value) {
     const v = p.credits[ty.id];
@@ -173,6 +186,7 @@ async function savePerson(p: Person) {
               <thead>
                 <tr class="border-b border-default text-xs text-muted">
                   <th class="px-3 py-2 text-start font-medium">{{ t("leave.employee") }}</th>
+                  <th class="px-3 py-2 text-start font-medium">{{ t("leave.settings.approver") }}</th>
                   <th class="px-3 py-2 text-start font-medium">{{ t("leave.settings.attend") }}</th>
                   <th class="px-3 py-2 text-start font-medium">{{ t("leave.settings.exit") }}</th>
                   <th v-for="ty in types.filter((x) => x.is_active)" :key="ty.id" class="px-3 py-2 text-start font-medium">{{ ty.name }}</th>
@@ -182,6 +196,9 @@ async function savePerson(p: Person) {
               <tbody class="divide-y divide-default">
                 <tr v-for="p in shownPeople" :key="p.id">
                   <td class="px-3 py-2 font-medium text-highlighted">{{ p.full_name || p.email }}</td>
+                  <td class="px-3 py-2">
+                    <USelect v-model="p.approver" :items="approverItems.filter((o) => o.value !== p.id)" value-key="value" size="sm" class="w-44" />
+                  </td>
                   <td class="px-3 py-2"><UInput v-model="p.start" type="time" size="sm" class="w-28" /></td>
                   <td class="px-3 py-2"><UInput v-model="p.end" type="time" size="sm" class="w-28" /></td>
                   <td v-for="ty in types.filter((x) => x.is_active)" :key="ty.id" class="px-3 py-2">

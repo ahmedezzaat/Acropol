@@ -2,7 +2,7 @@
 // Ask for a delay permission: arrive later on a day, for up to the allowed hours, a few times a month.
 import type { Approver, LeavePolicy } from "~/composables/useLeave";
 
-const props = defineProps<{ policy: LeavePolicy; approvers: Approver[]; usedThisMonth: number; schedule: { start: string; end: string } }>();
+const props = defineProps<{ policy: LeavePolicy; approvers: Approver[]; usedThisMonth: number; schedule: { start: string; end: string }; fixedApprover?: Approver | null }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
@@ -21,7 +21,7 @@ watch(open, (isOpen) => {
   if (!isOpen) return;
   date.value = "";
   hours.value = props.policy.delay_max_hours;
-  approverId.value = props.approvers.length === 1 ? props.approvers[0]!.id : null;
+  approverId.value = props.fixedApprover?.id ?? (props.approvers.length === 1 ? props.approvers[0]!.id : null);
   reason.value = "";
 });
 
@@ -73,7 +73,12 @@ async function save() {
           </UFormField>
         </div>
         <p v-if="arriveBy" class="text-sm text-muted">{{ t("leave.arriveBy", { start: schedule.start, time: arriveBy }) }}</p>
-        <UFormField :label="t('leave.approver')" required :help="approvers.length ? undefined : t('leave.noApprovers')">
+        <div v-if="fixedApprover" class="flex items-center gap-2 rounded-[10px] bg-muted px-3 py-2 text-sm">
+          <UIcon name="i-lucide-user-check" class="size-4 text-primary" />
+          <span class="text-muted">{{ t("leave.goesTo") }}</span>
+          <span class="font-medium text-highlighted">{{ fixedApprover.full_name || fixedApprover.email }}</span>
+        </div>
+        <UFormField v-else :label="t('leave.approver')" required :help="approvers.length ? undefined : t('leave.noApprovers')">
           <USelect v-model="approverId" :items="approverItems" value-key="value" icon="i-lucide-user-check" :placeholder="t('leave.pickApprover')" class="w-full" />
         </UFormField>
         <UFormField :label="t('leave.reason')">

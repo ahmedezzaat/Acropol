@@ -3,7 +3,7 @@
 // type asks for one (the sick leave does).
 import type { Approver, LeavePolicy, LeaveType } from "~/composables/useLeave";
 
-const props = defineProps<{ types: LeaveType[]; policy: LeavePolicy; approvers: Approver[]; remaining: Record<string, number> }>();
+const props = defineProps<{ types: LeaveType[]; policy: LeavePolicy; approvers: Approver[]; remaining: Record<string, number>; fixedApprover?: Approver | null }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
@@ -27,7 +27,7 @@ watch(open, (isOpen) => {
   typeId.value = props.types[0]?.id ?? null;
   start.value = "";
   end.value = "";
-  approverId.value = props.approvers.length === 1 ? props.approvers[0]!.id : null;
+  approverId.value = props.fixedApprover?.id ?? (props.approvers.length === 1 ? props.approvers[0]!.id : null);
   note.value = "";
   files.value = [];
 });
@@ -104,7 +104,12 @@ async function save() {
           <template v-if="days === 0"> · {{ t("leave.errors.no_working_days") }}</template>
           <template v-else-if="days > left"> · {{ t("leave.errors.insufficient_balance") }}</template>
         </p>
-        <UFormField :label="t('leave.approver')" required :help="approvers.length ? undefined : t('leave.noApprovers')">
+        <div v-if="fixedApprover" class="flex items-center gap-2 rounded-[10px] bg-muted px-3 py-2 text-sm">
+          <UIcon name="i-lucide-user-check" class="size-4 text-primary" />
+          <span class="text-muted">{{ t("leave.goesTo") }}</span>
+          <span class="font-medium text-highlighted">{{ fixedApprover.full_name || fixedApprover.email }}</span>
+        </div>
+        <UFormField v-else :label="t('leave.approver')" required :help="approvers.length ? undefined : t('leave.noApprovers')">
           <USelect v-model="approverId" :items="approverItems" value-key="value" icon="i-lucide-user-check" :placeholder="t('leave.pickApprover')" class="w-full" />
         </UFormField>
         <UFormField :label="t('leave.note')">

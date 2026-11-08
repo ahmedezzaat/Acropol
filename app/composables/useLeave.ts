@@ -49,6 +49,15 @@ export function useLeave() {
     return (data ?? []) as Approver[];
   }
 
+  // The person set to approve my requests (none: I pick one myself).
+  async function loadMyApprover(): Promise<Approver | null> {
+    const me = useSupabaseUser();
+    const { data: route } = await supabase.from("leave_approval_routes").select("approver_id").eq("profile_id", me.value?.sub as string).maybeSingle();
+    if (!route?.approver_id) return null;
+    const { data } = await supabase.from("profiles").select("id, full_name, email").eq("id", route.approver_id).maybeSingle();
+    return (data as Approver | null) ?? null;
+  }
+
   // The days of a vacation that count: every day but the weekend (the database does the same sum).
   function workingDays(start: string, end: string, weekend: number[]) {
     if (!start || !end || end < start) return 0;
@@ -70,5 +79,5 @@ export function useLeave() {
     return text === key ? code : text;
   }
 
-  return { loadTypes, loadPolicy, loadApprovers, workingDays, errorText };
+  return { loadTypes, loadPolicy, loadApprovers, loadMyApprover, workingDays, errorText };
 }
