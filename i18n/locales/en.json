@@ -1819,6 +1819,15 @@
     }
   },
   "waha": {
+    "logTitle": "What WAHA sent to the system lately",
+    "logHint": "Every message WAHA sends shows here with what the system did with it. If nothing shows after you send a message, the problem is in WAHA delivering it.",
+    "logRefresh": "Refresh",
+    "logEmpty": "Nothing has arrived yet.",
+    "logUnavailable": "The event log is not available yet.",
+    "logWhen": "When",
+    "logEvent": "Event",
+    "logChat": "Chat",
+    "logResult": "Result",
     "applyWebhook": "Set the webhook automatically",
     "webhookApplied": "The webhook was set",
     "connectTitle": "Connect the number",

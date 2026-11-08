@@ -81,7 +81,50 @@ function phoneFrom(payload: WahaPayload, chat: unknown): { digits: string } | { 
   return { skip: "unsupported_sender" };
 }
 
+// Every call WAHA makes is noted in a short log (what came, and what the app did), so a message that
+// "does nothing" can be traced from Settings. Writing the note never changes the answer.
 export async function handleWaha(event: H3Event) {
+  let outcome = "error";
+  let detail: string | null = null;
+  try {
+    const result = await handleWahaCall(event);
+    outcome = String((result as { action?: string }).action ?? "ok");
+    detail = String((result as { reason?: string }).reason ?? "") || null;
+    return result;
+  } catch (err: any) {
+    outcome = err?.statusCode === 401 ? "rejected" : "error";
+    detail = String(err?.statusMessage ?? err?.message ?? "").slice(0, 200) || null;
+    throw err;
+  } finally {
+    try {
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse((await readRawBody(event)) ?? "{}");
+      } catch {
+        /* not JSON */
+      }
+      const p = parsed?.payload ?? {};
+      const fromMe = p.fromMe === true;
+      const admin = serverSupabaseServiceRole(event);
+      await admin.from("whatsapp_webhook_log").insert({
+        event: typeof parsed?.event === "string" ? parsed.event : null,
+        chat: typeof (fromMe ? p.to : p.from) === "string" ? String(fromMe ? p.to : p.from).replace(/\d(?=\d{4})/g, "•") : null,
+        from_me: typeof p.fromMe === "boolean" ? p.fromMe : null,
+        outcome,
+        detail,
+      });
+      // keep it short
+      if (Math.random() < 0.05) {
+        const { data: old } = await admin.from("whatsapp_webhook_log").select("id").order("id", { ascending: false }).range(300, 300).maybeSingle();
+        if (old) await admin.from("whatsapp_webhook_log").delete().lte("id", old.id);
+      }
+    } catch (logErr) {
+      console.error("[waha-webhook] could not write the log", logErr);
+    }
+  }
+}
+
+async function handleWahaCall(event: H3Event) {
   // ---- body: size limit, raw text kept for the signature
   const declared = Number(getHeader(event, "content-length") ?? 0);
   if (declared > MAX_BODY_BYTES) throw createError({ statusCode: 413, statusMessage: "Payload too large" });

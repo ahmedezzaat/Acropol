@@ -1819,6 +1819,15 @@
     }
   },
   "waha": {
+    "logTitle": "آخر ما أرسله WAHA إلى النظام",
+    "logHint": "كل رسالة يرسلها WAHA تظهر هنا مع ما فعله النظام بها. إن لم يظهر شيء بعد إرسال رسالة فالمشكلة في وصول الرسائل من WAHA.",
+    "logRefresh": "تحديث",
+    "logEmpty": "لم يصل شيء بعد.",
+    "logUnavailable": "سجل الأحداث غير متاح بعد.",
+    "logWhen": "الوقت",
+    "logEvent": "الحدث",
+    "logChat": "المحادثة",
+    "logResult": "النتيجة",
     "applyWebhook": "ضبط الـ Webhook تلقائيًا",
     "webhookApplied": "تم ضبط الـ Webhook",
     "connectTitle": "ربط الرقم",

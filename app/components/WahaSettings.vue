@@ -137,6 +137,23 @@ onMounted(async () => {
 });
 onBeforeUnmount(stopPolling);
 
+// ---- What WAHA sent lately (to trace a message that "does nothing")
+interface LogRow { id: number; received_at: string; event: string | null; chat: string | null; from_me: boolean | null; outcome: string; detail: string | null }
+const log = ref<LogRow[]>([]);
+const logUnavailable = ref(false);
+const logLoading = ref(false);
+async function loadLog() {
+  logLoading.value = true;
+  try {
+    const r = await $fetch<{ rows: LogRow[]; unavailable: boolean }>("/api/admin/waha-log");
+    log.value = r.rows;
+    logUnavailable.value = r.unavailable;
+  } finally {
+    logLoading.value = false;
+  }
+}
+onMounted(loadLog);
+
 // what to paste in the WAHA session settings
 const webhookJson = computed(() =>
   JSON.stringify({ webhooks: [{ url: `${origin}/api/webhooks/whatsapp`, events: ["message", "message.any"], hmac: { key: "<WAHA_WEBHOOK_HMAC_KEY>" } }] }, null, 2),
@@ -192,6 +209,30 @@ async function copy(text: string) {
             <li>{{ t("waha.scan2") }}</li>
             <li>{{ t("waha.scan3") }}</li>
           </ol>
+        </div>
+      </div>
+
+      <!-- What WAHA sent lately -->
+      <div class="space-y-2 border-t border-default pt-4">
+        <div class="flex items-center justify-between gap-2">
+          <p class="font-medium text-highlighted">{{ t("waha.logTitle") }}</p>
+          <UButton icon="i-lucide-refresh-cw" size="xs" color="neutral" variant="ghost" :label="t('waha.logRefresh')" :loading="logLoading" @click="loadLog" />
+        </div>
+        <p class="text-xs text-muted">{{ t("waha.logHint") }}</p>
+        <p v-if="logUnavailable" class="text-xs text-warning">{{ t("waha.logUnavailable") }}</p>
+        <p v-else-if="!log.length" class="rounded-[10px] bg-muted p-3 text-xs text-muted">{{ t("waha.logEmpty") }}</p>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full min-w-[30rem] text-xs">
+            <thead><tr class="border-b border-default text-muted"><th class="px-2 py-1 text-start font-medium">{{ t("waha.logWhen") }}</th><th class="px-2 py-1 text-start font-medium">{{ t("waha.logEvent") }}</th><th class="px-2 py-1 text-start font-medium">{{ t("waha.logChat") }}</th><th class="px-2 py-1 text-start font-medium">{{ t("waha.logResult") }}</th></tr></thead>
+            <tbody class="divide-y divide-default">
+              <tr v-for="r in log" :key="r.id">
+                <td class="whitespace-nowrap px-2 py-1">{{ formatDMYTime(r.received_at) }}</td>
+                <td class="px-2 py-1" dir="ltr">{{ r.event ?? "—" }}<template v-if="r.from_me"> ↗</template></td>
+                <td class="px-2 py-1" dir="ltr">{{ r.chat ?? "—" }}</td>
+                <td class="px-2 py-1" :class="r.outcome === 'rejected' || r.outcome === 'error' ? 'text-error' : r.outcome === 'ignored' ? 'text-warning' : 'text-success'">{{ r.outcome }}<template v-if="r.detail"> · {{ r.detail }}</template></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
