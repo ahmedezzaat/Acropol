@@ -1770,6 +1770,14 @@
     }
   },
   "chats": {
+    "newMessage": "New message",
+    "findContact": "Search the customers and leads",
+    "findContactHint": "Name or phone number",
+    "firstMessage": "Message",
+    "newSent": "The message was sent",
+    "errInvalidPhone": "The phone number is not valid.",
+    "errNotOnWhatsapp": "This number is not on WhatsApp.",
+    "kind": { "lead": "Lead", "customer": "Customer" },
     "unreadCount": "{count} unread",
     "viaPhone": "Through the company phone (WAHA)",
     "title": "WhatsApp inbox",

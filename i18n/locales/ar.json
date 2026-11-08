@@ -1770,6 +1770,14 @@
     }
   },
   "chats": {
+    "newMessage": "رسالة جديدة",
+    "findContact": "ابحث في العملاء والعملاء المحتملين",
+    "findContactHint": "الاسم أو رقم الهاتف",
+    "firstMessage": "الرسالة",
+    "newSent": "تم إرسال الرسالة",
+    "errInvalidPhone": "رقم الهاتف غير صحيح.",
+    "errNotOnWhatsapp": "هذا الرقم ليس على واتساب.",
+    "kind": { "lead": "عميل محتمل", "customer": "عميل" },
     "unreadCount": "{count} غير مقروءة",
     "viaPhone": "عبر هاتف الشركة (WAHA)",
     "title": "صندوق واتساب",

@@ -66,6 +66,14 @@ const insideWindow = computed(() => current.value?.provider === "waha" || !!curr
 const collectedLines = computed(() => Object.entries(current.value?.collected ?? {}).filter(([, v]) => v).map(([k, v]) => ({ label: t(`chats.fields.${k}`), value: v })));
 
 // ---- Answer, pause the assistant, create the contact
+// ---- New message: start a chat with a number
+const newOpen = ref(false);
+async function onNewSent(id: string) {
+  filter.value = "all";
+  await refresh();
+  openId.value = id;
+}
+
 const text = ref("");
 const sending = ref(false);
 async function send() {
@@ -109,6 +117,9 @@ async function createContact() {
       <UDashboardNavbar :title="t('chats.title')">
         <template #leading>
           <UDashboardSidebarCollapse />
+        </template>
+        <template #right>
+          <UButton v-if="canReply" icon="i-lucide-square-pen" :label="t('chats.newMessage')" @click="newOpen = true" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -179,4 +190,6 @@ async function createContact() {
       </div>
     </template>
   </UDashboardPanel>
+
+  <NewChatModal v-model:open="newOpen" @sent="onNewSent" />
 </template>
