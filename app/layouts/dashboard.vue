@@ -39,7 +39,7 @@ useNotificationsRealtime();
 // /admin only the settings pages, and on the home hub one link per area.
 // The way back to Home is the app name in the sidebar header.
 const accessibleModules = computed(() =>
-  MODULES.filter((m) => m.key !== "settings" && m.key !== "tasks" && m.resources.some((r) => hasAnyModulePermission(r.key))),
+  MODULES.filter((m) => m.key !== "settings" && m.key !== "tasks" && m.key !== "leave" && m.resources.some((r) => hasAnyModulePermission(r.key))),
 );
 const canSettings = computed(() => isAdmin.value || hasAnyModulePermission("settings"));
 
@@ -96,12 +96,13 @@ const items = computed<NavigationMenuItem[][]>(() => {
 
   const activeModule = accessibleModules.value.find((m) => path === m.route || path.startsWith(`${m.route}/`));
   // tasks are for everyone: the link stays in the menu of every module
-  if (activeModule) return [[...moduleLinks(activeModule), { label: t("tasks.title"), icon: "i-lucide-list-checks", to: "/tasks" }]];
+  if (activeModule) return [[...moduleLinks(activeModule), { label: t("tasks.title"), icon: "i-lucide-list-checks", to: "/tasks" }, { label: t("leave.title"), icon: "i-lucide-calendar-heart", to: "/leave" }]];
 
   return [
     [
       { label: t("nav.home"), icon: "i-lucide-house", to: "/" },
       { label: t("tasks.title"), icon: "i-lucide-list-checks", to: "/tasks" },
+      { label: t("leave.title"), icon: "i-lucide-calendar-heart", to: "/leave" },
       ...accessibleModules.value.map((m) => ({ label: t(m.labelKey), icon: m.icon, to: m.route })),
       ...(canSettings.value ? [{ label: t("nav.settings"), icon: "i-lucide-settings", to: "/admin" }] : []),
     ],

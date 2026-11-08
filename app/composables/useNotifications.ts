@@ -18,7 +18,9 @@ export interface AppNotification {
     | "work_request_withdrawn"
     | "work_request_done"
     | "task_assigned"
-    | "task_done";
+    | "task_done"
+    | "leave_request"
+    | "leave_decided";
   params: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -149,6 +151,27 @@ export function useNotifications() {
                 ? t("notifications.visitPending", vp)
                 : t("notifications.visitPendingNoBy", vp),
           link: `/crm/visits?open=${p.visit_id}`,
+        };
+      }
+      case "leave_request":
+        return {
+          icon: "i-lucide-calendar-heart",
+          color: "warning" as const,
+          text: p.kind === "delay"
+            ? t("notifications.leaveRequestDelay", { by: personName(p.who) ?? "", date: formatDay(p.date), hours: Number(p.hours ?? 0) })
+            : t("notifications.leaveRequestVacation", { by: personName(p.who) ?? "", type: String(p.type ?? ""), from: formatDay(p.from), to: formatDay(p.to), days: Number(p.days ?? 0) }),
+          link: "/leave",
+        };
+      case "leave_decided": {
+        const ok = p.approved === true;
+        const approver = personName(p.by) ?? "";
+        return {
+          icon: ok ? "i-lucide-calendar-check" : "i-lucide-calendar-x",
+          color: ok ? ("success" as const) : ("error" as const),
+          text: p.kind === "delay"
+            ? t(ok ? "notifications.leaveApprovedDelay" : "notifications.leaveRejectedDelay", { by: approver, date: formatDay(p.date) })
+            : t(ok ? "notifications.leaveApprovedVacation" : "notifications.leaveRejectedVacation", { by: approver, type: String(p.type ?? ""), from: formatDay(p.from), to: formatDay(p.to) }),
+          link: "/leave",
         };
       }
       case "task_assigned":

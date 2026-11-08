@@ -13,6 +13,9 @@
       "title": "@:modules.crm.label"
     },
     "admin": {
+    "leave": {
+      "title": "Leave"
+    },
       "title": "@:nav.settings"
     },
     "crm-dashboard": {
@@ -115,6 +118,9 @@
     "tasks": {
       "label": "Tasks"
     },
+    "leave": {
+      "label": "Leave"
+    },
     "customer_service": {
       "label": "Customer Service"
     },
@@ -127,6 +133,13 @@
       "label": "Tasks",
       "actions": {
         "view_all": "See every user's tasks"
+      }
+    },
+    "leave": {
+      "label": "Leave",
+      "actions": {
+        "approve": "Approve leave and delay requests",
+        "view_all": "See every request and balance"
       }
     },
     "crm_leads": {
@@ -1122,6 +1135,12 @@
     "taskAssignedBy": "{by} gave you a task: {name}",
     "taskDone": "Task done: {name}",
     "taskDoneBy": "{by} finished the task: {name}",
+    "leaveRequestVacation": "{by} asks for {type} leave from {from} to {to} ({days} days) and needs your approval",
+    "leaveRequestDelay": "{by} asks for a {hours} hour delay permission on {date} and needs your approval",
+    "leaveApprovedVacation": "{by} approved your {type} leave from {from} to {to}",
+    "leaveRejectedVacation": "{by} rejected your {type} leave from {from} to {to}",
+    "leaveApprovedDelay": "{by} approved your delay permission on {date}",
+    "leaveRejectedDelay": "{by} rejected your delay permission on {date}",
     "workStageChanged": "{name} moved to \"{stage}\" on {board}",
     "visitPendingNoBy": "A {kind} request for {name} on {date} needs your approval.",
     "visitPendingFinal": "Team leader approved a {kind} request by {by} for {name} on {date}. It needs final approval.",
@@ -1624,6 +1643,94 @@
       "noNotes": "No notes yet.",
       "call": "Call",
       "close": "Close"
+    }
+  },
+  "leave": {
+    "title": "Leave",
+    "requestVacation": "Request a vacation",
+    "requestDelay": "Delay permission",
+    "type": "Type of leave",
+    "from": "From",
+    "to": "To",
+    "daysSummary": "{days} day(s) counted · {left} left for you",
+    "approver": "Who approves it",
+    "pickApprover": "Pick a person",
+    "noApprovers": "Nobody has the approve permission yet. Ask the administrator to give it.",
+    "note": "Notes",
+    "files": "Attached files",
+    "attach": "Attach a file",
+    "fileRequired": "This type needs a file (for example the medical report).",
+    "send": "Send the request",
+    "requestSent": "The request was sent",
+    "requestFailed": "Could not send the request",
+    "uploadFailed": "Could not upload the file",
+    "downloadFailed": "Could not download the file",
+    "day": "days",
+    "usedPending": "Used {used} · waiting {pending}",
+    "delayPermission": "Delay permission",
+    "thisMonth": "this month",
+    "delayRule": "Up to {hours} hours, {times} times a month",
+    "delayLeft": "Left this month: {left}",
+    "delayDate": "Day of the delay",
+    "delayHours": "Hours",
+    "arriveBy": "You start at {start}; with the permission you may arrive by {time}",
+    "reason": "Reason",
+    "myHours": "My working hours",
+    "hoursHint": "Attendance and exit",
+    "tabs": { "mine": "My requests", "approve": "Waiting for my approval", "all": "All requests", "balances": "Everyone's balances" },
+    "status": { "pending": "Waiting", "approved": "Approved", "rejected": "Rejected", "cancelled": "Cancelled" },
+    "empty": "No requests",
+    "daysCount": "{n} day(s)",
+    "hoursCount": "{n} hour(s)",
+    "approve": "Approve",
+    "reject": "Reject",
+    "cancel": "Cancel the request",
+    "decisionNote": "Note (optional)",
+    "employee": "Employee",
+    "pendingShort": "{n} waiting",
+    "months": { "1": "January", "2": "February", "3": "March", "4": "April", "5": "May", "6": "June", "7": "July", "8": "August", "9": "September", "10": "October", "11": "November", "12": "December" },
+    "days": { "0": "Sunday", "1": "Monday", "2": "Tuesday", "3": "Wednesday", "4": "Thursday", "5": "Friday", "6": "Saturday" },
+    "errors": {
+      "attachment_required": "This type needs a file.",
+      "insufficient_balance": "The remaining balance is not enough.",
+      "no_working_days": "The chosen period has no working days.",
+      "overlapping_request": "You already have a request in this period.",
+      "approver_is_self": "You cannot pick yourself to approve.",
+      "approver_not_allowed": "That person cannot approve.",
+      "leave_type_unavailable": "This type is not available.",
+      "delay_too_long": "More hours than allowed.",
+      "delay_quota_reached": "You used all your delay permissions this month.",
+      "delay_same_day": "You already have a delay permission that day.",
+      "already_decided": "This request was already decided.",
+      "not_your_request": "This request is not addressed to you.",
+      "not_found": "The request was not found."
+    },
+    "settings": {
+      "rules": "Rules",
+      "delayHours": "Longest delay permission (hours)",
+      "delayHoursHint": "Per permission.",
+      "delayPerMonth": "Delay permissions per month",
+      "delayPerMonthHint": "Per employee.",
+      "yearStart": "Start of the credit year",
+      "yearStartHint": "The month leave credits renew.",
+      "defaultStart": "Default attendance",
+      "defaultEnd": "Default exit",
+      "weekend": "Weekly days off",
+      "weekendHint": "They do not count in a vacation.",
+      "types": "Leave types and yearly credit",
+      "typesHint": "Each approved leave is taken from the credit of its type. A type can require a file.",
+      "typeName": "Type name",
+      "credit": "Yearly credit (days)",
+      "requiresFile": "Needs a file",
+      "active": "Active",
+      "newType": "New type",
+      "add": "Add",
+      "people": "Each employee's hours and credits",
+      "peopleHint": "Leave a field empty to use the default ({start} – {end} and the general credits).",
+      "attend": "Attendance",
+      "exit": "Exit",
+      "saved": "Saved",
+      "saveFailed": "Could not save"
     }
   },
   "tasks": {

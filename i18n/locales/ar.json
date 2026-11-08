@@ -13,6 +13,9 @@
       "title": "@:modules.crm.label"
     },
     "admin": {
+    "leave": {
+      "title": "الإجازات"
+    },
       "title": "@:nav.settings"
     },
     "crm-dashboard": {
@@ -115,6 +118,9 @@
     "tasks": {
       "label": "المهام"
     },
+    "leave": {
+      "label": "الإجازات"
+    },
     "customer_service": {
       "label": "خدمة العملاء"
     },
@@ -127,6 +133,13 @@
       "label": "المهام",
       "actions": {
         "view_all": "رؤية مهام جميع المستخدمين"
+      }
+    },
+    "leave": {
+      "label": "الإجازات",
+      "actions": {
+        "approve": "الموافقة على طلبات الإجازات والأذونات",
+        "view_all": "رؤية كل الطلبات والأرصدة"
       }
     },
     "crm_leads": {
@@ -1122,6 +1135,12 @@
     "taskAssignedBy": "أسند إليك {by} مهمة: {name}",
     "taskDone": "تم إنجاز المهمة: {name}",
     "taskDoneBy": "أنجز {by} المهمة: {name}",
+    "leaveRequestVacation": "{by} يطلب إجازة {type} من {from} إلى {to} ({days} يوم) وتحتاج موافقتك",
+    "leaveRequestDelay": "{by} يطلب إذن تأخير {hours} ساعة يوم {date} ويحتاج موافقتك",
+    "leaveApprovedVacation": "وافق {by} على إجازتك {type} من {from} إلى {to}",
+    "leaveRejectedVacation": "رفض {by} إجازتك {type} من {from} إلى {to}",
+    "leaveApprovedDelay": "وافق {by} على إذن التأخير يوم {date}",
+    "leaveRejectedDelay": "رفض {by} إذن التأخير يوم {date}",
     "workStageChanged": "تم نقل {name} إلى مرحلة «{stage}» في {board}",
     "visitPendingNoBy": "طلب {kind} للصفقة {name} بتاريخ {date} يحتاج موافقتك.",
     "visitPendingFinal": "وافق قائد الفريق على طلب {kind} من {by} للصفقة {name} بتاريخ {date}. يحتاج موافقة نهائية.",
@@ -1624,6 +1643,94 @@
       "noNotes": "لا توجد ملاحظات بعد.",
       "call": "اتصال",
       "close": "إغلاق"
+    }
+  },
+  "leave": {
+    "title": "الإجازات",
+    "requestVacation": "طلب إجازة",
+    "requestDelay": "إذن تأخير",
+    "type": "نوع الإجازة",
+    "from": "من يوم",
+    "to": "إلى يوم",
+    "daysSummary": "{days} يوم محسوب · المتبقي لك {left}",
+    "approver": "من يوافق على الطلب",
+    "pickApprover": "اختر الشخص",
+    "noApprovers": "لا يوجد أشخاص لديهم صلاحية الموافقة بعد. اطلب من المدير تفعيلها.",
+    "note": "ملاحظات",
+    "files": "الملفات المرفقة",
+    "attach": "إرفاق ملف",
+    "fileRequired": "هذا النوع يتطلب إرفاق ملف (مثل التقرير الطبي).",
+    "send": "إرسال الطلب",
+    "requestSent": "تم إرسال الطلب",
+    "requestFailed": "تعذّر إرسال الطلب",
+    "uploadFailed": "تعذّر رفع الملف",
+    "downloadFailed": "تعذّر تنزيل الملف",
+    "day": "يوم",
+    "usedPending": "مستخدم {used} · بانتظار الموافقة {pending}",
+    "delayPermission": "إذن التأخير",
+    "thisMonth": "هذا الشهر",
+    "delayRule": "حتى {hours} ساعة، {times} مرات في الشهر",
+    "delayLeft": "المتبقي هذا الشهر: {left}",
+    "delayDate": "يوم التأخير",
+    "delayHours": "عدد الساعات",
+    "arriveBy": "موعد حضورك {start}، ومع الإذن يمكنك الحضور حتى {time}",
+    "reason": "السبب",
+    "myHours": "مواعيد عملي",
+    "hoursHint": "الحضور والانصراف",
+    "tabs": { "mine": "طلباتي", "approve": "بانتظار موافقتي", "all": "كل الطلبات", "balances": "أرصدة الجميع" },
+    "status": { "pending": "بانتظار الموافقة", "approved": "تمت الموافقة", "rejected": "مرفوضة", "cancelled": "ملغاة" },
+    "empty": "لا توجد طلبات",
+    "daysCount": "{n} يوم",
+    "hoursCount": "{n} ساعة",
+    "approve": "موافقة",
+    "reject": "رفض",
+    "cancel": "إلغاء الطلب",
+    "decisionNote": "ملاحظة (اختياري)",
+    "employee": "الموظف",
+    "pendingShort": "بانتظار {n}",
+    "months": { "1": "يناير", "2": "فبراير", "3": "مارس", "4": "أبريل", "5": "مايو", "6": "يونيو", "7": "يوليو", "8": "أغسطس", "9": "سبتمبر", "10": "أكتوبر", "11": "نوفمبر", "12": "ديسمبر" },
+    "days": { "0": "الأحد", "1": "الاثنين", "2": "الثلاثاء", "3": "الأربعاء", "4": "الخميس", "5": "الجمعة", "6": "السبت" },
+    "errors": {
+      "attachment_required": "هذا النوع يتطلب إرفاق ملف.",
+      "insufficient_balance": "الرصيد المتبقي لا يكفي.",
+      "no_working_days": "الفترة المختارة لا تحتوي على أيام عمل.",
+      "overlapping_request": "لديك طلب آخر في نفس الفترة.",
+      "approver_is_self": "لا يمكنك اختيار نفسك للموافقة.",
+      "approver_not_allowed": "هذا الشخص ليس لديه صلاحية الموافقة.",
+      "leave_type_unavailable": "هذا النوع غير متاح.",
+      "delay_too_long": "عدد الساعات أكبر من المسموح.",
+      "delay_quota_reached": "استنفدت عدد مرات إذن التأخير هذا الشهر.",
+      "delay_same_day": "لديك إذن تأخير في نفس اليوم.",
+      "already_decided": "تم البت في هذا الطلب بالفعل.",
+      "not_your_request": "هذا الطلب ليس موجّهًا إليك.",
+      "not_found": "الطلب غير موجود."
+    },
+    "settings": {
+      "rules": "القواعد",
+      "delayHours": "أقصى ساعات إذن التأخير",
+      "delayHoursHint": "لكل إذن.",
+      "delayPerMonth": "عدد مرات إذن التأخير في الشهر",
+      "delayPerMonthHint": "لكل موظف.",
+      "yearStart": "بداية سنة الرصيد",
+      "yearStartHint": "الشهر الذي تتجدد فيه أرصدة الإجازات.",
+      "defaultStart": "الحضور الافتراضي",
+      "defaultEnd": "الانصراف الافتراضي",
+      "weekend": "أيام الإجازة الأسبوعية",
+      "weekendHint": "لا تُحسب ضمن أيام الإجازة.",
+      "types": "أنواع الإجازات ورصيدها السنوي",
+      "typesHint": "كل إجازة موافق عليها تُخصم من رصيد نوعها. يمكن أن يتطلب النوع إرفاق ملف.",
+      "typeName": "اسم النوع",
+      "credit": "الرصيد السنوي (أيام)",
+      "requiresFile": "يتطلب ملفًا",
+      "active": "مفعّل",
+      "newType": "نوع جديد",
+      "add": "إضافة",
+      "people": "مواعيد وأرصدة كل موظف",
+      "peopleHint": "اترك الخانة فارغة لاستخدام الافتراضي ({start} – {end} والأرصدة العامة).",
+      "attend": "الحضور",
+      "exit": "الانصراف",
+      "saved": "تم الحفظ",
+      "saveFailed": "تعذّر الحفظ"
     }
   },
   "tasks": {

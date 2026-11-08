@@ -57,6 +57,7 @@ export const SETTINGS_ITEMS: SettingsItemDef[] = [
   { key: "visit_types", path: "/admin/visit-types", titleKey: "admin.visitTypes.title", icon: "i-lucide-map-pinned" },
   { key: "integrations", path: "/admin/integrations", titleKey: "admin.integrations.title", icon: "i-lucide-plug" },
   { key: "work_pipelines", path: "/admin/work-pipelines", titleKey: "admin.workPipelines.title", icon: "i-lucide-kanban" },
+  { key: "leave", path: "/admin/leave", titleKey: "admin.leave.title", icon: "i-lucide-calendar-heart" },
   { key: "notification_emails", path: "/admin/notification-emails", titleKey: "admin.notificationEmails.title", icon: "i-lucide-mail" },
 ];
 
@@ -238,6 +239,25 @@ export const MODULES: ModuleDef[] = [
         key: "reports",
         labelKey: "resources.reports.label",
         actions: REPORTS.map((r) => ({ key: r.key, labelKey: r.titleKey })),
+      },
+    ],
+  },
+  {
+    // Leave is open to everyone (each person asks for a vacation or a delay permission and sees their
+    // own balances); this entry only lets a role approve requests and see everyone's. It has no tile
+    // or menu of its own.
+    key: "leave",
+    labelKey: "modules.leave.label",
+    icon: "i-lucide-calendar-heart",
+    route: "/leave",
+    resources: [
+      {
+        key: "leave",
+        labelKey: "resources.leave.label",
+        actions: [
+          { key: "approve", labelKey: "resources.leave.actions.approve" },
+          { key: "view_all", labelKey: "resources.leave.actions.view_all" },
+        ],
       },
     ],
   },
