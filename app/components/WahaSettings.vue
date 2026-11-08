@@ -40,6 +40,87 @@ async function test() {
   }
 }
 
+// ---- Connect the number: start the session, show the QR code, watch until it works
+const sessionStatus = ref<string>("");
+const linkedNumber = ref<string | null>(null);
+const linkedName = ref<string | null>(null);
+const qr = ref<string | null>(null);
+const connecting = ref(false);
+const connectNote = ref<string | null>(null);
+const connectError = ref<string | null>(null);
+let poll: ReturnType<typeof setInterval> | undefined;
+let lastQr = 0;
+
+async function loadStatus() {
+  try {
+    const s = await $fetch<{ status: string; number: string | null; pushName: string | null }>("/api/admin/waha-session");
+    sessionStatus.value = s.status;
+    linkedNumber.value = s.number;
+    linkedName.value = s.pushName;
+    connectError.value = null;
+    if (s.status === "SCAN_QR_CODE") {
+      // the code expires after about 20 seconds: ask for a fresh one
+      if (!qr.value || Date.now() - lastQr > 15_000) await loadQr();
+    } else {
+      qr.value = null;
+    }
+    if (s.status === "WORKING") stopPolling();
+  } catch (err: any) {
+    connectError.value = err?.data?.statusMessage ?? err.message;
+  }
+}
+async function loadQr() {
+  try {
+    const r = await $fetch<{ mimetype: string; data: string }>("/api/admin/waha-qr");
+    qr.value = `data:${r.mimetype};base64,${r.data}`;
+    lastQr = Date.now();
+  } catch {
+    qr.value = null;
+  }
+}
+function startPolling() {
+  stopPolling();
+  poll = setInterval(loadStatus, 3000);
+}
+function stopPolling() {
+  if (poll) clearInterval(poll);
+  poll = undefined;
+}
+async function connect() {
+  connecting.value = true;
+  connectNote.value = null;
+  connectError.value = null;
+  try {
+    const r = await $fetch<{ webhook: string }>("/api/admin/waha-session-start", { method: "POST" });
+    if (r.webhook === "not_configured") connectNote.value = t("waha.webhookNotSet");
+    await loadStatus();
+    startPolling();
+  } catch (err: any) {
+    connectError.value = err?.data?.statusMessage ?? err.message;
+  } finally {
+    connecting.value = false;
+  }
+}
+const disconnecting = ref(false);
+async function disconnect() {
+  disconnecting.value = true;
+  try {
+    await $fetch("/api/admin/waha-session-logout", { method: "POST" });
+    await loadStatus();
+  } catch (err: any) {
+    connectError.value = err?.data?.statusMessage ?? err.message;
+  } finally {
+    disconnecting.value = false;
+  }
+}
+onMounted(async () => {
+  if (cfg.value?.hasApiKey) {
+    await loadStatus();
+    if (["STARTING", "SCAN_QR_CODE"].includes(sessionStatus.value)) startPolling();
+  }
+});
+onBeforeUnmount(stopPolling);
+
 // what to paste in the WAHA session settings
 const webhookJson = computed(() =>
   JSON.stringify({ webhooks: [{ url: `${origin}/api/webhooks/whatsapp`, events: ["message", "message.any"], hmac: { key: "<WAHA_WEBHOOK_HMAC_KEY>" } }] }, null, 2),
@@ -68,6 +149,31 @@ async function copy(text: string) {
           {{ result.status }}<template v-if="result.number"> · +{{ result.number }}</template><template v-if="result.pushName"> · {{ result.pushName }}</template>
         </span>
         <span v-if="testError" class="text-xs text-error">{{ testError }}</span>
+      </div>
+
+      <!-- Connect the number: scan the QR code with the phone -->
+      <div class="space-y-3 border-t border-default pt-4">
+        <p class="font-medium text-highlighted">{{ t("waha.connectTitle") }}</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <KBadge v-if="sessionStatus" :label="t(`waha.status.${sessionStatus}`)" :tone="sessionStatus === 'WORKING' ? 'success' : sessionStatus === 'FAILED' ? 'error' : 'warning'" />
+          <span v-if="linkedNumber" class="text-xs text-muted" dir="ltr">+{{ linkedNumber }}<template v-if="linkedName"> · {{ linkedName }}</template></span>
+          <UButton v-if="sessionStatus !== 'WORKING'" icon="i-simple-icons-whatsapp" :label="t('waha.connect')" :loading="connecting" :disabled="!cfg?.hasApiKey" @click="connect" />
+          <UButton v-else color="neutral" variant="outline" icon="i-lucide-unplug" :label="t('waha.disconnect')" :loading="disconnecting" @click="disconnect" />
+        </div>
+        <p v-if="!cfg?.hasApiKey" class="text-xs text-muted">{{ t("waha.saveKeyFirst") }}</p>
+        <p v-if="connectNote" class="rounded-[10px] bg-warning/10 p-3 text-xs text-warning">{{ connectNote }}</p>
+        <p v-if="connectError" class="text-xs text-error">{{ connectError }}</p>
+        <div v-if="sessionStatus === 'SCAN_QR_CODE'" class="flex flex-wrap items-start gap-4">
+          <div class="flex size-56 items-center justify-center rounded-[12px] border border-default bg-white p-2">
+            <img v-if="qr" :src="qr" alt="QR" class="size-full object-contain" />
+            <UIcon v-else name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
+          </div>
+          <ol class="list-decimal space-y-1 ps-5 text-xs text-muted">
+            <li>{{ t("waha.scan1") }}</li>
+            <li>{{ t("waha.scan2") }}</li>
+            <li>{{ t("waha.scan3") }}</li>
+          </ol>
+        </div>
       </div>
 
       <div class="space-y-2 border-t border-default pt-4">

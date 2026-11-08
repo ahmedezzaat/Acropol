@@ -1811,6 +1811,15 @@
     }
   },
   "waha": {
+    "connectTitle": "Connect the number",
+    "connect": "Connect the number (QR)",
+    "disconnect": "Disconnect the number",
+    "saveKeyFirst": "Save the API key first.",
+    "webhookNotSet": "The session was started but its webhook was not set automatically, because WAHA_WEBHOOK_HMAC_KEY (or WAHA_WEBHOOK_SECRET) is not set on the server. Set it and press connect again, or paste the webhook below by hand.",
+    "scan1": "Open WhatsApp on the phone.",
+    "scan2": "Go to Settings, then Linked devices, then Link a device.",
+    "scan3": "Point the camera at the code. The code refreshes by itself.",
+    "status": { "NOT_CREATED": "Not created", "STOPPED": "Stopped", "STARTING": "Starting", "SCAN_QR_CODE": "Waiting for the scan", "WORKING": "Connected", "FAILED": "Connection failed" },
     "title": "WhatsApp through WAHA",
     "description": "The server that receives WhatsApp messages and sends them for the WhatsApp inbox in the system.",
     "url": "WAHA server address",
