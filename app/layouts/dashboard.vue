@@ -14,6 +14,7 @@ const resourceRoutes: Record<string, string> = {
   crm_quotes: "/crm/quotes",
   crm_customers: "/crm/customers",
   crm_visits: "/crm/visits",
+  crm_chats: "/crm/chats",
   cs_customers: "/cs/customers",
   cs_maintenance: "/cs/maintenance",
 };

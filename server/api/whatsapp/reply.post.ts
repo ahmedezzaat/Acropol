@@ -1,0 +1,28 @@
+import * as z from "zod";
+import { serverSupabaseClient, serverSupabaseServiceRole, serverSupabaseUser } from "#supabase/server";
+
+const bodySchema = z.object({ conversation_id: z.uuid(), text: z.string().trim().min(1).max(4000) });
+
+// An agent answers a chat from the inbox. The message goes out from the connected number (only inside
+// the 24 hours after the customer's last message) and is kept in the chat. The assistant stops
+// answering that chat once a person writes in it.
+export default defineEventHandler(async (event) => {
+  const user = await serverSupabaseUser(event);
+  if (!user?.sub) throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
+  const { conversation_id, text } = await readValidatedBody(event, bodySchema.parse);
+
+  const allowed = await (await serverSupabaseClient(event)).rpc("has_permission", { p_module: "crm_chats", p_action: "reply" });
+  if (!allowed.data) throw createError({ statusCode: 403, statusMessage: "Not allowed" });
+
+  const admin = serverSupabaseServiceRole(event);
+  const { data: conv } = await admin.from("whatsapp_conversations").select("id, phone_number_id, wa_id, last_inbound_at").eq("id", conversation_id).maybeSingle();
+  if (!conv) throw createError({ statusCode: 404, statusMessage: "Conversation not found" });
+  if (!conv.last_inbound_at || Date.now() - new Date(conv.last_inbound_at).getTime() > 24 * 3_600_000) {
+    throw createError({ statusCode: 409, statusMessage: "outside_window" });
+  }
+
+  const wamid = await sendWhatsAppText(admin, conv.phone_number_id, conv.wa_id, text);
+  await admin.from("whatsapp_messages").insert({ conversation_id: conv.id, direction: "out", sender: "agent", body: text, wa_message_id: wamid });
+  await admin.from("whatsapp_conversations").update({ ai_paused: true, unread: false, last_message_at: new Date().toISOString() }).eq("id", conv.id);
+  return { sent: true };
+});

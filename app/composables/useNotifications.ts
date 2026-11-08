@@ -20,7 +20,8 @@ export interface AppNotification {
     | "task_assigned"
     | "task_done"
     | "leave_request"
-    | "leave_decided";
+    | "leave_decided"
+    | "chat_handover";
   params: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -153,6 +154,13 @@ export function useNotifications() {
           link: `/crm/visits?open=${p.visit_id}`,
         };
       }
+      case "chat_handover":
+        return {
+          icon: "i-lucide-message-circle-warning",
+          color: "warning" as const,
+          text: t("notifications.chatHandover", { name: String(p.name ?? "") }),
+          link: `/crm/chats?open=${p.conversation_id}`,
+        };
       case "leave_request":
         return {
           icon: "i-lucide-calendar-heart",

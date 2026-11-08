@@ -27,6 +27,7 @@ interface WhatsAppEcho {
 }
 
 interface WhatsAppValue {
+  metadata?: { phone_number_id?: string };
   contacts?: Array<{ wa_id: string; profile?: { name?: string } }>;
   messages?: WhatsAppMessage[];
   message_echoes?: WhatsAppEcho[];
@@ -93,6 +94,9 @@ async function handleMeta(event: H3Event) {
           const digits = String(echo.to ?? "").replace(/\D/g, "");
           if (digits.length < 7 || digits.length > 15) continue;
           const text = echo.text?.body ?? echo.image?.caption ?? echo.video?.caption ?? echo.document?.caption ?? null;
+          if (value?.metadata?.phone_number_id) {
+            await recordAgentEcho(adminClient, { phoneNumberId: value.metadata.phone_number_id, waId: digits, wamid: echo.id, text: text ?? `[${echo.type ?? "message"}]` });
+          }
           const result = await ingestLead(
             adminClient,
             {
@@ -115,6 +119,11 @@ async function handleMeta(event: H3Event) {
       for (const message of value?.messages ?? []) {
         const profileName = value?.contacts?.find((c) => c.wa_id === message.from)?.profile?.name?.trim();
         const text = messageText(message);
+
+        // With the assistant on, a stranger is chatted with and qualified first: only a qualified
+        // chat becomes a lead. With it off (or for a number that is already known) the old rule applies.
+        const phoneNumberId = value?.metadata?.phone_number_id;
+        if (phoneNumberId && (await handleInboundChat(event, adminClient, { phoneNumberId, waId: message.from, name: profileName ?? null, wamid: message.id, text: text ?? `[${message.type}]` }))) continue;
 
         // A failure throws -> 500 -> Meta retries the delivery. That is safe
         // because the database dedupes by phone number.

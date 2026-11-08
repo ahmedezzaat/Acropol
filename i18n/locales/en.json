@@ -13,6 +13,9 @@
       "title": "@:modules.crm.label"
     },
     "admin": {
+    "whatsappAi": {
+      "title": "WhatsApp assistant"
+    },
     "leave": {
       "title": "Leave"
     },
@@ -140,6 +143,14 @@
       "actions": {
         "approve": "Approve leave and delay requests",
         "view_all": "See every request and balance"
+      }
+    },
+    "crm_chats": {
+      "label": "WhatsApp chats",
+      "actions": {
+        "view": "Read the chats",
+        "reply": "Answer chats and pause the assistant",
+        "create_contact": "Create a contact from a chat"
       }
     },
     "crm_leads": {
@@ -1141,6 +1152,7 @@
     "leaveRejectedVacation": "{by} rejected your {type} leave from {from} to {to}",
     "leaveApprovedDelay": "{by} approved your delay permission on {date}",
     "leaveRejectedDelay": "{by} rejected your delay permission on {date}",
+    "chatHandover": "The WhatsApp chat with {name} needs a person",
     "workStageChanged": "{name} moved to \"{stage}\" on {board}",
     "visitPendingNoBy": "A {kind} request for {name} on {date} needs your approval.",
     "visitPendingFinal": "Team leader approved a {kind} request by {by} for {name} on {date}. It needs final approval.",
@@ -1733,6 +1745,45 @@
       "approverHint": "The person set here receives the employee's requests automatically and can approve them.",
       "attend": "Attendance",
       "exit": "Exit",
+      "saved": "Saved",
+      "saveFailed": "Could not save"
+    }
+  },
+  "chats": {
+    "title": "WhatsApp chats",
+    "empty": "No chats",
+    "pick": "Pick a chat to read it",
+    "filter": { "all": "All", "handed_over": "Needs a person", "qualifying": "Being qualified", "qualified": "Qualified" },
+    "status": { "qualifying": "Being qualified", "qualified": "Qualified", "handed_over": "Needs a person", "known": "Known customer", "closed": "Closed" },
+    "fields": { "name": "Name", "need": "Need", "area": "Area", "timing": "When", "budget": "Budget" },
+    "nothingYet": "The assistant has not learned anything yet.",
+    "assistant": "Assistant",
+    "agent": "Agent",
+    "writeReply": "Write a reply...",
+    "send": "Send",
+    "sendFailed": "Could not send the reply",
+    "outsideWindow": "More than 24 hours passed since the customer's last message; WhatsApp only allows an approved template now.",
+    "replyPausesAi": "When you reply, the assistant stops answering this chat.",
+    "takeOver": "Pause the assistant",
+    "resumeAi": "Resume the assistant",
+    "createContact": "Create a contact",
+    "contactCreated": "The contact was created",
+    "contactFailed": "Could not create the contact",
+    "openLead": "Open the lead",
+    "settings": {
+      "enabled": "Turn the WhatsApp assistant on",
+      "enabledHint": "It chats with anyone who writes to the number for the first time; a contact is created only after they are qualified.",
+      "setupNote": "The assistant needs the ANTHROPIC_API_KEY environment variable on the server (Vercel) and a connected WhatsApp number. It does not answer someone who is already a lead or a customer.",
+      "business": "What does the company offer?",
+      "businessHint": "The assistant reads it to know what to talk about (products, services, how you work).",
+      "qualifyOn": "What must be known before a contact is created",
+      "qualifyOnHint": "A contact is created once every chosen detail is known.",
+      "maxReplies": "Most replies by the assistant in a chat",
+      "maxRepliesHint": "After that it hands the chat to a person.",
+      "model": "Claude model",
+      "modelHint": "The name of the model used for replies.",
+      "doneMessage": "Message after qualifying",
+      "handoverMessage": "Message when handing over to a person",
       "saved": "Saved",
       "saveFailed": "Could not save"
     }

@@ -10,6 +10,7 @@ const routeByResource: Record<string, string> = {
   crm_deals: "/crm/deals",
   crm_quotes: "/crm/quotes",
   crm_customers: "/crm/customers",
+  crm_chats: "/crm/chats",
 };
 
 const crmModule = findModule("crm")!;

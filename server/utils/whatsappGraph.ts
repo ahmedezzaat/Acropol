@@ -4,6 +4,9 @@
 const VERSION = () => process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
 const BASE = () => (process.env.WHATSAPP_GRAPH_BASE_URL || "https://graph.facebook.com").replace(/\/$/, "");
 
+// The full address of a Graph API path (shared by the calls that send messages).
+export const graphUrl = (path: string) => `${BASE()}/${VERSION()}/${path.replace(/^\//, "")}`;
+
 export async function graph<T>(
   path: string,
   opts: { method?: "GET" | "POST" | "DELETE"; token?: string; query?: Record<string, string> } = {},

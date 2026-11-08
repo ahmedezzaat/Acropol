@@ -57,6 +57,7 @@ export const SETTINGS_ITEMS: SettingsItemDef[] = [
   { key: "visit_types", path: "/admin/visit-types", titleKey: "admin.visitTypes.title", icon: "i-lucide-map-pinned" },
   { key: "integrations", path: "/admin/integrations", titleKey: "admin.integrations.title", icon: "i-lucide-plug" },
   { key: "work_pipelines", path: "/admin/work-pipelines", titleKey: "admin.workPipelines.title", icon: "i-lucide-kanban" },
+  { key: "whatsapp_ai", path: "/admin/whatsapp-ai", titleKey: "admin.whatsappAi.title", icon: "i-lucide-bot-message-square" },
   { key: "leave", path: "/admin/leave", titleKey: "admin.leave.title", icon: "i-lucide-calendar-heart" },
   { key: "notification_emails", path: "/admin/notification-emails", titleKey: "admin.notificationEmails.title", icon: "i-lucide-mail" },
 ];
@@ -121,6 +122,17 @@ export const MODULES: ModuleDef[] = [
           { key: "edit", labelKey: "resources.crm_visits.actions.edit" },
           { key: "approve", labelKey: "resources.crm_visits.actions.approve" },
           { key: "view_all", labelKey: "resources.crm_visits.actions.view_all" },
+        ],
+      },
+      {
+        // WhatsApp chats the assistant has with people who are not yet contacts: read them, answer
+        // from the inbox, and turn one into a contact by hand.
+        key: "crm_chats",
+        labelKey: "resources.crm_chats.label",
+        actions: [
+          { key: "view", labelKey: "resources.crm_chats.actions.view" },
+          { key: "reply", labelKey: "resources.crm_chats.actions.reply" },
+          { key: "create_contact", labelKey: "resources.crm_chats.actions.create_contact" },
         ],
       },
       {
