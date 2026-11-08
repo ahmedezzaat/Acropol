@@ -12,7 +12,7 @@ const resourceRoutes: Record<string, string> = {
   crm_leads: "/crm/leads",
   crm_deals: "/crm/deals",
   crm_quotes: "/crm/quotes",
-  crm_customers: "/crm/customers",
+  crm_customers: "/crm/contracts",
   crm_visits: "/crm/visits",
   crm_chats: "/crm/chats",
   cs_customers: "/cs/customers",
@@ -50,7 +50,8 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
   const resourceLinks = m.resources
     // Leads has its own "view" permission for the tab.
     .filter((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)) && r.key !== "crm_quotes")
-    .map((r) => ({ label: t(r.labelKey), to: resourceRoutes[r.key] }));
+    // the customers permission now opens the contracts page, named "العقود" in the menu
+    .map((r) => ({ label: r.key === "crm_customers" ? t("crm.contracts.title") : t(r.labelKey), to: resourceRoutes[r.key] }));
   if (m.key === "customer_service") {
     const customers = hasAnyModulePermission("cs_customers");
     return [

@@ -9,7 +9,7 @@ const routeByResource: Record<string, string> = {
   crm_leads: "/crm/leads",
   crm_deals: "/crm/deals",
   crm_quotes: "/crm/quotes",
-  crm_customers: "/crm/customers",
+  crm_customers: "/crm/contracts",
   crm_chats: "/crm/chats",
 };
 

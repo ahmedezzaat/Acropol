@@ -183,7 +183,7 @@
       }
     },
     "crm_customers": {
-      "label": "Customers",
+      "label": "Contracts and customers",
       "actions": {
         "create": "Create",
         "edit": "Edit",
@@ -666,6 +666,19 @@
     }
   },
   "crm": {
+    "contracts": {
+      "title": "Contracts",
+      "search": "Search by contract code, customer or phone",
+      "empty": "No contracts",
+      "code": "Contract code",
+      "customer": "Customer",
+      "deal": "Deal",
+      "signedOn": "Signed on",
+      "generatedOn": "Generated on",
+      "sortCreated": "Newest generated",
+      "sortSigned": "Newest signed",
+      "count": "{count} contract(s)"
+    },
     "noAccess": "You don't have access to any CRM section yet.",
     "dashboard": {
       "title": "Dashboard",
