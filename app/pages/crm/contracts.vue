@@ -16,49 +16,90 @@ interface ContractRow {
   customer_id: string;
   deal_id: string | null;
   customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null } | null;
-  deal: { id: string; title: string } | null;
+  deal: { id: string; title: string; assigned_to: string | null; value: number | null } | null;
+  products: { sales_person_id: string | null }[] | null;
 }
 
 const { data: contracts, status } = await useAsyncData<ContractRow[]>("crm-contracts", async () =>
   fetchAll<ContractRow>((from, to) =>
     supabase
       .from("contracts")
-      .select("id, code, signed_on, notes, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names), deal:deals(id, title)")
+      .select("id, code, signed_on, notes, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names), deal:deals(id, title, assigned_to, value), products:customer_products(sales_person_id)")
       .order("created_at", { ascending: false })
       .order("id")
       .range(from, to) as never,
   ),
 );
 
+// ---- The agent on a contract: the salesperson recorded on its products, else the agent of its deal
+const { data: people } = await useAsyncData<Record<string, string>>("crm-contracts-people", async () => {
+  const { data } = await supabase.from("profiles").select("id, full_name, email");
+  return Object.fromEntries((data ?? []).map((p) => [p.id as string, (p.full_name || p.email) as string]));
+});
+function agentsOf(c: ContractRow): string[] {
+  const ids = new Set((c.products ?? []).map((p) => p.sales_person_id).filter((x): x is string => !!x));
+  if (!ids.size && c.deal?.assigned_to) ids.add(c.deal.assigned_to);
+  return [...ids].map((id) => people.value?.[id] ?? "").filter(Boolean);
+}
+
 // ---- Search and order
 const search = ref("");
+// a period of contract dates, to know how many contracts were made in it (none: every contract)
+const from = ref("");
+const to = ref("");
+const quickRanges = ["thisMonth", "lastMonth", "last30", "thisYear"] as const;
+const activeRange = computed(() => quickRanges.find((k) => reportRange(k).from === from.value && reportRange(k).to === to.value) ?? null);
+function setRange(kind: (typeof quickRanges)[number]) {
+  const r = reportRange(kind);
+  from.value = r.from;
+  to.value = r.to;
+}
+const hasPeriod = computed(() => !!from.value || !!to.value);
+function clearPeriod() {
+  from.value = "";
+  to.value = "";
+}
 type SortMode = "created" | "signed";
-const sortMode = ref<SortMode>("created");
+const sortMode = ref<SortMode>("signed");
 const sortItems = computed(() => [
-  { label: t("crm.contracts.sortCreated"), value: "created" },
   { label: t("crm.contracts.sortSigned"), value: "signed" },
+  { label: t("crm.contracts.sortCreated"), value: "created" },
 ]);
 const time = (v: string | null) => (v ? new Date(v).getTime() : 0);
 const rows = computed(() => {
   const q = search.value.trim().toLowerCase();
   const list = (contracts.value ?? []).filter((c) => {
+    // inside the chosen period of contract dates (a contract with no date is outside any period)
+    if (hasPeriod.value) {
+      if (!c.signed_on) return false;
+      if (from.value && c.signed_on < from.value) return false;
+      if (to.value && c.signed_on > to.value) return false;
+    }
     if (!q) return true;
     const cu = c.customer;
     return (
       (c.code ?? "").toLowerCase().includes(q) ||
-      `${cu?.name ?? ""} ${cu?.company ?? ""} ${c.deal?.title ?? ""} ${c.notes ?? ""}`.toLowerCase().includes(q) ||
+      `${cu?.name ?? ""} ${cu?.company ?? ""} ${c.deal?.title ?? ""} ${c.notes ?? ""} ${agentsOf(c).join(" ")}`.toLowerCase().includes(q) ||
       anyPhoneMatches([cu?.phone, ...(cu?.extra_phones ?? [])], search.value) ||
       extraNamesMatch(cu?.extra_phone_names, search.value)
     );
   });
-  // newest first, by when the contract was generated (or by its signing date)
-  return [...list].sort((a, b) => (sortMode.value === "signed" ? time(b.signed_on) - time(a.signed_on) : time(b.created_at) - time(a.created_at)));
+  // newest first: by the contract date (those with no date last, then by when they were generated), or by when generated
+  return [...list].sort((a, b) =>
+    sortMode.value === "signed"
+      ? time(b.signed_on) - time(a.signed_on) || time(b.created_at) - time(a.created_at)
+      : time(b.created_at) - time(a.created_at),
+  );
 });
 
 const pagination = reactive({ page: 1, size: 50 });
-watch([search, sortMode], () => (pagination.page = 1));
+watch([search, sortMode, from, to], () => (pagination.page = 1));
 const pageCount = computed(() => Math.max(1, Math.ceil(rows.value.length / pagination.size)));
 const paged = computed(() => rows.value.slice((pagination.page - 1) * pagination.size, pagination.page * pagination.size));
+// the value of a contract is the value of the deal it came from (contracts with no deal have none)
+const valueOf = (c: ContractRow) => (c.deal?.value != null ? Number(c.deal.value) : null);
+const money = (v: number) => formatReportMoney(v, t("common.currency"));
+const totalValue = computed(() => rows.value.reduce((n, c) => n + (valueOf(c) ?? 0), 0));
 const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.name || "—";
 </script>
 
@@ -69,6 +110,17 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
       <div class="kords-filterbar flex flex-wrap items-center gap-2 border-b border-default px-4 py-3 sm:px-6">
         <UInput v-model="search" icon="i-lucide-search" :placeholder="t('crm.contracts.search')" class="min-w-0 flex-1 basis-60 lg:max-w-96 lg:flex-none" />
         <USelect v-model="sortMode" :items="sortItems" value-key="value" icon="i-lucide-arrow-down-wide-narrow" class="w-48" />
+      </div>
+      <!-- Contract dates: how many contracts were made in a period -->
+      <div class="kords-filterbar flex flex-wrap items-end gap-3 border-b border-default px-4 py-3 sm:px-6">
+        <div class="flex flex-wrap items-center gap-2">
+          <button v-for="k in quickRanges" :key="k" type="button" class="kords-chip" :class="activeRange === k && 'kords-chip-on'" @click="setRange(k)">{{ t(`reports.${k}`) }}</button>
+        </div>
+        <UFormField :label="t('crm.contracts.dateFrom')"><UInput v-model="from" type="date" class="w-40" /></UFormField>
+        <UFormField :label="t('crm.contracts.dateTo')"><UInput v-model="to" type="date" class="w-40" /></UFormField>
+        <UButton v-if="hasPeriod" icon="i-lucide-x" color="neutral" variant="ghost" size="sm" :label="t('crm.contracts.clearPeriod')" @click="clearPeriod" />
+        <KBadge v-if="hasPeriod" :label="t('crm.contracts.inPeriod', { count: rows.length })" tone="primary" class="ms-auto" />
+        <KBadge v-if="totalValue > 0" :label="`${t('crm.contracts.totalValue')}: ${money(totalValue)}`" tone="success" :class="!hasPeriod && 'ms-auto'" />
       </div>
     </template>
 
@@ -86,6 +138,8 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
               <span class="shrink-0 text-xs text-muted">{{ formatDMY(c.created_at) }}</span>
             </div>
             <p class="mt-1 truncate text-sm text-toned">{{ customerTitle(c) }}</p>
+            <p v-if="agentsOf(c).length" class="mt-0.5 flex items-center gap-1 text-xs text-muted"><UIcon name="i-lucide-user" class="size-3" />{{ agentsOf(c).join("، ") }}</p>
+            <p v-if="valueOf(c) !== null" class="mt-0.5 text-sm font-medium text-success">{{ money(valueOf(c)!) }}</p>
             <p v-if="c.signed_on" class="mt-0.5 text-xs text-muted">{{ t("crm.contracts.signedOn") }}: {{ formatDMY(c.signed_on) }}</p>
           </NuxtLink>
         </div>
@@ -97,7 +151,9 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
               <tr class="border-b border-default text-xs text-muted">
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.code") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.customer") }}</th>
+                <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.agent") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.deal") }}</th>
+                <th class="px-4 py-3 text-end font-medium">{{ t("crm.contracts.value") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.signedOn") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.generatedOn") }}</th>
               </tr>
@@ -109,10 +165,12 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
                   <NuxtLink :to="`/crm/customers/${c.customer_id}`" class="font-medium text-highlighted hover:text-primary">{{ customerTitle(c) }}</NuxtLink>
                   <div v-if="c.customer?.phone" class="text-xs text-muted" dir="ltr">{{ c.customer.phone }}</div>
                 </td>
+                <td class="px-4 py-3">{{ agentsOf(c).join("، ") || "—" }}</td>
                 <td class="px-4 py-3">
                   <NuxtLink v-if="c.deal" :to="`/crm/deals/${c.deal.id}`" class="text-primary hover:underline">{{ c.deal.title }}</NuxtLink>
                   <span v-else class="text-muted">—</span>
                 </td>
+                <td class="whitespace-nowrap px-4 py-3 text-end font-medium">{{ valueOf(c) !== null ? money(valueOf(c)!) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3">{{ c.signed_on ? formatDMY(c.signed_on) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3 text-muted">{{ formatDMYTime(c.created_at) }}</td>
               </tr>

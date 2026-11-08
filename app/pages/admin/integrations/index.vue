@@ -502,6 +502,9 @@ const curlExample = computed(
           </div>
         </UPageCard>
 
+        <!-- WAHA: the WhatsApp inbox -->
+        <WahaSettings />
+
         <!-- WhatsApp Coexistence (Embedded Signup) -->
         <UPageCard :title="t('admin.integrations.coexTitle')" :description="t('admin.integrations.coexDescription')">
           <div class="space-y-4 text-sm">

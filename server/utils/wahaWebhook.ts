@@ -4,8 +4,10 @@ import { serverSupabaseServiceRole } from "#supabase/server";
 
 // WAHA (https://waha.devlike.pro) webhook -> lead. See docs/waha-webhook.md.
 //
-//  - Only "message" events from a person create leads. Our own messages, groups,
-//    status broadcasts and every other event type are acknowledged and ignored.
+//  - Only messages from a person create leads. Our own messages, groups, status broadcasts and every
+//    other event type do not (they are acknowledged and ignored as leads).
+//  - Every private chat message ("message" and "message.any", ours included) is also kept in the
+//    WhatsApp inbox, so the team can read and answer it from the app.
 //  - Duplicates are decided by the database (api_create_lead: one advisory lock
 //    per phone number, checked against every lead and customer), so two messages
 //    arriving at the same instant, or WAHA retrying a delivery, never create two
@@ -50,6 +52,8 @@ const digitsOf = (jid: unknown) => (typeof jid === "string" ? jid.split("@")[0]!
 const validPhoneDigits = (d: string) => d.length >= 7 && d.length <= 15;
 
 interface WahaPayload {
+  id?: unknown;
+  to?: unknown;
   from?: unknown;
   fromMe?: unknown;
   body?: unknown;
@@ -59,8 +63,8 @@ interface WahaPayload {
 
 // Where is the real phone number? "<digits>@c.us" is the number itself; "@lid"
 // is a privacy id, so look for the number WAHA may carry beside it.
-function phoneFrom(payload: WahaPayload): { digits: string } | { skip: string } {
-  const from = typeof payload.from === "string" ? payload.from : "";
+function phoneFrom(payload: WahaPayload, chat: unknown): { digits: string } | { skip: string } {
+  const from = typeof chat === "string" ? chat : "";
   if (from.endsWith("@c.us") || from.endsWith("@s.whatsapp.net")) {
     const d = digitsOf(from);
     return validPhoneDigits(d) ? { digits: d } : { skip: "invalid_phone" };
@@ -98,7 +102,7 @@ export async function handleWaha(event: H3Event) {
   }
 
   // ---- parse
-  let body: { event?: unknown; payload?: WahaPayload };
+  let body: { event?: unknown; session?: unknown; payload?: WahaPayload };
   try {
     body = JSON.parse(rawBody);
   } catch {
@@ -109,35 +113,53 @@ export async function handleWaha(event: H3Event) {
   }
 
   // ---- what to ignore (answered 200 so WAHA does not retry)
-  if (body.event !== "message") return reply("ignored", { reason: "event" });
+  if (body.event !== "message" && body.event !== "message.any") return reply("ignored", { reason: "event" });
   const payload = body.payload;
   if (!payload || typeof payload !== "object") throw createError({ statusCode: 400, statusMessage: "Missing payload" });
-  if (payload.fromMe === true) return reply("ignored", { reason: "from_me" });
-  const from = typeof payload.from === "string" ? payload.from : "";
+  const fromMe = payload.fromMe === true;
+  // the chat is the other person: the sender of a message we receive, the receiver of one we sent
+  const from = typeof (fromMe ? payload.to : payload.from) === "string" ? ((fromMe ? payload.to : payload.from) as string) : "";
   if (!from) throw createError({ statusCode: 400, statusMessage: "Missing sender" });
   if (from.endsWith("@g.us")) return reply("ignored", { reason: "group" });
   if (from.startsWith("status@") || from === "status@broadcast") return reply("ignored", { reason: "status" });
 
-  const phone = phoneFrom(payload);
+  const phone = phoneFrom(payload, from);
   if ("skip" in phone) {
     console.info(`[waha-webhook] skipped a message from ${from}: ${phone.skip}`);
     return reply("ignored", { reason: phone.skip });
   }
 
-  // ---- the lead
+  // ---- the inbox (never allowed to break the lead below: a failure here is only logged)
   const text = clean(payload.body, MAX_TEXT);
   const first = text || (payload.hasMedia === true ? "[media]" : "[no text]");
   const e164 = `+${phone.digits}`;
   const name = clean(payload._data?.notifyName, MAX_NAME) || clean(payload._data?.pushName, MAX_NAME) || e164;
+  const admin = serverSupabaseServiceRole(event);
+  let conversationId: string | null = null;
+  try {
+    conversationId = await recordWahaMessage(admin, {
+      session: clean(body.session, 80) || "default",
+      waId: phone.digits,
+      name: fromMe ? null : name,
+      wamid: typeof payload.id === "string" ? payload.id : null,
+      text: clean(payload.body, 4000) || (payload.hasMedia === true ? "[media]" : "[no text]"),
+      fromMe,
+    });
+  } catch (err) {
+    console.error("[waha-webhook] could not store the message in the inbox", err);
+  }
+  // what we sent ourselves is not a lead
+  if (fromMe) return reply("ignored", { reason: "from_me", stored: !!conversationId });
 
   const config = await getWhatsappConfig(event);
   const assignee = process.env.WAHA_DEFAULT_ASSIGNEE_ID || config.defaultAssigneeId || null;
 
   // A failure here becomes a 500, so WAHA retries; the database dedupes by phone.
-  const result = await ingestLead(
-    serverSupabaseServiceRole(event),
-    { name, phone: e164, source: "whatsapp", notes: `First message: ${first}` },
-    assignee,
-  );
+  const result = await ingestLead(admin, { name, phone: e164, source: "whatsapp", notes: `First message: ${first}` }, assignee);
+  // the chat now belongs to that lead / customer
+  if (conversationId) {
+    const link = result.status === "created" ? { lead_id: result.id } : result.entity === "lead" ? { lead_id: result.id } : { customer_id: result.id };
+    await admin.from("whatsapp_conversations").update({ ...link, status: "known" }).eq("id", conversationId);
+  }
   return result.status === "created" ? reply("created", { id: result.id }) : reply("duplicate", { entity: result.entity, id: result.id });
 }

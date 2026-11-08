@@ -3,8 +3,9 @@ import { serverSupabaseClient, serverSupabaseServiceRole, serverSupabaseUser } f
 
 const bodySchema = z.object({ conversation_id: z.uuid(), text: z.string().trim().min(1).max(4000) });
 
-// An agent answers a chat from the inbox. The message goes out from the connected number (only inside
-// the 24 hours after the customer's last message) and is kept in the chat. The assistant stops
+// An agent answers a chat from the inbox. A Cloud API chat goes out from the connected number (only inside
+// the 24 hours after the customer's last message); a WAHA chat goes out through WAHA, with no such limit.
+// The message is kept in the chat. The assistant stops
 // answering that chat once a person writes in it.
 export default defineEventHandler(async (event) => {
   const user = await serverSupabaseUser(event);
@@ -15,13 +16,16 @@ export default defineEventHandler(async (event) => {
   if (!allowed.data) throw createError({ statusCode: 403, statusMessage: "Not allowed" });
 
   const admin = serverSupabaseServiceRole(event);
-  const { data: conv } = await admin.from("whatsapp_conversations").select("id, phone_number_id, wa_id, last_inbound_at").eq("id", conversation_id).maybeSingle();
+  const { data: conv } = await admin.from("whatsapp_conversations").select("id, provider, phone_number_id, wa_id, last_inbound_at").eq("id", conversation_id).maybeSingle();
   if (!conv) throw createError({ statusCode: 404, statusMessage: "Conversation not found" });
-  if (!conv.last_inbound_at || Date.now() - new Date(conv.last_inbound_at).getTime() > 24 * 3_600_000) {
+  if (conv.provider !== "waha" && (!conv.last_inbound_at || Date.now() - new Date(conv.last_inbound_at).getTime() > 24 * 3_600_000)) {
     throw createError({ statusCode: 409, statusMessage: "outside_window" });
   }
 
-  const wamid = await sendWhatsAppText(admin, conv.phone_number_id, conv.wa_id, text);
+  const wamid =
+    conv.provider === "waha"
+      ? await sendWahaText(event, conv.phone_number_id, conv.wa_id, text)
+      : await sendWhatsAppText(admin, conv.phone_number_id, conv.wa_id, text);
   await admin.from("whatsapp_messages").insert({ conversation_id: conv.id, direction: "out", sender: "agent", body: text, wa_message_id: wamid });
   await admin.from("whatsapp_conversations").update({ ai_paused: true, unread: false, last_message_at: new Date().toISOString() }).eq("id", conv.id);
   return { sent: true };

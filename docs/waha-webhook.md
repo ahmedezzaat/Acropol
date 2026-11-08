@@ -12,13 +12,23 @@ In the WAHA session config:
 ```json
 "webhooks": [{
   "url": "https://YOUR-DOMAIN/api/webhooks/whatsapp",
-  "events": ["message"],
+  "events": ["message", "message.any"],
   "hmac": { "key": "<same value as WAHA_WEBHOOK_HMAC_KEY>" }
 }]
 ```
 
 and/or a custom header `X-Webhook-Secret: <same value as WAHA_WEBHOOK_SECRET>`
 (`"customHeaders": [{ "name": "X-Webhook-Secret", "value": "..." }]`).
+
+## The WhatsApp inbox
+
+Every private chat message is also kept in the app's WhatsApp inbox (`/crm/chats`): `message` for what
+people send, `message.any` for everything, including what you send from the phone. A message that
+arrives on both events is stored once. Replies written in the inbox go out through WAHA
+(`POST /api/sendText`), with no 24-hour limit. The WAHA address, session and API key are saved in
+Settings -> Integrations -> WhatsApp through WAHA (the key is never shown again). Groups, status posts and
+media bodies other than their caption are not stored. A failure to store a message in the inbox never
+stops the lead from being created.
 
 ## Environment variables (Vercel → Project → Settings → Environment Variables)
 

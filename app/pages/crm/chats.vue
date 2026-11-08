@@ -16,21 +16,21 @@ const canCreate = computed(() => hasPermission("crm_chats", "create_contact"));
 interface Conversation {
   id: string; wa_id: string; display_name: string | null; status: "qualifying" | "qualified" | "handed_over" | "known" | "closed";
   ai_paused: boolean; collected: Record<string, string>; ai_replies: number; lead_id: string | null; customer_id: string | null;
-  last_inbound_at: string | null; last_message_at: string; unread: boolean;
+  last_inbound_at: string | null; last_message_at: string; unread: boolean; provider: "cloud" | "waha";
 }
 interface Message { id: string; direction: "in" | "out"; sender: "customer" | "ai" | "agent"; body: string | null; created_at: string }
 
-const filter = ref<"all" | "handed_over" | "qualifying" | "qualified">("all");
+const filter = ref<"all" | "unread" | "handed_over" | "qualifying" | "qualified">("all");
 const { data: convs, refresh } = await useAsyncData<Conversation[]>("wa-conversations", async () => {
   const { data } = await supabase.from("whatsapp_conversations").select("*").order("last_message_at", { ascending: false }).limit(150);
   return (data ?? []) as Conversation[];
 });
-const shown = computed(() => (convs.value ?? []).filter((c) => filter.value === "all" || c.status === filter.value));
+const shown = computed(() => (convs.value ?? []).filter((c) => filter.value === "all" || (filter.value === "unread" ? c.unread : c.status === filter.value)));
 const counts = computed(() => {
   const all = convs.value ?? [];
-  return { all: all.length, handed_over: all.filter((c) => c.status === "handed_over").length, qualifying: all.filter((c) => c.status === "qualifying").length, qualified: all.filter((c) => c.status === "qualified").length };
+  return { all: all.length, unread: all.filter((c) => c.unread).length, handed_over: all.filter((c) => c.status === "handed_over").length, qualifying: all.filter((c) => c.status === "qualifying").length, qualified: all.filter((c) => c.status === "qualified").length };
 });
-const tabs = computed(() => (["all", "handed_over", "qualifying", "qualified"] as const).map((k) => ({ value: k, label: `${t(`chats.filter.${k}`)} (${counts.value[k]})` })));
+const tabs = computed(() => (["all", "unread", "handed_over", "qualifying", "qualified"] as const).map((k) => ({ value: k, label: `${t(`chats.filter.${k}`)} (${counts.value[k]})` })));
 const statusTone = { qualifying: "primary", qualified: "success", handed_over: "warning", known: "neutral", closed: "neutral" } as const;
 
 const openId = ref<string | null>(typeof route.query.open === "string" ? route.query.open : null);
@@ -61,7 +61,8 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(timer));
 
 const title = (c: Conversation) => c.display_name || `+${c.wa_id}`;
-const insideWindow = computed(() => !!current.value?.last_inbound_at && Date.now() - new Date(current.value.last_inbound_at).getTime() < 24 * 3_600_000);
+// WhatsApp's 24-hour rule is only for the Cloud API; a WAHA chat can always be answered
+const insideWindow = computed(() => current.value?.provider === "waha" || !!current.value?.last_inbound_at && Date.now() - new Date(current.value.last_inbound_at).getTime() < 24 * 3_600_000);
 const collectedLines = computed(() => Object.entries(current.value?.collected ?? {}).filter(([, v]) => v).map(([k, v]) => ({ label: t(`chats.fields.${k}`), value: v })));
 
 // ---- Answer, pause the assistant, create the contact
@@ -124,7 +125,7 @@ async function createContact() {
                 <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="c.unread ? 'bg-primary' : 'bg-transparent'" />
                 <span class="min-w-0 flex-1">
                   <span class="flex items-center justify-between gap-2">
-                    <span class="truncate font-medium text-highlighted">{{ title(c) }}</span>
+                    <span class="flex min-w-0 items-center gap-1.5"><span class="truncate font-medium text-highlighted">{{ title(c) }}</span><UIcon v-if="c.provider === 'waha'" name="i-lucide-smartphone" class="size-3.5 shrink-0 text-muted" :title="t('chats.viaPhone')" /></span>
                     <KBadge :label="t(`chats.status.${c.status}`)" :tone="statusTone[c.status]" class="shrink-0" />
                   </span>
                   <span class="mt-0.5 block truncate text-xs text-muted" dir="ltr">+{{ c.wa_id }} · {{ formatDMYTime(c.last_message_at, locale) }}</span>
@@ -146,7 +147,7 @@ async function createContact() {
                 <KBadge :label="t(`chats.status.${current.status}`)" :tone="statusTone[current.status]" />
                 <UButton v-if="current.lead_id" :to="`/crm/leads?id=${current.lead_id}`" size="xs" color="neutral" variant="outline" icon="i-lucide-user-round" :label="t('chats.openLead')" />
                 <UButton v-if="canCreate && !current.lead_id && !current.customer_id" size="xs" icon="i-lucide-user-plus" :label="t('chats.createContact')" :loading="creating" @click="createContact" />
-                <UButton v-if="canReply && current.status !== 'known'" size="xs" color="neutral" variant="outline" :icon="current.ai_paused ? 'i-lucide-bot' : 'i-lucide-hand'" :label="current.ai_paused ? t('chats.resumeAi') : t('chats.takeOver')" @click="setAi(!current.ai_paused)" />
+                <UButton v-if="canReply && current.provider === 'cloud' && current.status !== 'known'" size="xs" color="neutral" variant="outline" :icon="current.ai_paused ? 'i-lucide-bot' : 'i-lucide-hand'" :label="current.ai_paused ? t('chats.resumeAi') : t('chats.takeOver')" @click="setAi(!current.ai_paused)" />
               </div>
             </div>
             <div v-if="collectedLines.length" class="flex flex-wrap gap-1.5">
@@ -171,7 +172,7 @@ async function createContact() {
               <UTextarea v-model="text" :rows="2" :disabled="!insideWindow" :placeholder="t('chats.writeReply')" class="min-w-0 flex-1" @keydown.ctrl.enter="send" @keydown.meta.enter="send" />
               <UButton icon="i-lucide-send" :loading="sending" :disabled="!insideWindow || !text.trim()" :aria-label="t('chats.send')" @click="send" />
             </div>
-            <p v-if="!current.ai_paused && current.status === 'qualifying'" class="text-xs text-muted">{{ t("chats.replyPausesAi") }}</p>
+            <p v-if="current.provider === 'cloud' && !current.ai_paused && current.status === 'qualifying'" class="text-xs text-muted">{{ t("chats.replyPausesAi") }}</p>
           </footer>
         </div>
         <p v-else class="kords-card hidden p-10 text-center text-sm text-muted lg:block">{{ t("chats.pick") }}</p>

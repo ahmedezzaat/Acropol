@@ -146,7 +146,7 @@
       }
     },
     "crm_chats": {
-      "label": "WhatsApp chats",
+      "label": "WhatsApp inbox",
       "actions": {
         "view": "Read the chats",
         "reply": "Answer chats and pause the assistant",
@@ -667,16 +667,23 @@
   },
   "crm": {
     "contracts": {
+      "agent": "Agent on the contract",
+      "value": "Contract value",
+      "totalValue": "Total value",
+      "dateFrom": "Contract date from",
+      "dateTo": "Contract date to",
+      "clearPeriod": "Clear the period",
+      "inPeriod": "{count} contract(s) in this period",
       "title": "Contracts",
       "search": "Search by contract code, customer or phone",
       "empty": "No contracts",
       "code": "Contract code",
       "customer": "Customer",
       "deal": "Deal",
-      "signedOn": "Signed on",
+      "signedOn": "Contract date",
       "generatedOn": "Generated on",
       "sortCreated": "Newest generated",
-      "sortSigned": "Newest signed",
+      "sortSigned": "Newest contract date",
       "count": "{count} contract(s)"
     },
     "noAccess": "You don't have access to any CRM section yet.",
@@ -1763,10 +1770,12 @@
     }
   },
   "chats": {
-    "title": "WhatsApp chats",
+    "unreadCount": "{count} unread",
+    "viaPhone": "Through the company phone (WAHA)",
+    "title": "WhatsApp inbox",
     "empty": "No chats",
     "pick": "Pick a chat to read it",
-    "filter": { "all": "All", "handed_over": "Needs a person", "qualifying": "Being qualified", "qualified": "Qualified" },
+    "filter": { "all": "All", "unread": "Unread", "handed_over": "Needs a person", "qualifying": "Being qualified", "qualified": "Qualified" },
     "status": { "qualifying": "Being qualified", "qualified": "Qualified", "handed_over": "Needs a person", "known": "Known customer", "closed": "Closed" },
     "fields": { "name": "Name", "need": "Need", "area": "Area", "timing": "When", "budget": "Budget" },
     "nothingYet": "The assistant has not learned anything yet.",
@@ -1800,6 +1809,21 @@
       "saved": "Saved",
       "saveFailed": "Could not save"
     }
+  },
+  "waha": {
+    "title": "WhatsApp through WAHA",
+    "description": "The server that receives WhatsApp messages and sends them for the WhatsApp inbox in the system.",
+    "url": "WAHA server address",
+    "session": "Session name",
+    "sessionHint": "Default: default",
+    "apiKey": "API key",
+    "keySaved": "The key is saved (ends with {hint}). Type a new one to change it.",
+    "keyMissing": "No key saved yet. A key is never shown again after it is saved.",
+    "test": "Test the connection",
+    "saved": "Saved",
+    "saveFailed": "Could not save",
+    "webhookTitle": "The webhook to set in the WAHA session",
+    "webhookHint": "Paste this in the session settings. Both events, message and message.any, are needed so what you send from the phone shows too. The key inside hmac is the same value as WAHA_WEBHOOK_HMAC_KEY on the server."
   },
   "tasks": {
     "title": "Tasks",

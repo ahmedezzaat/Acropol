@@ -25,6 +25,13 @@ watch(
   },
   { immediate: true },
 );
+// the WhatsApp inbox: a tile with how many chats are unread
+const canInbox = computed(() => isAdmin.value || hasAnyModulePermission("crm_chats"));
+const { data: unread } = await useAsyncData("home-unread-chats", async () => {
+  if (!canInbox.value) return 0;
+  const { count } = await supabase.from("whatsapp_conversations").select("id", { count: "exact", head: true }).eq("unread", true);
+  return count ?? 0;
+});
 const canSettings = computed(() => isAdmin.value || hasAnyModulePermission("settings"));
 </script>
 
@@ -63,6 +70,15 @@ const canSettings = computed(() => isAdmin.value || hasAnyModulePermission("sett
         >
           <UIcon :name="module.icon" class="size-8 text-primary" />
           <span class="font-medium text-highlighted">{{ t(module.labelKey) }}</span>
+        </ULink>
+        <ULink
+          v-if="canInbox"
+          to="/crm/chats"
+          class="relative flex flex-col items-center gap-3 rounded-lg border border-default p-6 text-center transition hover:border-primary hover:bg-elevated"
+        >
+          <UIcon name="i-simple-icons-whatsapp" class="size-8 text-primary" />
+          <span class="font-medium text-highlighted">{{ t("chats.title") }}</span>
+          <KBadge v-if="unread" :label="t('chats.unreadCount', { count: unread })" tone="primary" class="absolute end-3 top-3" />
         </ULink>
         <ULink
           to="/tasks"
