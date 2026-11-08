@@ -16,8 +16,10 @@ defineProps<{
   uploading?: boolean;
   // files a person may delete (by id)
   deletable?: (file: FileItem) => boolean;
+  // a button that moves the file to the other section, with its label (none: no button)
+  moveLabel?: string | null;
 }>();
-const emit = defineEmits<{ pick: [event: Event]; open: [file: FileItem]; download: [file: FileItem]; remove: [file: FileItem] }>();
+const emit = defineEmits<{ pick: [event: Event]; open: [file: FileItem]; download: [file: FileItem]; remove: [file: FileItem]; move: [file: FileItem] }>();
 const { t } = useI18n();
 
 function fileIcon(name: string) {
@@ -56,6 +58,7 @@ function fileIcon(name: string) {
               <span v-if="f.meta" class="block truncate text-xs text-muted">{{ f.meta }}</span>
             </span>
           </button>
+          <UButton v-if="moveLabel" icon="i-lucide-arrow-right-left" color="neutral" variant="soft" size="xs" :label="moveLabel" @click="emit('move', f)" />
           <UButton icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :aria-label="t('files.download')" :title="t('files.download')" @click="emit('download', f)" />
           <UButton v-if="deletable?.(f)" icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" :aria-label="t('common.delete')" :title="t('common.delete')" @click="emit('remove', f)" />
         </div>

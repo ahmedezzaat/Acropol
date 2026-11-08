@@ -215,6 +215,21 @@ async function downloadFile(f: { storage_path: string; file_name: string }) {
   a.click();
   a.remove();
 }
+// Move a file between the technical office's files and the proposal (عرض السعر): its own permissions.
+const canMoveToQuote = computed(() => hasPermission("crm_work_files", "move_to_quote"));
+const canMoveFromQuote = computed(() => hasPermission("crm_work_files", "move_from_quote"));
+const moveLabelFor = (group: string) =>
+  group === "office" && canMoveToQuote.value ? t("files.moveToQuote") : group === "quote" && canMoveFromQuote.value ? t("files.moveToWork") : null;
+async function moveFile(group: string, id: string) {
+  const { error } = await supabase.rpc(group === "quote" ? "move_quote_file_to_work" : "move_work_file_to_quote", { p_attachment_id: id });
+  if (error) {
+    toast.add({ title: t("files.moveFailed"), description: error.message, color: "error" });
+    return;
+  }
+  toast.add({ title: t(group === "quote" ? "files.movedToWork" : "files.movedToQuote"), color: "success" });
+  await load();
+}
+
 // Deleting a file the technical office uploaded: its own permission. Files the requester attached
 // belong to the deal and are not deleted from here.
 const canDeleteFiles = computed(() => hasPermission("crm_work_files", "delete"));
@@ -474,6 +489,8 @@ async function assign(item: Item, v: unknown) {
             @pick="(e: Event) => uploadFiles(selected!, e, g.key === 'quote' ? 'quote' : null)"
             @open="openFile"
             :deletable="canDeleteFile"
+            :move-label="moveLabelFor(g.key)"
+            @move="(f: { id: string }) => moveFile(g.key, f.id)"
             @download="(f: { id: string }) => downloadFile(files.find((x) => x.id === f.id)!)"
             @remove="(f: { id: string }) => askRemoveFile(files.find((x) => x.id === f.id)!)"
           />
