@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   if (!allowed.data) throw createError({ statusCode: 403, statusMessage: "Not allowed" });
 
   const admin = serverSupabaseServiceRole(event);
-  const { data: conv } = await admin.from("whatsapp_conversations").select("id, provider, phone_number_id, wa_id, last_inbound_at").eq("id", conversation_id).maybeSingle();
+  const { data: conv } = await admin.from("whatsapp_conversations").select("id, provider, phone_number_id, wa_id, chat_id, last_inbound_at").eq("id", conversation_id).maybeSingle();
   if (!conv) throw createError({ statusCode: 404, statusMessage: "Conversation not found" });
   if (conv.provider !== "waha" && (!conv.last_inbound_at || Date.now() - new Date(conv.last_inbound_at).getTime() > 24 * 3_600_000)) {
     throw createError({ statusCode: 409, statusMessage: "outside_window" });
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
 
   const wamid =
     conv.provider === "waha"
-      ? await sendWahaText(event, conv.phone_number_id, conv.wa_id, text)
+      ? await sendWahaText(event, conv.phone_number_id, conv.wa_id, text, conv.chat_id)
       : await sendWhatsAppText(admin, conv.phone_number_id, conv.wa_id, text);
   await admin.from("whatsapp_messages").insert({ conversation_id: conv.id, direction: "out", sender: "agent", body: text, wa_message_id: wamid });
   await admin.from("whatsapp_conversations").update({ ai_paused: true, unread: false, last_message_at: new Date().toISOString() }).eq("id", conv.id);

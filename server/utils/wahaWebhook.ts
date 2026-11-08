@@ -165,23 +165,33 @@ async function handleWahaCall(event: H3Event) {
   if (from.endsWith("@g.us")) return reply("ignored", { reason: "group" });
   if (from.startsWith("status@") || from === "status@broadcast") return reply("ignored", { reason: "status" });
 
-  const phone = phoneFrom(payload, from);
-  if ("skip" in phone) {
+  const sessionName = clean(body.session, 80) || "default";
+  let phone = phoneFrom(payload, from);
+  // a privacy id with no number in the message: ask WAHA who it is
+  if ("skip" in phone && phone.skip === "lid_without_number") {
+    const resolved = await resolveWahaLid(event, sessionName, from);
+    if (resolved) phone = { digits: resolved };
+  }
+  // still hidden: the chat is kept under its privacy id (no lead without a number)
+  const hidden = "skip" in phone && phone.skip === "lid_without_number";
+  if ("skip" in phone && !hidden) {
     console.info(`[waha-webhook] skipped a message from ${from}: ${phone.skip}`);
     return reply("ignored", { reason: phone.skip });
   }
+  const waId = hidden ? `lid-${digitsOf(from)}` : (phone as { digits: string }).digits;
 
   // ---- the inbox (never allowed to break the lead below: a failure here is only logged)
   const text = clean(payload.body, MAX_TEXT);
   const first = text || (payload.hasMedia === true ? "[media]" : "[no text]");
-  const e164 = `+${phone.digits}`;
+  const e164 = `+${waId}`;
   const name = clean(payload._data?.notifyName, MAX_NAME) || clean(payload._data?.pushName, MAX_NAME) || e164;
   const admin = serverSupabaseServiceRole(event);
   let conversationId: string | null = null;
   try {
     conversationId = await recordWahaMessage(admin, {
-      session: clean(body.session, 80) || "default",
-      waId: phone.digits,
+      session: sessionName,
+      waId,
+      chatId: hidden ? from : null,
       name: fromMe ? null : name,
       wamid: typeof payload.id === "string" ? payload.id : null,
       text: clean(payload.body, 4000) || (payload.hasMedia === true ? "[media]" : "[no text]"),
@@ -192,6 +202,7 @@ async function handleWahaCall(event: H3Event) {
   }
   // what we sent ourselves is not a lead
   if (fromMe) return reply("ignored", { reason: "from_me", stored: !!conversationId });
+  if (hidden) return reply("stored", { reason: "hidden_number", stored: !!conversationId });
 
   const config = await getWhatsappConfig(event);
   const assignee = process.env.WAHA_DEFAULT_ASSIGNEE_ID || config.defaultAssigneeId || null;

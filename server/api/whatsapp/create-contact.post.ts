@@ -16,6 +16,8 @@ export default defineEventHandler(async (event) => {
   const { data: conv } = await admin.from("whatsapp_conversations").select("*").eq("id", conversation_id).maybeSingle();
   if (!conv) throw createError({ statusCode: 404, statusMessage: "Conversation not found" });
   if (conv.lead_id || conv.customer_id) throw createError({ statusCode: 409, statusMessage: "already_a_contact" });
+  // a person whose number WhatsApp hides has no number to make a contact from
+  if (String(conv.wa_id).startsWith("lid-")) throw createError({ statusCode: 409, statusMessage: "hidden_number" });
 
   const result = await createLeadFromChat(event, admin, conv, null);
   await admin.from("whatsapp_conversations").update({ lead_id: result.id, status: "qualified", ai_paused: true }).eq("id", conv.id);

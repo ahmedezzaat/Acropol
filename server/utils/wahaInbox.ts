@@ -7,6 +7,8 @@ interface WahaMessage {
   wamid: string | null;
   text: string;
   fromMe: boolean;
+  // the full WAHA chat id, for a person whose number is hidden ("<id>@lid")
+  chatId?: string | null;
 }
 
 // Keeps a WAHA message in the inbox (conversation + message). Messages arrive twice when WAHA sends both
@@ -16,13 +18,15 @@ export async function recordWahaMessage(admin: SupabaseClient, m: WahaMessage): 
     admin.from("whatsapp_conversations").select("id, display_name").eq("provider", "waha").eq("phone_number_id", m.session).eq("wa_id", m.waId).maybeSingle();
   let { data: conv } = await find();
   if (!conv) {
-    const known = (await admin.rpc("whatsapp_known_contact", { p_digits: m.waId })).data as { entity: "lead" | "customer"; id: string } | null;
+    // a hidden number cannot be matched to a lead or customer
+    const known = m.chatId ? null : ((await admin.rpc("whatsapp_known_contact", { p_digits: m.waId })).data as { entity: "lead" | "customer"; id: string } | null);
     const { data: created } = await admin
       .from("whatsapp_conversations")
       .insert({
         provider: "waha",
         phone_number_id: m.session,
         wa_id: m.waId,
+        ...(m.chatId ? { chat_id: m.chatId } : {}),
         display_name: m.fromMe ? null : m.name,
         status: known ? "known" : "handed_over",
         lead_id: known?.entity === "lead" ? known.id : null,

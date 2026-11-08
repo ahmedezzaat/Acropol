@@ -6,6 +6,6 @@ export default defineEventHandler(async (event) => {
   const c = await getWahaConfig(event);
   const webhook = wahaWebhookConfig(getRequestURL(event).origin, await ensureWahaWebhookKeys(event, userId));
   if (!(await getWahaSession(event))) throw createError({ statusCode: 404, statusMessage: "session_missing" });
-  await wahaFetch(event, `/api/sessions/${encodeURIComponent(c.session)}`, { method: "PUT", body: { name: c.session, config: { webhooks: [webhook] } } });
+  await wahaFetch(event, `/api/sessions/${encodeURIComponent(c.session)}`, { method: "PUT", body: { name: c.session, config: { webhooks: [webhook], noweb: { store: { enabled: true, fullSync: false } } } } });
   return { ok: true };
 });

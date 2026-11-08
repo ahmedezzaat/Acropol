@@ -39,10 +39,25 @@ export function wahaMessageId(res: any): string | null {
   return id?._serialized ?? null;
 }
 
-// Sends a text to a private chat (the number, digits only) from the session.
-export async function sendWahaText(event: H3Event, session: string, waId: string, text: string): Promise<string | null> {
-  const res = await wahaFetch<any>(event, "/api/sendText", { method: "POST", body: { session, chatId: `${waId}@c.us`, text } });
+// Sends a text to a private chat from the session. The chat is a number (digits only) or a full WAHA chat id
+// (a person whose number is hidden behind a privacy id is answered at "<id>@lid").
+export async function sendWahaText(event: H3Event, session: string, waId: string, text: string, chatId?: string | null): Promise<string | null> {
+  const res = await wahaFetch<any>(event, "/api/sendText", { method: "POST", body: { session, chatId: chatId || `${waId}@c.us`, text } });
   return wahaMessageId(res);
+}
+
+// The real number behind a privacy id ("<id>@lid"), when WAHA knows it (it needs the NOWEB store); else null.
+export async function resolveWahaLid(event: H3Event, session: string, lidJid: string): Promise<string | null> {
+  for (const lid of [lidJid, lidJid.split("@")[0]!]) {
+    try {
+      const r = await wahaFetch<{ pn?: string | null }>(event, `/api/${encodeURIComponent(session)}/lids/${encodeURIComponent(lid)}`);
+      const digits = typeof r?.pn === "string" ? r.pn.split("@")[0]!.replace(/\D/g, "") : "";
+      if (digits.length >= 7 && digits.length <= 15) return digits;
+    } catch {
+      /* not known (or the store is off): try the next spelling */
+    }
+  }
+  return null;
 }
 
 export interface WahaSession {

@@ -1770,6 +1770,8 @@
     }
   },
   "chats": {
+    "hiddenNumber": "Hidden number (WhatsApp)",
+    "hiddenNote": "This person hides their number in WhatsApp, so a contact cannot be made from here until their number is known.",
     "newMessage": "New message",
     "findContact": "Search the customers and leads",
     "findContactHint": "Name or phone number",

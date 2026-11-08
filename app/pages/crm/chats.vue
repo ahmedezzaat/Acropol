@@ -69,7 +69,10 @@ onMounted(() => {
 });
 onBeforeUnmount(() => clearInterval(timer));
 
-const title = (c: Conversation) => c.display_name || `+${c.wa_id}`;
+// a person whose WhatsApp number is hidden has no number to show
+const isHidden = (c: Conversation) => c.wa_id.startsWith("lid-");
+const idLabel = (c: Conversation) => (isHidden(c) ? t("chats.hiddenNumber") : `+${c.wa_id}`);
+const title = (c: Conversation) => c.display_name || idLabel(c);
 // WhatsApp's 24-hour rule is only for the Cloud API; a WAHA chat can always be answered
 const insideWindow = computed(() => current.value?.provider === "waha" || !!current.value?.last_inbound_at && Date.now() - new Date(current.value.last_inbound_at).getTime() < 24 * 3_600_000);
 const collectedLines = computed(() => Object.entries(current.value?.collected ?? {}).filter(([, v]) => v).map(([k, v]) => ({ label: t(`chats.fields.${k}`), value: v })));
@@ -153,7 +156,7 @@ async function createContact() {
                     <span class="flex min-w-0 items-center gap-1.5"><span class="truncate font-medium text-highlighted">{{ title(c) }}</span><UIcon v-if="c.provider === 'waha'" name="i-lucide-smartphone" class="size-3.5 shrink-0 text-muted" :title="t('chats.viaPhone')" /></span>
                     <KBadge :label="t(`chats.status.${c.status}`)" :tone="statusTone[c.status]" class="shrink-0" />
                   </span>
-                  <span class="mt-0.5 block truncate text-xs text-muted" dir="ltr">+{{ c.wa_id }} · {{ formatDMYTime(c.last_message_at, locale) }}</span>
+                  <span class="mt-0.5 block truncate text-xs text-muted"><bdi dir="ltr">{{ idLabel(c) }}</bdi> · {{ formatDMYTime(c.last_message_at, locale) }}</span>
                 </span>
               </button>
             </li>
@@ -166,12 +169,12 @@ async function createContact() {
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 class="font-semibold text-highlighted">{{ title(current) }}</h3>
-                <p class="text-xs text-muted" dir="ltr">+{{ current.wa_id }}</p>
+                <p class="text-xs text-muted"><bdi dir="ltr">{{ idLabel(current) }}</bdi></p>
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <KBadge :label="t(`chats.status.${current.status}`)" :tone="statusTone[current.status]" />
                 <UButton v-if="current.lead_id" :to="`/crm/leads?id=${current.lead_id}`" size="xs" color="neutral" variant="outline" icon="i-lucide-user-round" :label="t('chats.openLead')" />
-                <UButton v-if="canCreate && !current.lead_id && !current.customer_id" size="xs" icon="i-lucide-user-plus" :label="t('chats.createContact')" :loading="creating" @click="createContact" />
+                <UButton v-if="canCreate && !current.lead_id && !current.customer_id && !isHidden(current)" size="xs" icon="i-lucide-user-plus" :label="t('chats.createContact')" :loading="creating" @click="createContact" />
                 <UButton v-if="canReply && current.provider === 'cloud' && current.status !== 'known'" size="xs" color="neutral" variant="outline" :icon="current.ai_paused ? 'i-lucide-bot' : 'i-lucide-hand'" :label="current.ai_paused ? t('chats.resumeAi') : t('chats.takeOver')" @click="setAi(!current.ai_paused)" />
               </div>
             </div>
