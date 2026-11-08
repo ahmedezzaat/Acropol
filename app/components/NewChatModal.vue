@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // "New message": start a WhatsApp chat with a number — typed, or picked from the leads and customers.
+const props = defineProps<{ initialPhone?: string }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ sent: [conversationId: string] }>();
 
@@ -43,7 +44,7 @@ function pick(h: Hit) {
 
 watch(open, (isOpen) => {
   if (!isOpen) return;
-  phone.value = "";
+  phone.value = props.initialPhone ?? "";
   text.value = "";
   search.value = "";
   hits.value = [];

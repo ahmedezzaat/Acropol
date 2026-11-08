@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { waLink } = useWaLink();
 // The whole customer record: an identity card with the contact details on one
 // side, the products (funnel, warranty, maintenance) on the other. It is the body
 // of /cs/customers/:id; the page re-creates it for each customer (:key).
@@ -492,8 +493,8 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
               :title="t('crm.deals.callContact')"
             />
             <UButton
-              v-if="toWhatsAppLink(customer.phone)"
-              :to="toWhatsAppLink(customer.phone)!"
+              v-if="waLink(customer.phone)"
+              :to="waLink(customer.phone)!"
               target="_blank"
               rel="noopener noreferrer"
               icon="i-simple-icons-whatsapp"
@@ -545,8 +546,8 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
               <div v-if="customer.phone" class="flex shrink-0 items-center">
                 <UButton :to="`tel:${customer.phone}`" icon="i-lucide-phone" size="xs" color="neutral" variant="ghost" :aria-label="t('crm.deals.callContact')" :title="t('crm.deals.callContact')" />
                 <UButton
-                  v-if="toWhatsAppLink(customer.phone)"
-                  :to="toWhatsAppLink(customer.phone)!"
+                  v-if="waLink(customer.phone)"
+                  :to="waLink(customer.phone)!"
                   target="_blank"
                   rel="noopener noreferrer"
                   icon="i-simple-icons-whatsapp"
@@ -578,8 +579,8 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
                     <div class="flex shrink-0 items-center">
                       <UButton :to="`tel:${c.phone}`" icon="i-lucide-phone" size="xs" color="neutral" variant="ghost" :aria-label="t('crm.deals.callContact')" />
                       <UButton
-                        v-if="toWhatsAppLink(c.phone)"
-                        :to="toWhatsAppLink(c.phone)!"
+                        v-if="waLink(c.phone)"
+                        :to="waLink(c.phone)!"
                         target="_blank"
                         rel="noopener noreferrer"
                         icon="i-simple-icons-whatsapp"

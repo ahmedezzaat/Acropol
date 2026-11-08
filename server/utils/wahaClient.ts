@@ -62,16 +62,32 @@ export async function getWahaSession(event: H3Event): Promise<WahaSession | null
   }
 }
 
-// What WAHA calls when a message arrives: this app's webhook, signed with the key the app already checks.
-// Without a key or secret set on the server the webhook would accept anyone, so it is not configured then.
-export function wahaWebhookConfig(origin: string) {
+// The key (and/or secret) a WAHA webhook is signed with. The environment wins (WAHA_WEBHOOK_HMAC_KEY /
+// WAHA_WEBHOOK_SECRET); otherwise the key Acropol made for itself and saved in Settings.
+export async function getWahaWebhookKeys(event: H3Event) {
   const hmacKey = process.env.WAHA_WEBHOOK_HMAC_KEY || "";
   const secret = process.env.WAHA_WEBHOOK_SECRET || "";
-  if (!hmacKey && !secret) return null;
+  if (hmacKey || secret) return { hmacKey, secret };
+  const stored = await readSecrets(event, ["waha_webhook_key"]);
+  return { hmacKey: stored.get("waha_webhook_key") ?? "", secret: "" };
+}
+
+// The same, made and saved when there is none yet (when the webhook is being set up).
+export async function ensureWahaWebhookKeys(event: H3Event, userId: string) {
+  const keys = await getWahaWebhookKeys(event);
+  if (keys.hmacKey || keys.secret) return keys;
+  const { randomBytes } = await import("node:crypto");
+  const key = randomBytes(32).toString("hex");
+  await saveSecret(event, userId, "waha_webhook_key", key);
+  return { hmacKey: key, secret: "" };
+}
+
+// What WAHA calls when a message arrives: this app's webhook, signed with the key the app checks.
+export function wahaWebhookConfig(origin: string, keys: { hmacKey: string; secret: string }) {
   return {
     url: `${origin}/api/webhooks/whatsapp`,
     events: ["message", "message.any"],
-    ...(hmacKey ? { hmac: { key: hmacKey } } : {}),
-    ...(secret ? { customHeaders: [{ name: "X-Webhook-Secret", value: secret }] } : {}),
+    ...(keys.hmacKey ? { hmac: { key: keys.hmacKey } } : {}),
+    ...(keys.secret ? { customHeaders: [{ name: "X-Webhook-Secret", value: keys.secret }] } : {}),
   };
 }

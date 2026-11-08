@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { waLink } = useWaLink();
 import type { TimelineItem } from "@nuxt/ui";
 import { CalendarDate, Time, getLocalTimeZone, today } from "@internationalized/date";
 
@@ -1423,7 +1424,7 @@ function isPastDue(iso: string | null) {
             <!-- Quick actions: the contact first, then what you can do with the deal -->
             <div class="grid grid-cols-2 gap-2 border-t border-default pt-3 sm:flex sm:flex-wrap">
               <UButton v-if="contactPhone" :to="`tel:${contactPhone}`" icon="i-lucide-phone" :label="t('crm.deals.callContact')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-sky-500 !text-white hover:!bg-sky-400" />
-              <UButton v-if="toWhatsAppLink(contactPhone)" :to="toWhatsAppLink(contactPhone)!" target="_blank" rel="noopener noreferrer" icon="i-simple-icons-whatsapp" :label="t('crm.deals.chatOnWhatsApp')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-[#25D366] !text-white hover:!bg-[#1fb857]" />
+              <UButton v-if="waLink(contactPhone)" :to="waLink(contactPhone)!" target="_blank" rel="noopener noreferrer" icon="i-simple-icons-whatsapp" :label="t('crm.deals.chatOnWhatsApp')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-[#25D366] !text-white hover:!bg-[#1fb857]" />
               <UButton v-if="canEdit" icon="i-lucide-sticky-note" :label="t('crm.deals.quickNote')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-amber-400 !text-gray-900 hover:!bg-amber-300" @click="focusNote" />
               <UButton v-if="canEdit" icon="i-lucide-calendar-plus" :label="t('crm.deals.timeline.scheduleActivityButton')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-violet-500 !text-white hover:!bg-violet-400 disabled:!opacity-50" :disabled="upcomingActivities.length > 0" @click="openScheduleModal" />
               <UButton v-if="canRequestVisit" icon="i-lucide-map-pin-plus" :label="t('crm.visits.requestFromDeal')" size="lg" color="neutral" variant="solid" class="justify-center border-0 !bg-teal-500 !text-white hover:!bg-teal-400" @click="openVisitModal" />
@@ -1626,8 +1627,8 @@ function isPastDue(iso: string | null) {
               <p v-if="customer.phone" class="flex items-center gap-1.5 text-muted">
                 <a :href="`tel:${customer.phone}`" dir="ltr" class="hover:underline">{{ customer.phone }}</a>
                 <a
-                  v-if="toWhatsAppLink(customer.phone)"
-                  :href="toWhatsAppLink(customer.phone)!"
+                  v-if="waLink(customer.phone)"
+                  :href="waLink(customer.phone)!"
                   target="_blank"
                   rel="noopener noreferrer"
                   :aria-label="t('crm.deals.chatOnWhatsApp')"
@@ -1666,8 +1667,8 @@ function isPastDue(iso: string | null) {
               <p v-if="leadContact.phone" class="flex items-center gap-1.5 text-muted">
                 <a :href="`tel:${leadContact.phone}`" dir="ltr" class="hover:underline">{{ leadContact.phone }}</a>
                 <a
-                  v-if="toWhatsAppLink(leadContact.phone)"
-                  :href="toWhatsAppLink(leadContact.phone)!"
+                  v-if="waLink(leadContact.phone)"
+                  :href="waLink(leadContact.phone)!"
                   target="_blank"
                   rel="noopener noreferrer"
                   :aria-label="t('crm.deals.chatOnWhatsApp')"

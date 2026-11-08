@@ -89,10 +89,9 @@ export async function handleWaha(event: H3Event) {
   if (Buffer.byteLength(rawBody) > MAX_BODY_BYTES) throw createError({ statusCode: 413, statusMessage: "Payload too large" });
 
   // ---- authentication (every configured mechanism must pass)
-  const hmacKey = process.env.WAHA_WEBHOOK_HMAC_KEY || "";
-  const secret = process.env.WAHA_WEBHOOK_SECRET || "";
+  const { hmacKey, secret } = await getWahaWebhookKeys(event);
   if (!hmacKey && !secret) {
-    console.warn("[waha-webhook] WAHA_WEBHOOK_HMAC_KEY / WAHA_WEBHOOK_SECRET are not set: accepting unauthenticated calls (development mode only)");
+    console.warn("[waha-webhook] no webhook key is set (environment or Settings -> WAHA): accepting unauthenticated calls (development mode only)");
   }
   if (hmacKey && !hmacMatches(rawBody, hmacKey, getHeader(event, "x-webhook-hmac"), getHeader(event, "x-webhook-hmac-algorithm"))) {
     throw createError({ statusCode: 401, statusMessage: "Invalid signature" });

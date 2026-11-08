@@ -1842,7 +1842,7 @@
     "saved": "Saved",
     "saveFailed": "Could not save",
     "webhookTitle": "The webhook to set in the WAHA session",
-    "webhookHint": "Paste this in the session settings. Both events, message and message.any, are needed so what you send from the phone shows too. The key inside hmac is the same value as WAHA_WEBHOOK_HMAC_KEY on the server."
+    "webhookHint": "Acropol sets this webhook for you when you connect or press the button, with a key it makes and keeps on the server. Both events, message and message.any, are needed so what you send from the phone shows too. You only need to copy this to set it by hand (the real key is not shown here)."
   },
   "tasks": {
     "title": "Tasks",

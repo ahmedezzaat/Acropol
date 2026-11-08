@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { waLink } = useWaLink();
 definePageMeta({
   layout: "dashboard",
   crmPermission: { module: "crm_customers" },
@@ -238,8 +239,8 @@ async function remove() {
             <div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
               <UButton v-if="customer.phone" :to="`tel:${customer.phone}`" icon="i-lucide-phone" color="neutral" variant="outline" :label="t('crm.deals.callContact')" />
               <UButton
-                v-if="toWhatsAppLink(customer.phone)"
-                :to="toWhatsAppLink(customer.phone)!"
+                v-if="waLink(customer.phone)"
+                :to="waLink(customer.phone)!"
                 target="_blank"
                 rel="noopener noreferrer"
                 icon="i-simple-icons-whatsapp"

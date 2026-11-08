@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { waLink } = useWaLink();
 import * as z from "zod";
 import type { FormSubmitEvent } from "@nuxt/ui";
 
@@ -474,8 +475,8 @@ function backToList() {
                 <span class="flex shrink-0 items-center gap-2">
                   <KBadge :label="t(`crm.leads.status.${lead.status}`)" :tone="statusColors[lead.status]" class="hidden sm:inline-flex" />
                   <a
-                    v-if="toWhatsAppLink(lead.phone)"
-                    :href="toWhatsAppLink(lead.phone)!"
+                    v-if="waLink(lead.phone)"
+                    :href="waLink(lead.phone)!"
                     target="_blank"
                     rel="noopener noreferrer"
                     :aria-label="t('crm.deals.chatOnWhatsApp')"
@@ -537,8 +538,8 @@ function backToList() {
                     :aria-label="t('crm.deals.callContact')"
                   />
                   <UButton
-                    v-if="toWhatsAppLink(selectedLead.phone)"
-                    :to="toWhatsAppLink(selectedLead.phone)!"
+                    v-if="waLink(selectedLead.phone)"
+                    :to="waLink(selectedLead.phone)!"
                     target="_blank"
                     rel="noopener noreferrer"
                     icon="i-simple-icons-whatsapp"

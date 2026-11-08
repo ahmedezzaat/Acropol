@@ -50,6 +50,15 @@ async function loadMessages() {
   }
 }
 watch(openId, loadMessages, { immediate: true });
+
+// Arriving from a "WhatsApp" button (?phone=<digits>): open that person's chat, or start one
+onMounted(async () => {
+  const digits = typeof route.query.phone === "string" ? route.query.phone.replace(/\D/g, "") : "";
+  if (!digits) return;
+  const { data: found } = await supabase.from("whatsapp_conversations").select("id").eq("wa_id", digits).order("last_message_at", { ascending: false }).limit(1).maybeSingle();
+  if (found) openId.value = found.id;
+  else if (canReply.value) openNew(`+${digits}`);
+});
 // new messages arrive while the page is open
 let timer: ReturnType<typeof setInterval> | undefined;
 onMounted(() => {
@@ -68,6 +77,11 @@ const collectedLines = computed(() => Object.entries(current.value?.collected ??
 // ---- Answer, pause the assistant, create the contact
 // ---- New message: start a chat with a number
 const newOpen = ref(false);
+const newPhone = ref("");
+function openNew(phone = "") {
+  newPhone.value = phone;
+  newOpen.value = true;
+}
 async function onNewSent(id: string) {
   filter.value = "all";
   await refresh();
@@ -119,7 +133,7 @@ async function createContact() {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
-          <UButton v-if="canReply" icon="i-lucide-square-pen" :label="t('chats.newMessage')" @click="newOpen = true" />
+          <UButton v-if="canReply" icon="i-lucide-square-pen" :label="t('chats.newMessage')" @click="openNew()" />
         </template>
       </UDashboardNavbar>
     </template>
@@ -191,5 +205,5 @@ async function createContact() {
     </template>
   </UDashboardPanel>
 
-  <NewChatModal v-model:open="newOpen" @sent="onNewSent" />
+  <NewChatModal v-model:open="newOpen" :initial-phone="newPhone" @sent="onNewSent" />
 </template>
