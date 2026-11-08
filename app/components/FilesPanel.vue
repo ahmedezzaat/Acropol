@@ -27,6 +27,9 @@ const { hasPermission } = usePermissions();
 // Files uploaded from the technical office have their own permissions.
 const canViewWork = computed(() => hasPermission("crm_work_files", "view"));
 const canEditWork = computed(() => hasPermission("crm_work_files", "edit"));
+// The "other files" section (everything that is neither a proposal nor a contract, technical office
+// files included) is for people who see every deal; an agent who sees only their own deals does not get it.
+const canSeeOtherFiles = computed(() => hasPermission("crm_deals", "view_all"));
 const canMoveToQuote = computed(() => hasPermission("crm_work_files", "move_to_quote"));
 const canMoveFromQuote = computed(() => hasPermission("crm_work_files", "move_from_quote"));
 const canDeleteWork = computed(() => hasPermission("crm_work_files", "delete"));
@@ -119,7 +122,10 @@ const SECTIONS = [
   { kind: "contract", labelKey: "files.contractSection", icon: "i-lucide-file-signature" },
   { kind: null, labelKey: "files.otherSection", icon: "i-lucide-paperclip" },
 ] as const;
-const sections = computed(() => SECTIONS.map((s) => ({ ...s, rows: rows.value.filter((r) => (r.kind ?? null) === s.kind) })));
+const sections = computed(() =>
+  SECTIONS.filter((s) => s.kind !== null || canSeeOtherFiles.value).map((s) => ({ ...s, rows: rows.value.filter((r) => (r.kind ?? null) === s.kind) })),
+);
+const shownCount = computed(() => sections.value.reduce((n, s) => n + s.rows.length, 0));
 const pickKind = ref<string | null>(null);
 function pickFor(kind: string | null) {
   pickKind.value = kind;
@@ -235,7 +241,7 @@ async function confirmRemove() {
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <h3 class="text-base font-semibold text-highlighted">{{ t("files.title") }}</h3>
-        <KBadge :label="String(rows.length)" tone="neutral" />
+        <KBadge :label="String(shownCount)" tone="neutral" />
       </div>
       <input v-if="canManage" ref="picker" type="file" multiple class="hidden" @change="onPick" />
     </div>
