@@ -12,6 +12,9 @@ interface ContractRow {
   code: string | null;
   signed_on: string | null;
   notes: string | null;
+  value: number | null;
+  file_name: string | null;
+  file_path: string | null;
   created_at: string;
   customer_id: string;
   deal_id: string | null;
@@ -20,11 +23,15 @@ interface ContractRow {
   products: { sales_person_id: string | null }[] | null;
 }
 
-const { data: contracts, status } = await useAsyncData<ContractRow[]>("crm-contracts", async () =>
+const { hasPermission } = usePermissions();
+const canCreate = computed(() => hasPermission("crm_customers", "create"));
+const createOpen = ref(false);
+
+const { data: contracts, status, refresh } = await useAsyncData<ContractRow[]>("crm-contracts", async () =>
   fetchAll<ContractRow>((from, to) =>
     supabase
       .from("contracts")
-      .select("id, code, signed_on, notes, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names), deal:deals(id, title, assigned_to, value), products:customer_products(sales_person_id)")
+      .select("id, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names), deal:deals(id, title, assigned_to, value), products:customer_products(sales_person_id)")
       .order("created_at", { ascending: false })
       .order("id")
       .range(from, to) as never,
@@ -96,17 +103,36 @@ const pagination = reactive({ page: 1, size: 50 });
 watch([search, sortMode, from, to], () => (pagination.page = 1));
 const pageCount = computed(() => Math.max(1, Math.ceil(rows.value.length / pagination.size)));
 const paged = computed(() => rows.value.slice((pagination.page - 1) * pagination.size, pagination.page * pagination.size));
-// the value of a contract is the value of the deal it came from (contracts with no deal have none)
-const valueOf = (c: ContractRow) => (c.deal?.value != null ? Number(c.deal.value) : null);
+// the value of a contract: its own (a contract made by hand), else the value of the deal it came from
+const valueOf = (c: ContractRow) => (c.value != null ? Number(c.value) : c.deal?.value != null ? Number(c.deal.value) : null);
 const money = (v: number) => formatReportMoney(v, t("common.currency"));
 const totalValue = computed(() => rows.value.reduce((n, c) => n + (valueOf(c) ?? 0), 0));
+// the contract file: a short-lived link that saves it under its own name
+const toast = useToast();
+async function downloadFile(c: ContractRow) {
+  if (!c.file_path) return;
+  const { data, error } = await supabase.storage.from("contract-files").createSignedUrl(c.file_path, 60, { download: c.file_name ?? true });
+  if (error || !data) {
+    toast.add({ title: t("crm.contracts.fileFailed"), description: error?.message, color: "error" });
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = data.signedUrl;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.name || "—";
 </script>
 
 <template>
   <UDashboardPanel :ui="{ body: 'kords-canvas' }">
     <template #header>
-      <KPageHeader :title="t('crm.contracts.title')" :count="contracts?.length ?? 0" />
+      <KPageHeader :title="t('crm.contracts.title')" :count="contracts?.length ?? 0">
+        <template #right>
+          <UButton v-if="canCreate" icon="i-lucide-plus" :label="t('crm.contracts.new')" @click="createOpen = true" />
+        </template>
+      </KPageHeader>
       <div class="kords-filterbar flex flex-wrap items-center gap-2 border-b border-default px-4 py-3 sm:px-6">
         <UInput v-model="search" icon="i-lucide-search" :placeholder="t('crm.contracts.search')" class="min-w-0 flex-1 basis-60 lg:max-w-96 lg:flex-none" />
         <USelect v-model="sortMode" :items="sortItems" value-key="value" icon="i-lucide-arrow-down-wide-narrow" class="w-48" />
@@ -156,6 +182,7 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
                 <th class="px-4 py-3 text-end font-medium">{{ t("crm.contracts.value") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.signedOn") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.generatedOn") }}</th>
+                <th class="w-12 px-2 py-3"><span class="sr-only">{{ t("crm.contracts.file") }}</span></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-default">
@@ -173,6 +200,7 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
                 <td class="whitespace-nowrap px-4 py-3 text-end font-medium">{{ valueOf(c) !== null ? money(valueOf(c)!) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3">{{ c.signed_on ? formatDMY(c.signed_on) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3 text-muted">{{ formatDMYTime(c.created_at) }}</td>
+                <td class="px-2 py-2 text-end"><UButton v-if="c.file_path" icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :title="c.file_name ?? t('crm.contracts.file')" :aria-label="t('crm.contracts.file')" @click="downloadFile(c)" /></td>
               </tr>
             </tbody>
           </table>
@@ -189,4 +217,6 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
       </template>
     </template>
   </UDashboardPanel>
+
+  <CrmContractModal v-model:open="createOpen" :taken-deal-ids="(contracts ?? []).map((c) => c.deal_id).filter((x): x is string => !!x)" @saved="refresh" />
 </template>

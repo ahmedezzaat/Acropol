@@ -12,6 +12,8 @@ const { t, locale } = useI18n();
 const { hasPermission } = usePermissions();
 const canReply = computed(() => hasPermission("crm_chats", "reply"));
 const canCreate = computed(() => hasPermission("crm_chats", "create_contact"));
+// a deal can be created from the chat by someone who may create deals
+const canDeal = computed(() => hasPermission("crm_deals", "create"));
 
 interface Conversation {
   id: string; wa_id: string; display_name: string | null; status: "qualifying" | "qualified" | "handed_over" | "known" | "closed";
@@ -142,7 +144,7 @@ async function createContact() {
     </template>
 
     <template #body>
-      <div class="grid gap-4 lg:grid-cols-[22rem_1fr]">
+      <div class="grid gap-4 lg:grid-cols-[20rem_1fr] xl:grid-cols-[20rem_1fr_20rem]">
         <!-- The conversations -->
         <div class="space-y-3">
           <UTabs v-model="filter" :items="tabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs" />
@@ -204,6 +206,9 @@ async function createContact() {
           </footer>
         </div>
         <p v-else class="kords-card hidden p-10 text-center text-sm text-muted lg:block">{{ t("chats.pick") }}</p>
+
+        <!-- Next to the chat: create a deal from it -->
+        <ChatDealPanel v-if="current && canDeal" :key="current.id" :chat="current" @changed="refresh" />
       </div>
     </template>
   </UDashboardPanel>

@@ -19,6 +19,9 @@ const resourceRoutes: Record<string, string> = {
   cs_maintenance: "/cs/maintenance",
 };
 
+// leads, deals, contracts, visits; anything else keeps its place after them
+const CRM_MENU_ORDER = ["crm_leads", "crm_deals", "crm_customers", "crm_visits"];
+
 const route = useRoute();
 
 // The boards of the sub-workflows (e.g. the technical office), as links in the Technical office menu.
@@ -49,7 +52,9 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
   // for the matching hide on the deal page.
   const resourceLinks = m.resources
     // Leads has its own "view" permission for the tab.
-    .filter((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)) && r.key !== "crm_quotes")
+    .filter((r) => (r.key === "crm_leads" ? hasPermission("crm_leads", "view") : hasAnyModulePermission(r.key)) && r.key !== "crm_quotes" && r.key !== "crm_chats")
+    // the order of the CRM menu: contracts, then visits (the others keep the order they have)
+    .sort((x, y) => CRM_MENU_ORDER.indexOf(x.key) - CRM_MENU_ORDER.indexOf(y.key))
     // the customers permission now opens the contracts page, named "العقود" in the menu
     .map((r) => ({ label: r.key === "crm_customers" ? t("crm.contracts.title") : t(r.labelKey), to: resourceRoutes[r.key] }));
   if (m.key === "customer_service") {

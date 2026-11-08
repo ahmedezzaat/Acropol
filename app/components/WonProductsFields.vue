@@ -7,6 +7,8 @@ const props = defineProps<{
   // For forms where products are optional: no intro banner, and even the last
   // product can be removed again.
   optional?: boolean;
+  // the contract box (date and code) is entered elsewhere (a form that has them itself)
+  hideContract?: boolean;
 }>();
 
 const supabase = useSupabaseClient();
@@ -83,7 +85,7 @@ function remove(index: number) {
     />
 
     <!-- The contract: once for all the products -->
-    <div v-if="list.length" class="space-y-3 border border-primary/30 bg-primary/5 p-3">
+    <div v-if="list.length && !hideContract" class="space-y-3 border border-primary/30 bg-primary/5 p-3">
       <div class="flex items-center gap-2 text-sm font-semibold text-highlighted">
         <UIcon name="i-lucide-file-signature" class="size-4" />{{ t("cs.profile.contract") }}
       </div>
