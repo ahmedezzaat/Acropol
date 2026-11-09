@@ -161,7 +161,8 @@ async function handleWahaCall(event: H3Event) {
   const fromMe = payload.fromMe === true;
   // the chat is the other person: the sender of a message we receive, the receiver of one we sent
   const from = typeof (fromMe ? payload.to : payload.from) === "string" ? ((fromMe ? payload.to : payload.from) as string) : "";
-  if (!from) throw createError({ statusCode: 400, statusMessage: "Missing sender" });
+  // history WAHA replays after a link can carry no chat at all: nothing to keep, and no error (an error makes WAHA retry)
+  if (!from) return reply("ignored", { reason: "no_chat" });
   if (from.endsWith("@g.us")) return reply("ignored", { reason: "group" });
   if (from.startsWith("status@") || from === "status@broadcast") return reply("ignored", { reason: "status" });
 

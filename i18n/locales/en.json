@@ -679,6 +679,8 @@
     "dealHint": "Optional: this customer's deal that has no contract.",
     "noDeal": "No deal",
     "clearDeal": "Remove the deal",
+    "leadTag": "Lead",
+    "convertFailed": "Could not turn the lead into a customer",
     "notes": "Notes",
     "created": "The contract was created",
     "createFailed": "Could not create the contract",

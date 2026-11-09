@@ -46,9 +46,17 @@ watch(customerSearch, (q) => {
   timer = setTimeout(async () => {
     const term = q.trim();
     let query = supabase.from("customers").select("id, name, company, phone").order("created_at", { ascending: false }).limit(20);
-    if (term) query = query.or(`name.ilike.%${term}%,company.ilike.%${term}%,phone.ilike.%${term}%`);
-    const { data } = await query;
-    const found = (data ?? []).map((c) => ({ label: label(c as never), value: c.id as string }));
+    // leads (contacts) not yet customers: choosing one turns it into a customer when the contract is saved
+    let leadQuery = supabase.from("leads").select("id, name, company_name, phone").is("customer_id", null).neq("status", "converted").order("created_at", { ascending: false }).limit(10);
+    if (term) {
+      query = query.or(`name.ilike.%${term}%,company.ilike.%${term}%,phone.ilike.%${term}%`);
+      leadQuery = leadQuery.or(`name.ilike.%${term}%,company_name.ilike.%${term}%,phone.ilike.%${term}%`);
+    }
+    const [{ data }, { data: leadRows }] = await Promise.all([query, leadQuery]);
+    const found = [
+      ...(data ?? []).map((c) => ({ label: label(c as never), value: `c:${c.id}` })),
+      ...(leadRows ?? []).map((l) => ({ label: `${label({ name: l.name as string, company: l.company_name as string | null, phone: l.phone as string | null })} · ${t("crm.contracts.leadTag")}`, value: `l:${l.id}` })),
+    ];
     const chosen = customerOptions.value.find((o) => o.value === customerId.value);
     customerOptions.value = chosen && !found.some((o) => o.value === chosen.value) ? [chosen, ...found] : found;
   }, 250);
@@ -60,7 +68,8 @@ watch(customerId, async (id) => {
   dealId.value = null;
   dealOptions.value = [];
   if (!id) return;
-  const { data } = await supabase.from("deals").select("id, title").eq("customer_id", id).order("created_at", { ascending: false });
+  const col = id.startsWith("l:") ? "lead_id" : "customer_id";
+  const { data } = await supabase.from("deals").select("id, title").eq(col, id.slice(2)).order("created_at", { ascending: false });
   dealOptions.value = (data ?? []).filter((d) => !props.takenDealIds.includes(d.id as string)).map((d) => ({ label: (d.title as string) || "—", value: d.id as string }));
 });
 
@@ -86,6 +95,24 @@ async function save() {
   if (!valid.value) return;
   saving.value = true;
   // the contract file goes first, into the private storage, under the contract's own id
+  // a lead is turned into a customer first (the contract belongs to a customer); if the contract then fails,
+  // the chosen entry becomes that customer, so trying again does not convert the lead twice
+  let customer = customerId.value!;
+  if (customer.startsWith("l:")) {
+    const leadId = customer.slice(2);
+    const { data: newCustomer, error: convertError } = await supabase.rpc("crm_convert_lead", { p_lead_id: leadId });
+    if (convertError || !newCustomer) {
+      saving.value = false;
+      toast.add({ title: t("crm.contracts.convertFailed"), description: convertError?.message, color: "error" });
+      return;
+    }
+    // the deal chosen for the contract goes with the lead to its new customer
+    if (dealId.value) await supabase.from("deals").update({ customer_id: newCustomer as string }).eq("id", dealId.value);
+    const chosen = customerOptions.value.find((o) => o.value === customer);
+    customer = `c:${newCustomer}`;
+    customerOptions.value = [{ label: (chosen?.label ?? "").replace(/ · [^·]*$/, ""), value: customer }, ...customerOptions.value.filter((o) => o.value !== chosen?.value)];
+    customerId.value = customer;
+  }
   const id = crypto.randomUUID();
   let filePath: string | null = null;
   if (file.value) {
@@ -98,7 +125,7 @@ async function save() {
     }
   }
   const { error } = await supabase.rpc("crm_create_contract", {
-    p_customer_id: customerId.value!,
+    p_customer_id: customer.slice(2),
     p_contract: {
       id,
       code: code.value.trim(),
