@@ -102,13 +102,12 @@ const items = computed<NavigationMenuItem[][]>(() => {
   if (path === "/admin" || path.startsWith("/admin/")) return [settingsLinks.value];
 
   const activeModule = accessibleModules.value.find((m) => path === m.route || path.startsWith(`${m.route}/`));
-  // tasks are for everyone: the link stays in the menu of every module
-  if (activeModule) return [[...moduleLinks(activeModule), { label: t("tasks.title"), icon: "i-lucide-list-checks", to: "/tasks" }, { label: t("leave.title"), icon: "i-lucide-calendar-heart", to: "/leave" }]];
+  // leave is for everyone: its link stays in the menu of every module (tasks are reached from the home page)
+  if (activeModule) return [[...moduleLinks(activeModule), { label: t("leave.title"), icon: "i-lucide-calendar-heart", to: "/leave" }]];
 
   return [
     [
       { label: t("nav.home"), icon: "i-lucide-house", to: "/" },
-      { label: t("tasks.title"), icon: "i-lucide-list-checks", to: "/tasks" },
       { label: t("leave.title"), icon: "i-lucide-calendar-heart", to: "/leave" },
       ...accessibleModules.value.map((m) => ({ label: t(m.labelKey), icon: m.icon, to: m.route })),
       ...(canSettings.value ? [{ label: t("nav.settings"), icon: "i-lucide-settings", to: "/admin" }] : []),
@@ -132,7 +131,6 @@ async function signOut() {
           </NuxtLink>
           <div v-if="!collapsed" class="flex items-center">
             <NotificationBell />
-            <UButton icon="i-lucide-list-checks" :aria-label="t('tasks.title')" :title="t('tasks.title')" color="neutral" variant="ghost" to="/tasks" />
             <UButton
               v-if="hasAnyModulePermission('crm_deals')"
               icon="i-lucide-calendar"

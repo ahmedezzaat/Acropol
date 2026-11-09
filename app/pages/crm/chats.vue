@@ -19,6 +19,7 @@ interface Conversation {
   id: string; wa_id: string; display_name: string | null; status: "qualifying" | "qualified" | "handed_over" | "known" | "closed";
   ai_paused: boolean; collected: Record<string, string>; ai_replies: number; lead_id: string | null; customer_id: string | null;
   last_inbound_at: string | null; last_message_at: string; unread: boolean; provider: "cloud" | "waha";
+  ai_draft: string | null; ai_deal_id: string | null;
 }
 interface Message { id: string; direction: "in" | "out"; sender: "customer" | "ai" | "agent"; body: string | null; created_at: string }
 
@@ -109,6 +110,29 @@ async function send() {
     sending.value = false;
   }
 }
+// ---- the agent's suggested reply (draft mode): send it as it is, edit it first, or throw it away
+const sendingDraft = ref(false);
+async function sendDraft() {
+  if (!current.value?.ai_draft) return;
+  sendingDraft.value = true;
+  try {
+    await $fetch("/api/whatsapp/reply", { method: "POST", body: { conversation_id: current.value.id, text: current.value.ai_draft, from_draft: true } });
+    await Promise.all([refresh(), loadMessages()]);
+  } catch (err: any) {
+    toast.add({ title: t("chats.sendFailed"), description: err?.data?.statusMessage ?? err.message, color: "error" });
+  } finally {
+    sendingDraft.value = false;
+  }
+}
+function editDraft() {
+  text.value = current.value?.ai_draft ?? "";
+  discardDraft();
+}
+async function discardDraft() {
+  if (!current.value) return;
+  await supabase.from("whatsapp_conversations").update({ ai_draft: null }).eq("id", current.value.id);
+  await refresh();
+}
 async function setAi(paused: boolean) {
   if (!current.value) return;
   await supabase.from("whatsapp_conversations").update({ ai_paused: paused, ...(paused ? {} : { status: "qualifying" }) }).eq("id", current.value.id);
@@ -197,6 +221,15 @@ async function createContact() {
           </div>
 
           <footer v-if="canReply" class="space-y-2 border-t border-default p-3">
+            <div v-if="current.ai_draft" class="space-y-2 rounded-[10px] border border-primary/40 bg-primary/5 p-3">
+              <p class="flex items-center gap-1.5 text-xs font-medium text-primary"><UIcon name="i-lucide-bot" class="size-3.5" />{{ t("chats.draft.title") }}</p>
+              <p class="whitespace-pre-line text-sm text-highlighted">{{ current.ai_draft }}</p>
+              <div class="flex flex-wrap gap-2">
+                <UButton size="xs" icon="i-lucide-send" :label="t('chats.draft.send')" :loading="sendingDraft" @click="sendDraft" />
+                <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-pencil" :label="t('chats.draft.edit')" @click="editDraft" />
+                <UButton size="xs" color="neutral" variant="ghost" :label="t('chats.draft.discard')" @click="discardDraft" />
+              </div>
+            </div>
             <p v-if="!insideWindow" class="text-xs text-warning">{{ t("chats.outsideWindow") }}</p>
             <div class="flex items-end gap-2">
               <UTextarea v-model="text" :rows="2" :disabled="!insideWindow" :placeholder="t('chats.writeReply')" class="min-w-0 flex-1" @keydown.ctrl.enter="send" @keydown.meta.enter="send" />

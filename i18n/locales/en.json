@@ -1783,6 +1783,38 @@
     }
   },
   "chats": {
+    "agent": {
+      "title": "WhatsApp agent (phone chats)",
+      "mode": "Agent mode",
+      "modeHint": "Answers WhatsApp customers connected through WAHA and opens deals.",
+      "off": "Off",
+      "draft": "Draft: suggests the reply, one click to send",
+      "auto": "Automatic: replies by itself",
+      "dealWhere": "Deals the agent opens",
+      "pipeline": "Pipeline",
+      "stage": "Stage",
+      "dealHint": "A deal is opened when the customer's details are complete (need and area) and they have no open deal.",
+      "learnTitle": "Learn from the current chats",
+      "learnHint": "Reads the chats already on the phone and writes a playbook from them: the team's tone, customers' common questions and your answers. Phone numbers are removed before anything goes to Claude.",
+      "learn": "Learn from chats",
+      "relearn": "Learn again from scratch",
+      "learning": "Learning… {done} of {total}",
+      "building": "Writing the playbook…",
+      "learned": "Learned from {n} chats",
+      "builtAt": "Last updated: {d}",
+      "none": "Not learned yet",
+      "playbook": "Agent playbook",
+      "playbookHint": "You can edit it by hand: what is written here is what the agent follows.",
+      "failed": "Could not learn",
+      "saved": "Saved"
+    },
+    "draft": {
+      "title": "Reply suggested by the agent",
+      "send": "Send",
+      "edit": "Edit first",
+      "discard": "Discard",
+      "dealOpened": "The agent opened a deal"
+    },
     "deal": {
       "hasOpen": "This customer already has a deal in progress. Open it instead of creating a new one.",
       "closed": "Finished deals",

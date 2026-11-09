@@ -202,7 +202,16 @@ async function handleWahaCall(event: H3Event) {
   }
   // what we sent ourselves is not a lead
   if (fromMe) return reply("ignored", { reason: "from_me", stored: !!conversationId });
-  if (hidden) return reply("stored", { reason: "hidden_number", stored: !!conversationId });
+  if (hidden) {
+    if (conversationId && body.event === "message") {
+      try {
+        await runWahaAgent(event, admin, conversationId);
+      } catch (err) {
+        console.error("[waha-webhook] the agent failed", err);
+      }
+    }
+    return reply("stored", { reason: "hidden_number", stored: !!conversationId });
+  }
 
   const config = await getWhatsappConfig(event);
   const assignee = process.env.WAHA_DEFAULT_ASSIGNEE_ID || config.defaultAssigneeId || null;
@@ -213,6 +222,14 @@ async function handleWahaCall(event: H3Event) {
   if (conversationId) {
     const link = result.status === "created" ? { lead_id: result.id } : result.entity === "lead" ? { lead_id: result.id } : { customer_id: result.id };
     await admin.from("whatsapp_conversations").update({ ...link, status: "known" }).eq("id", conversationId);
+  }
+  // the sales agent answers (once: WAHA sends an incoming message as "message" and again as "message.any"; a failure here is only logged: the lead above is already safe)
+  if (conversationId && body.event === "message") {
+    try {
+      await runWahaAgent(event, admin, conversationId);
+    } catch (err) {
+      console.error("[waha-webhook] the agent failed", err);
+    }
   }
   return result.status === "created" ? reply("created", { id: result.id }) : reply("duplicate", { entity: result.entity, id: result.id });
 }
