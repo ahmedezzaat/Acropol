@@ -78,6 +78,12 @@ const __ad2 = useAsyncData<string[]>("crm-leads-deal-flags", async () => {
   return (data ?? []).map((d) => d.lead_id as string);
 });
 const { data: leadIdsWithDeals, refresh: refreshDealFlags } = __ad2;
+// the system's own statuses: has an open deal / has a contract (these win over the chosen status)
+const { data: leadStates, refresh: refreshStates } = useAsyncData<Record<string, string>>("crm-lead-states", async () => {
+  const { data } = await supabase.rpc("lead_states");
+  return Object.fromEntries(((data ?? []) as { lead_id: string; state: string | null }[]).filter((r) => r.state).map((r) => [r.lead_id, r.state as string]));
+});
+const displayStatus = (lead: { id: string; status: string }) => leadStates.value?.[lead.id] ?? (lead.status === "unqualified" || lead.status === "lost" ? "unqualified" : lead.status === "converted" ? "contract" : "new");
 const leadIdsWithDealsSet = computed(() => new Set(leadIdsWithDeals.value ?? []));
 
 const __ad3 = useAsyncData<Profile[]>("crm-leads-profiles", async () => {
@@ -99,17 +105,16 @@ const assigneeFilterOptions = computed(() => [
   ...(profiles.value ?? []).map((p) => ({ label: p.full_name || p.email, value: p.id })),
 ]);
 
-const statusKeys = ["new", "contacted", "qualified", "converted", "lost"] as const;
+const statusKeys = ["new", "unqualified", "open_deal", "contract"] as const;
 const statusOptions = computed(() => [
   { label: t("common.all"), value: "all" },
   ...statusKeys.map((s) => ({ label: t(`crm.leads.status.${s}`), value: s })),
 ]);
 const statusColors: Record<string, "neutral" | "info" | "warning" | "success" | "error"> = {
   new: "info",
-  contacted: "warning",
-  qualified: "warning",
-  converted: "success",
-  lost: "error",
+  unqualified: "neutral",
+  open_deal: "warning",
+  contract: "success",
 };
 
 const filteredLeads = computed(() => {
@@ -120,7 +125,7 @@ const filteredLeads = computed(() => {
       (lead.email ?? "").toLowerCase().includes(search.value.toLowerCase()) ||
       phoneMatches(lead.phone, search.value) ||
       phoneMatches(lead.phone2, search.value);
-    const matchesStatus = statusFilter.value === "all" || lead.status === statusFilter.value;
+    const matchesStatus = statusFilter.value === "all" || displayStatus(lead) === statusFilter.value;
     const matchesAssignee =
       assigneeFilter.value === null ||
       (assigneeFilter.value === UNASSIGNED ? lead.assigned_to === null : lead.assigned_to === assigneeFilter.value);
@@ -390,7 +395,7 @@ function openDealModal() {
   dealModalOpen.value = true;
 }
 async function onDealCreated() {
-  await Promise.all([refreshLeadDeals(), refreshDealFlags()]);
+  await Promise.all([refreshLeadDeals(), refreshDealFlags(), refreshStates()]);
 }
 function openDeal(id: string) {
   navigateTo(`/crm/deals/${id}`);
@@ -473,7 +478,7 @@ function backToList() {
                   </span>
                 </span>
                 <span class="flex shrink-0 items-center gap-2">
-                  <KBadge :label="t(`crm.leads.status.${lead.status}`)" :tone="statusColors[lead.status]" class="hidden sm:inline-flex" />
+                  <KBadge :label="t(`crm.leads.status.${displayStatus(lead)}`)" :tone="statusColors[displayStatus(lead)]" class="hidden sm:inline-flex" />
                   <a
                     v-if="waLink(lead.phone)"
                     :href="waLink(lead.phone)!"
@@ -524,7 +529,7 @@ function backToList() {
                   <p v-if="secondaryName(selectedLead)" class="truncate text-sm text-toned">{{ secondaryName(selectedLead) }}</p>
                   <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <KBadge :label="t(`crm.leads.type.${selectedLead.lead_type}`)" tone="neutral" />
-                    <KBadge :label="t(`crm.leads.status.${selectedLead.status}`)" :tone="statusColors[selectedLead.status]" />
+                    <KBadge :label="t(`crm.leads.status.${displayStatus(selectedLead)}`)" :tone="statusColors[displayStatus(selectedLead)]" />
                     <KBadge v-if="selectedLead.customer_id" :label="t('crm.leads.converted')" tone="success" />
                   </div>
                 </div>

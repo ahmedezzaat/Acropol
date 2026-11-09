@@ -21,6 +21,9 @@ interface FileRow {
   from_work_pipeline_id: string | null;
   uploaded_by: string | null;
   created_at: string;
+  // a file kept on a contract (contract-files bucket) rather than on a deal
+  bucket?: string;
+  contract_code?: string;
 }
 
 const { hasPermission } = usePermissions();
@@ -33,8 +36,8 @@ const canSeeOtherFiles = computed(() => hasPermission("crm_deals", "view_all"));
 const canMoveToQuote = computed(() => hasPermission("crm_work_files", "move_to_quote"));
 const canMoveFromQuote = computed(() => hasPermission("crm_work_files", "move_from_quote"));
 const canDeleteWork = computed(() => hasPermission("crm_work_files", "delete"));
-const canRemove = (r: { kind: string | null; from_work_pipeline_id: string | null }) =>
-  canManage.value && r.kind !== "contract" && (!r.from_work_pipeline_id || canDeleteWork.value);
+const canRemove = (r: { kind: string | null; from_work_pipeline_id: string | null; bucket?: string }) =>
+  canManage.value && r.kind !== "contract" && !r.bucket && (!r.from_work_pipeline_id || canDeleteWork.value);
 
 const supabase = useSupabaseClient();
 const { t } = useI18n();
@@ -48,11 +51,33 @@ const workNames = ref<Record<string, string>>({});
 const uploading = ref(false);
 const picker = ref<HTMLInputElement | null>(null);
 
+// The files attached to the customer's contracts themselves (a contract made by hand, or one made when a deal was won)
+async function contractFileRows(existing: FileRow[]): Promise<FileRow[]> {
+  if (!props.customerId || props.dealId) return [];
+  const { data } = await supabase.from("contracts").select("id, code, deal_id, file_name, file_path, created_by, created_at").eq("customer_id", props.customerId).not("file_path", "is", null);
+  const have = new Set(existing.filter((r) => r.kind === "contract").map((r) => r.file_name));
+  return (data ?? [])
+    .filter((c) => c.file_path && !have.has(c.file_name ?? ""))
+    .map((c) => ({
+      id: `contract:${c.id}`,
+      deal_id: (c.deal_id as string | null) ?? "",
+      file_name: (c.file_name as string | null) || String(c.code),
+      storage_path: c.file_path as string,
+      kind: "contract",
+      from_work_pipeline_id: null,
+      uploaded_by: c.created_by as string | null,
+      created_at: c.created_at as string,
+      bucket: "contract-files",
+      contract_code: c.code as string,
+    }));
+}
+
 async function load() {
   loading.value = true;
   if (props.csMode && props.customerId) {
     const { data: files } = await supabase.rpc("cs_customer_deal_files", { p_customer_id: props.customerId });
     rows.value = (files ?? []).map((f) => ({ ...f, from_work_pipeline_id: null })) as FileRow[];
+    rows.value = [...rows.value, ...(await contractFileRows(rows.value))];
     dealTitles.value = Object.fromEntries((files ?? []).map((f) => [f.deal_id, f.deal_title]));
     loading.value = false;
     return;
@@ -66,7 +91,8 @@ async function load() {
     dealTitles.value = Object.fromEntries((data ?? []).map((d) => [d.id, d.title]));
   }
   if (!dealIds.length) {
-    rows.value = [];
+    rows.value = await contractFileRows([]);
+    await loadPeople();
     loading.value = false;
     return;
   }
@@ -76,6 +102,7 @@ async function load() {
     .in("deal_id", dealIds)
     .order("created_at", { ascending: false });
   rows.value = ((data ?? []) as FileRow[]).filter((r) => !r.from_work_pipeline_id || canViewWork.value);
+  rows.value = [...rows.value, ...(await contractFileRows(rows.value))];
 
   // the work pipelines files came from (to tag them)
   const workIds = [...new Set(rows.value.map((r) => r.from_work_pipeline_id).filter((x): x is string => !!x))];
@@ -84,12 +111,15 @@ async function load() {
     workNames.value = Object.fromEntries((wp ?? []).map((w) => [w.id, w.name]));
   }
 
+  await loadPeople();
+  loading.value = false;
+}
+async function loadPeople() {
   const uploaderIds = [...new Set(rows.value.map((r) => r.uploaded_by).filter((x): x is string => !!x))];
   if (uploaderIds.length) {
     const { data: profiles } = await supabase.from("profiles").select("id, full_name, email").in("id", uploaderIds);
     people.value = Object.fromEntries((profiles ?? []).map((p) => [p.id, p.full_name || p.email]));
   }
-  loading.value = false;
 }
 onMounted(load);
 
@@ -108,7 +138,7 @@ function iconFor(name: string) {
 }
 
 async function open(row: FileRow) {
-  const { data, error } = await supabase.storage.from("deal-attachments").createSignedUrl(row.storage_path, 60);
+  const { data, error } = await supabase.storage.from(row.bucket ?? "deal-attachments").createSignedUrl(row.storage_path, 60, { download: row.bucket ? row.file_name : undefined });
   if (error || !data) {
     toast.add({ title: t("files.openFailed"), description: error?.message, color: "error" });
     return;
@@ -275,7 +305,8 @@ async function confirmRemove() {
             {{ formatDMYTime(r.created_at) }}<template v-if="r.uploaded_by && people[r.uploaded_by]"> · {{ people[r.uploaded_by] }}</template>
           </div>
         </button>
-        <NuxtLink v-if="linkDeals" :to="`/crm/deals/${r.deal_id}`" class="hidden shrink-0 items-center gap-1 text-xs text-primary sm:flex" @click.stop>
+        <span v-if="r.contract_code" class="hidden shrink-0 items-center gap-1 text-xs text-muted sm:flex"><UIcon name="i-lucide-file-signature" class="size-3.5" /><bdi dir="ltr">#{{ r.contract_code }}</bdi></span>
+        <NuxtLink v-else-if="linkDeals && r.deal_id" :to="`/crm/deals/${r.deal_id}`" class="hidden shrink-0 items-center gap-1 text-xs text-primary sm:flex" @click.stop>
           <UIcon name="i-lucide-handshake" class="size-3.5" />
           <span class="max-w-40 truncate">{{ dealTitles[r.deal_id] || t("files.deal") }}</span>
         </NuxtLink>

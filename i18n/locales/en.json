@@ -669,6 +669,17 @@
   },
   "crm": {
     "contracts": {
+    "edit": "Edit contract",
+    "editTitle": "Edit contract",
+    "edited": "The contract was updated",
+    "editFailed": "Could not update the contract",
+    "removeFile": "Remove the file",
+    "replaceFile": "The current file will be replaced by this one.",
+    "contractWord": "Contract",
+    "dataTitle": "Contract details",
+    "notFound": "This contract was not found, or you cannot view it.",
+    "lastMaintenance": "Last maintenance",
+    "nextMaintenanceNote": "Next maintenance note",
     "file": "Contract file",
     "fileHint": "Optional: the signed copy of the contract.",
     "fileFailed": "Could not upload or download the contract file",
@@ -785,11 +796,11 @@
       "leadDeleted": "Lead deleted",
       "deleteFailed": "Failed to delete lead",
       "status": {
-        "new": "new",
-        "contacted": "contacted",
-        "qualified": "qualified",
-        "converted": "converted",
-        "lost": "lost"
+        "new": "New",
+        "unqualified": "Unqualified",
+        "open_deal": "Has an open deal",
+        "contract": "Has a contract",
+        "autoHint": "Automatic status set by the system"
       },
       "noResults": "No leads match.",
       "selectLead": "Select a lead to see the details",
@@ -987,6 +998,25 @@
       }
     },
     "customers": {
+      "noContractProducts": "No products are recorded on this contract.",
+      "backToContracts": "Contracts",
+      "unsaved": "Unsaved changes",
+      "contractsTitle": "Contracts",
+      "noContractsYet": "This customer has no contracts yet.",
+      "enteredBy": "Entered by",
+      "notes": "Notes",
+      "openDeal": "Open the deal",
+      "category": "Category",
+      "warrantyDetails": "Warranty details",
+      "operationDate": "Operation date",
+      "nextMaintenance": "Next maintenance",
+      "otherProducts": "Other products (no contract)",
+      "kpi": {
+        "contracts": "Contracts",
+        "value": "Contracts value",
+        "openDeals": "Open deals",
+        "products": "Products"
+      },
       "pushToCs": "Push to Customer Service",
       "pushTitle": "Push {name} to Customer Service",
       "pushHint": "Fill in what is missing and assign the customer to a Customer Service agent. Nothing already set is cleared.",
@@ -1787,6 +1817,15 @@
     }
   },
   "chats": {
+    "media": {
+      "attach": "Attach a photo or file",
+      "caption": "Add a caption (optional)",
+      "file": "File",
+      "unavailable": "Photo or file (not available to show here)",
+      "tooBig": "The file is larger than 16 MB",
+      "needsPlus": "Sending photos and files needs WAHA Plus",
+      "notSupported": "Photos and files can only be sent in phone (WAHA) chats"
+    },
     "waAgent": {
     "cloudTitle": "WhatsApp Cloud API assistant (unknown numbers)",
       "title": "WhatsApp agent (phone chats)",

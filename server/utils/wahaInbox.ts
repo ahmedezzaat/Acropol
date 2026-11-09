@@ -9,6 +9,8 @@ interface WahaMessage {
   fromMe: boolean;
   // the full WAHA chat id, for a person whose number is hidden ("<id>@lid")
   chatId?: string | null;
+  // a photo or file kept in the wa-media bucket
+  media?: { path: string; type: string | null; name: string | null } | null;
 }
 
 // Keeps a WAHA message in the inbox (conversation + message). Messages arrive twice when WAHA sends both
@@ -64,13 +66,16 @@ export async function recordWahaMessage(admin: SupabaseClient, m: WahaMessage): 
     sender: m.fromMe ? "agent" : "customer",
     body: m.text,
     wa_message_id: m.wamid,
+    ...(m.media ? { media_path: m.media.path, media_type: m.media.type, media_name: m.media.name } : {}),
   });
   const now = new Date().toISOString();
   await admin
     .from("whatsapp_conversations")
     .update({
       last_message_at: now,
-      ...(m.fromMe ? {} : { last_inbound_at: now, unread: true }),
+      // a reply typed on the phone: a person is in this chat, so the agent (auto mode) stops answering it
+      // (the agent's own messages never get here: they are stored when sent and the echo is skipped above)
+      ...(m.fromMe ? { ai_paused: true } : { last_inbound_at: now, unread: true }),
       ...(!m.fromMe && m.name && !conv.display_name ? { display_name: m.name } : {}),
     })
     .eq("id", conv.id);

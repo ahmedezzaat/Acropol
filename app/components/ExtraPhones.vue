@@ -17,18 +17,19 @@ function update(index: number, patch: Partial<ExtraContact>) {
 
 <template>
   <div class="space-y-3">
-    <div v-for="(c, index) in list" :key="index" class="flex items-start gap-2">
-      <div class="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+    <!-- each person is a small card, fields stacked so nothing is squeezed -->
+    <div v-for="(c, index) in list" :key="index" class="space-y-2 rounded-[10px] border border-default bg-muted/40 p-3">
+      <div class="flex items-center gap-2">
         <UInput
           :model-value="c.name"
           icon="i-lucide-user-round"
           :placeholder="t('common.contactPersonName')"
-          class="w-full"
+          class="min-w-0 flex-1"
           @update:model-value="(v: string | number) => update(index, { name: String(v) })"
         />
-        <PhoneInput :model-value="c.phone" @update:model-value="(v: string) => update(index, { phone: v })" />
+        <UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" :aria-label="t('common.delete')" @click="remove(index)" />
       </div>
-      <UButton icon="i-lucide-x" color="neutral" variant="ghost" :aria-label="t('common.delete')" @click="remove(index)" />
+      <PhoneInput :model-value="c.phone" @update:model-value="(v: string) => update(index, { phone: v })" />
     </div>
     <UButton icon="i-lucide-plus" size="sm" color="neutral" variant="soft" :label="t('common.addPhone')" @click="add" />
   </div>

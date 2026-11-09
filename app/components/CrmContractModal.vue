@@ -2,7 +2,7 @@
 // A new contract from the CRM's contracts page, with everything a won deal records: the customer, the code and
 // date, the value, the contract file, the products bought (warranty, payment, salesperson, notes) and, if there
 // is one, the deal it belongs to.
-const props = defineProps<{ takenDealIds: string[] }>();
+const props = defineProps<{ takenDealIds: string[]; customerId?: string; customerLabel?: string }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
 
@@ -88,6 +88,11 @@ watch(open, (isOpen) => {
   // the latest customers, to start the list
   customerSearch.value = " ";
   customerSearch.value = "";
+  // opened from a customer's own page: that customer is already chosen
+  if (props.customerId) {
+    customerOptions.value = [{ label: props.customerLabel || "—", value: `c:${props.customerId}` }];
+    customerId.value = `c:${props.customerId}`;
+  }
 });
 
 const valid = computed(() => !!customerId.value && !!code.value.trim() && !!signedOn.value && products.value.every(wonProductValid));
@@ -173,6 +178,7 @@ async function save() {
             :ignore-filter="true"
             icon="i-lucide-user-round"
             :placeholder="t('crm.contracts.pickCustomer')"
+            :disabled="!!props.customerId"
             class="w-full"
           >
             <template #empty>{{ t("crm.contracts.noCustomers") }}</template>

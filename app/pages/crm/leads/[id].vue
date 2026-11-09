@@ -48,7 +48,7 @@ const canAssign = computed(() => hasPermission("crm_leads", "assign"));
 const canConvert = computed(() => hasPermission("crm_customers", "create"));
 const canDelete = computed(() => hasPermission("crm_leads", "delete"));
 
-const statusKeys = ["new", "contacted", "qualified", "converted", "lost"] as const;
+const statusKeys = ["new", "unqualified"] as const;
 const statusOptions = computed(() =>
   statusKeys.map((s) => ({ label: t(`crm.leads.status.${s}`), value: s })),
 );
@@ -87,6 +87,11 @@ const { data: leadPayload, status } = await useAsyncData(`crm-lead-${leadId}`, a
 });
 watchEffect(() => {
   if (leadPayload.value) lead.value = leadPayload.value;
+});
+// "has an open deal" / "has a contract": set by the system, not chosen
+const { data: autoState } = await useAsyncData(`crm-lead-state-${leadId}`, async () => {
+  const { data } = await supabase.rpc("lead_state", { p_lead: leadId });
+  return (data as string | null) ?? (leadPayload.value?.status === "converted" ? "contract" : null);
 });
 
 async function save() {
@@ -216,7 +221,11 @@ async function remove() {
           <USelect v-model="lead.source" :items="sourceOptions" value-key="value" :disabled="!canEdit" class="w-full" />
         </UFormField>
         <UFormField :label="t('common.status')">
-          <USelect v-model="lead.status" :items="statusOptions" value-key="value" :disabled="!canEdit" class="w-full" />
+          <div v-if="autoState" class="space-y-1">
+            <KBadge :label="t(`crm.leads.status.${autoState}`)" :tone="autoState === 'contract' ? 'success' : 'warning'" />
+            <p class="text-xs text-muted">{{ t("crm.leads.status.autoHint") }}</p>
+          </div>
+          <USelect v-else v-model="lead.status" :items="statusOptions" value-key="value" :disabled="!canEdit" class="w-full" />
         </UFormField>
         <UFormField :label="t('crm.leads.assignedTo')">
           <USelect

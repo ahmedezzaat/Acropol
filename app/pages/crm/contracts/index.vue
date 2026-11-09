@@ -1,6 +1,5 @@
 <script setup lang="ts">
-// Contracts (العقود): the contracts generated when deals are won, newest first. Each opens its customer
-// or its deal. (Customers themselves are managed in Customer Service.)
+// Contracts (العقود): the contracts generated when deals are won, newest first. Each opens its own contract page. (Customers themselves are managed in Customer Service.)
 definePageMeta({ layout: "dashboard", crmPermission: { module: "crm_customers" } });
 useHead({ htmlAttrs: { class: "carbon kords" } });
 
@@ -20,7 +19,7 @@ interface ContractRow {
   deal_id: string | null;
   customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null } | null;
   deal: { id: string; title: string; assigned_to: string | null; value: number | null } | null;
-  products: { sales_person_id: string | null }[] | null;
+  products: { name: string; quantity: number | null; sales_person_id: string | null }[] | null;
 }
 
 const { hasPermission } = usePermissions();
@@ -31,7 +30,7 @@ const { data: contracts, status, refresh } = await useAsyncData<ContractRow[]>("
   fetchAll<ContractRow>((from, to) =>
     supabase
       .from("contracts")
-      .select("id, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names), deal:deals(id, title, assigned_to, value), products:customer_products(sales_person_id)")
+      .select("id, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names), deal:deals(id, title, assigned_to, value), products:customer_products(name, quantity, sales_person_id)")
       .order("created_at", { ascending: false })
       .order("id")
       .range(from, to) as never,
@@ -43,6 +42,11 @@ const { data: people } = await useAsyncData<Record<string, string>>("crm-contrac
   const { data } = await supabase.from("profiles").select("id, full_name, email");
   return Object.fromEntries((data ?? []).map((p) => [p.id as string, (p.full_name || p.email) as string]));
 });
+// A contract is named after what the customer bought: its products (the deal's title, then the code, when it has none)
+function titleOf(c: ContractRow): string {
+  const names = (c.products ?? []).filter((p) => p.name?.trim()).map((p) => ((p.quantity ?? 1) > 1 ? `${p.name.trim()} × ${p.quantity}` : p.name.trim()));
+  return names.join("، ") || c.deal?.title || c.code || "—";
+}
 function agentsOf(c: ContractRow): string[] {
   const ids = new Set((c.products ?? []).map((p) => p.sales_person_id).filter((x): x is string => !!x));
   if (!ids.size && c.deal?.assigned_to) ids.add(c.deal.assigned_to);
@@ -86,7 +90,7 @@ const rows = computed(() => {
     const cu = c.customer;
     return (
       (c.code ?? "").toLowerCase().includes(q) ||
-      `${cu?.name ?? ""} ${cu?.company ?? ""} ${c.deal?.title ?? ""} ${c.notes ?? ""} ${agentsOf(c).join(" ")}`.toLowerCase().includes(q) ||
+      `${titleOf(c)} ${c.code ?? ""} ${cu?.name ?? ""} ${cu?.company ?? ""} ${c.deal?.title ?? ""} ${c.notes ?? ""} ${agentsOf(c).join(" ")}`.toLowerCase().includes(q) ||
       anyPhoneMatches([cu?.phone, ...(cu?.extra_phones ?? [])], search.value) ||
       extraNamesMatch(cu?.extra_phone_names, search.value)
     );
@@ -158,12 +162,12 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
       <template v-else>
         <!-- Phone: cards -->
         <div class="space-y-2 md:hidden">
-          <NuxtLink v-for="c in paged" :key="c.id" :to="`/crm/customers/${c.customer_id}`" class="kords-kcard block border border-default bg-default p-3">
+          <NuxtLink v-for="c in paged" :key="c.id" :to="`/crm/contracts/${c.id}`" class="kords-kcard block border border-default bg-default p-3">
             <div class="flex items-start justify-between gap-2">
-              <span class="font-semibold text-highlighted" dir="ltr">{{ c.code || "—" }}</span>
+              <span class="min-w-0 font-semibold text-highlighted">{{ titleOf(c) }}</span>
               <span class="shrink-0 text-xs text-muted">{{ formatDMY(c.created_at) }}</span>
             </div>
-            <p class="mt-1 truncate text-sm text-toned">{{ customerTitle(c) }}</p>
+            <p class="mt-1 truncate text-sm text-toned">{{ customerTitle(c) }}<template v-if="c.code"> · <bdi dir="ltr">#{{ c.code }}</bdi></template></p>
             <p v-if="agentsOf(c).length" class="mt-0.5 flex items-center gap-1 text-xs text-muted"><UIcon name="i-lucide-user" class="size-3" />{{ agentsOf(c).join("، ") }}</p>
             <p v-if="valueOf(c) !== null" class="mt-0.5 text-sm font-medium text-success">{{ money(valueOf(c)!) }}</p>
             <p v-if="c.signed_on" class="mt-0.5 text-xs text-muted">{{ t("crm.contracts.signedOn") }}: {{ formatDMY(c.signed_on) }}</p>
@@ -187,7 +191,10 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
             </thead>
             <tbody class="divide-y divide-default">
               <tr v-for="c in paged" :key="c.id" class="hover:bg-elevated">
-                <td class="px-4 py-3 font-medium text-highlighted"><bdi dir="ltr">{{ c.code || "—" }}</bdi></td>
+                <td class="max-w-72 px-4 py-3">
+                  <NuxtLink :to="`/crm/contracts/${c.id}`" class="block font-medium text-highlighted hover:text-primary">{{ titleOf(c) }}</NuxtLink>
+                  <span v-if="c.code" class="text-xs text-muted"><bdi dir="ltr">#{{ c.code }}</bdi></span>
+                </td>
                 <td class="px-4 py-3">
                   <NuxtLink :to="`/crm/customers/${c.customer_id}`" class="font-medium text-highlighted hover:text-primary">{{ customerTitle(c) }}</NuxtLink>
                   <div v-if="c.customer?.phone" class="text-xs text-muted" dir="ltr">{{ c.customer.phone }}</div>

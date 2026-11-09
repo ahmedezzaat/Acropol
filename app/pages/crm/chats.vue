@@ -21,7 +21,7 @@ interface Conversation {
   last_inbound_at: string | null; last_message_at: string; unread: boolean; provider: "cloud" | "waha";
   ai_draft: string | null; ai_deal_id: string | null;
 }
-interface Message { id: string; direction: "in" | "out"; sender: "customer" | "ai" | "agent"; body: string | null; created_at: string }
+interface Message { id: string; direction: "in" | "out"; sender: "customer" | "ai" | "agent"; body: string | null; created_at: string; media_path: string | null; media_type: string | null; media_name: string | null }
 
 const filter = ref<"all" | "unread" | "handed_over" | "qualifying" | "qualified">("all");
 const { data: convs, refresh } = await useAsyncData<Conversation[]>("wa-conversations", async () => {
@@ -44,8 +44,9 @@ async function loadMessages() {
     messages.value = [];
     return;
   }
-  const { data } = await supabase.from("whatsapp_messages").select("id, direction, sender, body, created_at").eq("conversation_id", openId.value).order("created_at");
+  const { data } = await supabase.from("whatsapp_messages").select("id, direction, sender, body, created_at, media_path, media_type, media_name").eq("conversation_id", openId.value).order("created_at");
   messages.value = (data ?? []) as Message[];
+  await loadMediaUrls();
   // opening a chat marks it read
   if (current.value?.unread && canReply.value) {
     await supabase.from("whatsapp_conversations").update({ unread: false }).eq("id", openId.value);
@@ -53,6 +54,51 @@ async function loadMessages() {
   }
 }
 watch(openId, loadMessages, { immediate: true });
+
+// ---- photos and files: shown from the private bucket through short-lived links
+const mediaUrls = ref<Record<string, string>>({});
+async function loadMediaUrls() {
+  const need = [...new Set(messages.value.map((m) => m.media_path).filter((x): x is string => !!x && !mediaUrls.value[x]))];
+  if (!need.length) return;
+  const { data } = await supabase.storage.from("wa-media").createSignedUrls(need, 3600);
+  for (const r of data ?? []) if (r.path && r.signedUrl) mediaUrls.value[r.path] = r.signedUrl;
+}
+const isImage = (m: Message) => !!m.media_type?.startsWith("image/");
+const isVideo = (m: Message) => !!m.media_type?.startsWith("video/");
+const isAudio = (m: Message) => !!m.media_type?.startsWith("audio/");
+
+// ---- send a photo or file (WAHA chats): it goes to the bucket from here, then WAHA is told to send it
+const fileInput = ref<HTMLInputElement | null>(null);
+const picked = ref<File | null>(null);
+const MAX_FILE = 16 * 1024 * 1024;
+function onPick(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0] ?? null;
+  (e.target as HTMLInputElement).value = "";
+  if (f && f.size > MAX_FILE) {
+    toast.add({ title: t("chats.media.tooBig"), color: "error" });
+    return;
+  }
+  picked.value = f;
+}
+async function sendMedia() {
+  if (!current.value || !picked.value) return;
+  sending.value = true;
+  const f = picked.value;
+  try {
+    const path = `out/${current.value.id}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}${(f.name.match(/\.[A-Za-z0-9]{1,8}$/)?.[0] ?? "")}`;
+    const { error } = await supabase.storage.from("wa-media").upload(path, f, { contentType: f.type || undefined });
+    if (error) throw new Error(error.message);
+    await $fetch("/api/whatsapp/send-media", { method: "POST", body: { conversation_id: current.value.id, path, name: f.name, type: f.type || "application/octet-stream", caption: text.value.trim() || undefined } });
+    picked.value = null;
+    text.value = "";
+    await Promise.all([refresh(), loadMessages()]);
+  } catch (err: any) {
+    const code = err?.data?.statusMessage ?? err.message;
+    toast.add({ title: t("chats.sendFailed"), description: code === "needs_waha_plus" ? t("chats.media.needsPlus") : code === "media_not_supported" ? t("chats.media.notSupported") : code, color: "error" });
+  } finally {
+    sending.value = false;
+  }
+}
 
 // Arriving from a "WhatsApp" button (?phone=<digits>): open that person's chat, or start one
 onMounted(async () => {
@@ -214,7 +260,14 @@ async function createContact() {
             <div v-for="m in messages" :key="m.id" class="flex" :class="m.direction === 'in' ? 'justify-start' : 'justify-end'">
               <div class="max-w-[80%] whitespace-pre-line rounded-[14px] px-3 py-2 text-sm" :class="m.direction === 'in' ? 'bg-muted text-highlighted' : m.sender === 'ai' ? 'bg-primary/10 text-highlighted' : 'bg-primary text-white'">
                 <p v-if="m.direction === 'out'" class="mb-0.5 text-[10px] opacity-70">{{ m.sender === "ai" ? t("chats.assistant") : t("chats.agent") }}</p>
-                {{ m.body }}
+                <template v-if="m.media_path">
+                  <a v-if="isImage(m) && mediaUrls[m.media_path]" :href="mediaUrls[m.media_path]" target="_blank" rel="noopener"><img :src="mediaUrls[m.media_path]" :alt="m.media_name ?? ''" class="mb-1 max-h-64 rounded-[10px] object-cover" loading="lazy" /></a>
+                  <video v-else-if="isVideo(m) && mediaUrls[m.media_path]" :src="mediaUrls[m.media_path]" controls class="mb-1 max-h-64 rounded-[10px]" />
+                  <audio v-else-if="isAudio(m) && mediaUrls[m.media_path]" :src="mediaUrls[m.media_path]" controls class="mb-1" />
+                  <a v-else-if="mediaUrls[m.media_path]" :href="mediaUrls[m.media_path]" target="_blank" rel="noopener" :download="m.media_name ?? true" class="mb-1 flex items-center gap-1.5 underline"><UIcon name="i-lucide-paperclip" class="size-4" /><bdi dir="ltr">{{ m.media_name || t("chats.media.file") }}</bdi></a>
+                </template>
+                <span v-if="m.body && m.body !== '[media]'">{{ m.body }}</span>
+                <span v-else-if="m.body === '[media]'" class="inline-flex items-center gap-1 italic opacity-80"><UIcon name="i-lucide-image" class="size-3.5" />{{ t("chats.media.unavailable") }}</span>
                 <p class="mt-1 text-[10px] opacity-60">{{ formatDMYTime(m.created_at, locale) }}</p>
               </div>
             </div>
@@ -231,9 +284,12 @@ async function createContact() {
               </div>
             </div>
             <p v-if="!insideWindow" class="text-xs text-warning">{{ t("chats.outsideWindow") }}</p>
+            <p v-if="picked" class="flex items-center gap-2 rounded-[10px] bg-muted px-3 py-1.5 text-xs"><UIcon name="i-lucide-paperclip" class="size-3.5 shrink-0 text-primary" /><bdi dir="ltr" class="min-w-0 flex-1 truncate">{{ picked.name }}</bdi><button type="button" class="text-muted hover:text-highlighted" :aria-label="t('common.cancel')" @click="picked = null"><UIcon name="i-lucide-x" class="size-3.5" /></button></p>
             <div class="flex items-end gap-2">
-              <UTextarea v-model="text" :rows="2" :disabled="!insideWindow" :placeholder="t('chats.writeReply')" class="min-w-0 flex-1" @keydown.ctrl.enter="send" @keydown.meta.enter="send" />
-              <UButton icon="i-lucide-send" :loading="sending" :disabled="!insideWindow || !text.trim()" :aria-label="t('chats.send')" @click="send" />
+              <input ref="fileInput" type="file" class="hidden" @change="onPick" />
+              <UButton v-if="current.provider === 'waha'" icon="i-lucide-paperclip" color="neutral" variant="outline" :disabled="sending" :aria-label="t('chats.media.attach')" @click="fileInput?.click()" />
+              <UTextarea v-model="text" :rows="2" :disabled="!insideWindow" :placeholder="picked ? t('chats.media.caption') : t('chats.writeReply')" class="min-w-0 flex-1" @keydown.ctrl.enter="picked ? sendMedia() : send()" @keydown.meta.enter="picked ? sendMedia() : send()" />
+              <UButton icon="i-lucide-send" :loading="sending" :disabled="!insideWindow || (!picked && !text.trim())" :aria-label="t('chats.send')" @click="picked ? sendMedia() : send()" />
             </div>
             <p v-if="current.provider === 'cloud' && !current.ai_paused && current.status === 'qualifying'" class="text-xs text-muted">{{ t("chats.replyPausesAi") }}</p>
           </footer>

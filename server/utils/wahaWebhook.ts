@@ -189,14 +189,16 @@ async function handleWahaCall(event: H3Event) {
   const admin = serverSupabaseServiceRole(event);
   let conversationId: string | null = null;
   try {
+    const media = fromMe ? null : await saveIncomingMedia(event, admin, payload, waId, sessionName);
     conversationId = await recordWahaMessage(admin, {
       session: sessionName,
       waId,
       chatId: hidden ? from : null,
       name: fromMe ? null : name,
       wamid: typeof payload.id === "string" ? payload.id : null,
-      text: clean(payload.body, 4000) || (payload.hasMedia === true ? "[media]" : "[no text]"),
+      text: clean(payload.body, 4000) || (payload.hasMedia === true ? (media ? "" : "[media]") : "[no text]"),
       fromMe,
+      media,
     });
   } catch (err) {
     console.error("[waha-webhook] could not store the message in the inbox", err);
@@ -233,4 +235,35 @@ async function handleWahaCall(event: H3Event) {
     }
   }
   return result.status === "created" ? reply("created", { id: result.id }) : reply("duplicate", { entity: result.entity, id: result.id });
+}
+
+
+// A photo or file that came with the message: WAHA Plus gives a link to it (and Core gives none). It is kept in
+// the private wa-media bucket so the inbox can show it. A failure only means the message shows as "[media]".
+async function saveIncomingMedia(event: H3Event, admin: ReturnType<typeof serverSupabaseServiceRole>, payload: any, waId: string, session: string) {
+  const info = payload?.media;
+  if (payload?.hasMedia !== true || !info || typeof info.url !== "string" || info.error) return null;
+  try {
+    const cfg = await getWahaConfig(event);
+    // only the WAHA server itself is called with the key
+    const url = new URL(info.url, cfg.url);
+    if (url.origin !== new URL(cfg.url).origin) return null;
+    const res = await fetch(url, { headers: { "X-Api-Key": cfg.apiKey } });
+    if (!res.ok) return null;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (bytes.length > 25 * 1024 * 1024) return null;
+    const type = clean(info.mimetype, 100) || res.headers.get("content-type") || null;
+    const name = clean(info.filename, 200) || null;
+    const ext = (name?.split(".").pop() || type?.split("/")[1] || "bin").replace(/[^a-z0-9]/gi, "").slice(0, 8) || "bin";
+    const path = `in/${session}/${waId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await admin.storage.from("wa-media").upload(path, bytes, { contentType: type ?? undefined });
+    if (error) {
+      console.error("[waha-webhook] could not keep the media", error.message);
+      return null;
+    }
+    return { path, type, name };
+  } catch (err) {
+    console.error("[waha-webhook] media download failed", err);
+    return null;
+  }
 }

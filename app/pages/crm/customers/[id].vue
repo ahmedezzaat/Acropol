@@ -12,7 +12,7 @@ useHead({ htmlAttrs: { class: "carbon" } });
 const supabase = useSupabaseClient();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const { stageName, stageColor, formatDate, loadPipelines } = useCs();
 
 interface Customer {
@@ -24,6 +24,7 @@ interface Customer {
   extra_phone_names?: string[];
   email: string | null;
   address: string | null;
+  area_id?: string | null;
   assigned_to: string | null;
   created_at: string;
   customer_type: "individual" | "company";
@@ -125,7 +126,7 @@ const wonValue = computed(() =>
 
 // The products this customer bought (Customer Service products), with the
 // deal each one was sold in.
-const { data: products } = await useAsyncData<CsProduct[]>(`crm-customer-${customerId}-products`, async () => {
+const { data: products, refresh: refreshProducts } = await useAsyncData<CsProduct[]>(`crm-customer-${customerId}-products`, async () => {
   await loadPipelines(true);
   const { data, error } = await supabase
     .from("customer_products")
@@ -145,6 +146,54 @@ function categoryName(id: string | null) {
 function dealTitle(id: string | null) {
   return id ? (deals.value?.find((d) => d.id === id)?.title ?? null) : null;
 }
+// ---- The customer's contracts, with everything entered on them (and on the products they cover)
+interface ContractFull {
+  id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
+  deal_id: string | null; created_by: string | null; created_at: string;
+}
+const { data: contracts, refresh: refreshContracts } = await useAsyncData<ContractFull[]>(`crm-customer-${customerId}-contracts`, async () => {
+  const { data } = await supabase
+    .from("contracts")
+    .select("id, code, signed_on, value, notes, file_name, file_path, deal_id, created_by, created_at")
+    .eq("customer_id", customerId)
+    .order("signed_on", { ascending: false });
+  return (data ?? []) as ContractFull[];
+});
+const contractsTotal = computed(() => (contracts.value ?? []).reduce((sum, c) => sum + (c.value ?? 0), 0));
+const openDeals = computed(() => (deals.value ?? []).filter((d) => dealColor(d) === "primary").length);
+// a product belongs to a contract by its id, or (older records) by the contract code
+const productsOf = (c: ContractFull) => (products.value ?? []).filter((p) => (p.contract_id ? p.contract_id === c.id : !!p.contract_code && p.contract_code === c.code));
+// a contract is named after what was bought
+const contractTitleOf = (c: ContractFull) => {
+  const names = productsOf(c).filter((p) => p.name?.trim()).map((p) => (p.quantity > 1 ? `${p.name.trim()} × ${p.quantity}` : p.name.trim()));
+  return names.join("، ") || dealTitle(c.deal_id) || `#${c.code}`;
+};
+const looseProducts = computed(() => (products.value ?? []).filter((p) => !(contracts.value ?? []).some((c) => productsOf(c).some((x) => x.id === p.id))));
+const agentsOfContract = (c: ContractFull) => [...new Set(productsOf(c).map((p) => personName(p.sales_person_id)).filter((x): x is string => !!x))];
+const moneyFull = (v: number | null) => (v === null || v === undefined ? "—" : formatReportMoney(v, t("common.currency")));
+async function downloadContractFile(c: ContractFull) {
+  if (!c.file_path) return;
+  const { data, error } = await supabase.storage.from("contract-files").createSignedUrl(c.file_path, 60, { download: c.file_name ?? true });
+  if (error || !data) {
+    toast.add({ title: t("crm.contracts.fileFailed"), description: error?.message, color: "error" });
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = data.signedUrl;
+  a.click();
+}
+const canCreateContract = computed(() => hasPermission("crm_customers", "create"));
+const newContractOpen = ref(false);
+async function onContractSaved() {
+  await Promise.all([refreshContracts(), refreshProducts()]);
+}
+
+// ---- unsaved changes in the details form
+const formState = () => JSON.stringify([customer.value?.name, customer.value?.company, customer.value?.phone, customer.value?.email, customer.value?.address, customer.value?.area_id, customer.value?.assigned_to, extraContacts.value]);
+const snapshot = ref("");
+watch(customerPayload, () => (snapshot.value = formState()), { immediate: true });
+const dirty = computed(() => snapshot.value !== formState());
+
 // Files come from the customer's deals, so they follow the deals permission.
 const canSeeFiles = computed(() => hasAnyModulePermission("crm_deals"));
 const mainTab = ref<"main" | "files">("main");
@@ -170,6 +219,7 @@ async function save() {
     ...fromExtraContacts(extraContacts.value),
     email: customer.value.email,
     address: customer.value.address,
+    area_id: customer.value.area_id || null,
   };
   if (canAssign.value) payload.assigned_to = customer.value.assigned_to;
 
@@ -180,6 +230,7 @@ async function save() {
     toast.add({ title: t("crm.customers.saveFailed"), description: error.message, color: "error" });
     return;
   }
+  snapshot.value = formState();
   toast.add({ title: t("crm.customers.customerSaved"), color: "success" });
 }
 
@@ -202,6 +253,7 @@ async function remove() {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
+          <UButton to="/crm/contracts" icon="i-lucide-arrow-right" color="neutral" variant="ghost" :label="t('crm.customers.backToContracts')" class="hidden sm:inline-flex" />
           <UButton v-if="canDelete" icon="i-lucide-trash" color="error" variant="soft" @click="remove" />
         </template>
       </UDashboardNavbar>
@@ -237,6 +289,7 @@ async function remove() {
               </div>
             </div>
             <div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
+              <UButton v-if="canCreateContract" icon="i-lucide-file-plus" :label="t('crm.contracts.new')" @click="newContractOpen = true" />
               <UButton v-if="customer.phone" :to="`tel:${customer.phone}`" icon="i-lucide-phone" color="neutral" variant="outline" :label="t('crm.deals.callContact')" />
               <UButton
                 v-if="waLink(customer.phone)"
@@ -251,6 +304,19 @@ async function remove() {
             </div>
           </div>
         </section>
+
+        <!-- ===== At a glance ===== -->
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div v-for="k in [
+            { icon: 'i-lucide-file-signature', label: t('crm.customers.kpi.contracts'), value: String(contracts?.length ?? 0) },
+            { icon: 'i-lucide-banknote', label: t('crm.customers.kpi.value'), value: moneyFull(contractsTotal) },
+            { icon: 'i-lucide-handshake', label: t('crm.customers.kpi.openDeals'), value: String(openDeals) },
+            { icon: 'i-lucide-package', label: t('crm.customers.kpi.products'), value: String(products?.length ?? 0) },
+          ]" :key="k.label" class="kords-card flex items-center gap-3 p-3">
+            <span class="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><UIcon :name="k.icon" class="size-4.5" /></span>
+            <span class="min-w-0"><span class="block text-xs text-muted">{{ k.label }}</span><span class="block truncate text-base font-semibold text-highlighted">{{ k.value }}</span></span>
+          </div>
+        </div>
 
         <div class="grid items-start gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]">
           <!-- ===== Details ===== -->
@@ -278,6 +344,9 @@ async function remove() {
               <UFormField :label="t('common.email')">
                 <UInput v-model="customer.email" type="email" :disabled="!canEdit" class="w-full" />
               </UFormField>
+              <UFormField :label="t('cs.customers.area')">
+                <AreaSelect v-model="customer.area_id" :disabled="!canEdit" />
+              </UFormField>
               <UFormField :label="t('crm.customers.address')">
                 <UTextarea v-model="customer.address" :disabled="!canEdit" class="w-full" />
               </UFormField>
@@ -291,7 +360,10 @@ async function remove() {
                 />
                 <p v-if="!canAssign" class="mt-1 text-xs text-muted">{{ t("crm.customers.assignPermissionHint") }}</p>
               </UFormField>
-              <UButton v-if="canEdit" :label="t('common.save')" :loading="saving" @click="save" />
+              <div v-if="canEdit" class="flex items-center gap-3">
+                <UButton :label="t('common.save')" :loading="saving" :disabled="!dirty" @click="save" />
+                <span v-if="dirty" class="text-xs text-warning">{{ t("crm.customers.unsaved") }}</span>
+              </div>
             </div>
           </UPageCard>
 
@@ -301,6 +373,29 @@ async function remove() {
             <FilesPanel v-if="canSeeFiles && mainTab === 'files'" :customer-id="customerId" />
 
             <div v-show="mainTab === 'main'" class="space-y-5">
+            <!-- ===== Contracts: everything entered on each one ===== -->
+            <section class="space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+                  {{ t("crm.customers.contractsTitle") }}
+                  <UBadge :label="String(contracts?.length ?? 0)" color="neutral" variant="subtle" size="sm" class="cds-tag" />
+                </h3>
+                <UButton v-if="canCreateContract" size="xs" icon="i-lucide-plus" :label="t('crm.contracts.new')" @click="newContractOpen = true" />
+              </div>
+              <p v-if="!contracts?.length" class="kords-card p-4 text-sm text-muted">{{ t("crm.customers.noContractsYet") }}</p>
+              <ul v-else class="kords-card divide-y divide-default">
+                <li v-for="c in contracts" :key="c.id">
+                  <NuxtLink :to="`/crm/contracts/${c.id}`" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-elevated">
+                    <span class="min-w-0">
+                      <span class="flex items-center gap-2 font-medium text-highlighted"><UIcon name="i-lucide-file-signature" class="size-4 text-primary" /><span class="truncate">{{ contractTitleOf(c) }}</span><bdi dir="ltr" class="text-xs font-normal text-muted">#{{ c.code }}</bdi></span>
+                      <span class="block text-xs text-muted">{{ t("crm.contracts.signedOn") }}: {{ c.signed_on ? formatDate(c.signed_on) : "—" }}<template v-if="agentsOfContract(c).length"> · {{ agentsOfContract(c).join("، ") }}</template></span>
+                    </span>
+                    <span class="flex shrink-0 items-center gap-3 text-sm"><span class="font-semibold text-success">{{ moneyFull(c.value) }}</span><UIcon name="i-lucide-chevron-left" class="size-4 text-muted" /></span>
+                  </NuxtLink>
+                </li>
+              </ul>
+            </section>
+
             <!-- ===== Deals ===== -->
             <section class="border border-default bg-default">
               <h3 class="flex items-center gap-2 border-b border-default px-4 py-3 text-sm font-semibold text-highlighted">
@@ -327,14 +422,13 @@ async function remove() {
             </section>
 
             <!-- ===== Products ===== -->
-            <section class="border border-default bg-default">
+            <section v-if="looseProducts.length" class="border border-default bg-default">
               <h3 class="flex items-center gap-2 border-b border-default px-4 py-3 text-sm font-semibold text-highlighted">
-                {{ t("cs.profile.products") }}
-                <UBadge :label="String(products?.length ?? 0)" color="neutral" variant="subtle" size="sm" class="cds-tag" />
+                {{ t("crm.customers.otherProducts") }}
+                <UBadge :label="String(looseProducts.length)" color="neutral" variant="subtle" size="sm" class="cds-tag" />
               </h3>
-              <p v-if="!products?.length" class="p-4 text-sm text-muted">{{ t("crm.customers.noProductsYet") }}</p>
-              <ul v-else class="divide-y divide-default">
-                <li v-for="p in products" :key="p.id">
+              <ul class="divide-y divide-default">
+                <li v-for="p in looseProducts" :key="p.id">
                   <component
                     :is="canOpenProducts ? 'button' : 'div'"
                     :type="canOpenProducts ? 'button' : undefined"
@@ -394,4 +488,6 @@ async function remove() {
       </div>
     </template>
   </UDashboardPanel>
+
+  <CrmContractModal v-if="customer" v-model:open="newContractOpen" :taken-deal-ids="(contracts ?? []).map((c) => c.deal_id).filter((x): x is string => !!x)" :customer-id="customerId" :customer-label="customerTitle(customer)" @saved="onContractSaved" />
 </template>
