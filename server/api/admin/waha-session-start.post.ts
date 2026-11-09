@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   const c = await getWahaConfig(event);
   const webhook = wahaWebhookConfig(getRequestURL(event).origin, await ensureWahaWebhookKeys(event, userId));
   // the NOWEB store lets WAHA turn a privacy id (LID) into the real number
-  const config = { webhooks: [webhook], noweb: { store: { enabled: true, fullSync: false } } };
+  const config = { webhooks: [webhook], noweb: { store: { enabled: true, fullSync: true } } };
 
   const existing = await getWahaSession(event);
   if (!existing) {

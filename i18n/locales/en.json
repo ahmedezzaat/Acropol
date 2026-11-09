@@ -295,6 +295,8 @@
     "signInAgain": "Sign in again"
   },
   "admin": {
+    "whatsappAi": { "title": "WhatsApp assistant" },
+    "leave": { "title": "Leave" },
     "users": {
       "title": "Users",
       "newUser": "New user",
@@ -1783,7 +1785,8 @@
     }
   },
   "chats": {
-    "agent": {
+    "waAgent": {
+    "cloudTitle": "WhatsApp Cloud API assistant (unknown numbers)",
       "title": "WhatsApp agent (phone chats)",
       "mode": "Agent mode",
       "modeHint": "Answers WhatsApp customers connected through WAHA and opens deals.",
