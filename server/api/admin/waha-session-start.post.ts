@@ -3,7 +3,7 @@
 export default defineEventHandler(async (event) => {
   const { userId } = await requireSetting(event, "integrations");
   const c = await getWahaConfig(event);
-  const webhook = wahaWebhookConfig(getRequestURL(event).origin, await ensureWahaWebhookKeys(event, userId));
+  const webhook = wahaWebhookConfig(publicOrigin(event), await ensureWahaWebhookKeys(event, userId));
   // the NOWEB store lets WAHA turn a privacy id (LID) into the real number
   const config = { webhooks: [webhook], noweb: { store: { enabled: true, fullSync: true } } };
 

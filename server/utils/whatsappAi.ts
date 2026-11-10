@@ -9,6 +9,8 @@ export interface QualifierInput {
   collected: Record<string, string>;
   areas: string[];
   categories: string[];
+  // notes the company wrote for each product category (may be empty)
+  productNotes?: string;
   history: { role: "user" | "assistant"; text: string }[];
 }
 export interface QualifierOutput {
@@ -31,7 +33,7 @@ About the company:
 ${i.businessDescription || "(no description set)"}
 Products and services it offers: ${i.categories.join("، ") || "not listed"}.
 Areas it serves: ${i.areas.join("، ") || "not listed"}.
-
+${i.productNotes ? `\nProduct notes written by the company (you may use these facts if the person asks about a product):\n${i.productNotes}\n` : ""}
 Find out these details, one or two questions at a time, never a long list:
 ${want.map((w) => `- ${w}`).join("\n") || "- (nothing required: just greet them and ask how you can help)"}
 

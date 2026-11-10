@@ -64,6 +64,7 @@ export interface WahaSession {
   name?: string;
   status?: string;
   me?: { id?: string; pushName?: string };
+  config?: { webhooks?: { url?: string }[] };
 }
 
 // The session as it is now; null when it does not exist yet.
@@ -105,4 +106,14 @@ export function wahaWebhookConfig(origin: string, keys: { hmacKey: string; secre
     ...(keys.hmacKey ? { hmac: { key: keys.hmacKey } } : {}),
     ...(keys.secret ? { customHeaders: [{ name: "X-Webhook-Secret", value: keys.secret }] } : {}),
   };
+}
+
+// This app's public address, for the webhook WAHA calls. A page opened on a developer machine (localhost) would make
+// WAHA send every message to that machine, so that is refused.
+export function publicOrigin(event: H3Event): string {
+  const url = getRequestURL(event);
+  if (["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.hostname.endsWith(".localhost")) {
+    throw createError({ statusCode: 400, statusMessage: "webhook_needs_public_address" });
+  }
+  return url.origin;
 }

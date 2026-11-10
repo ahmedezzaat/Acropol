@@ -1299,6 +1299,7 @@ export type Database = {
           maintenance_interval_months: number | null;
           warranty_policies: { name: string; text: string }[];
           maintenance_tasks: { every_months: number; title: string; replace: string }[];
+          ai_notes: string | null;
           created_at: string;
         };
         Insert: {
@@ -1308,6 +1309,7 @@ export type Database = {
           maintenance_interval_months?: number | null;
           warranty_policies?: { name: string; text: string }[];
           maintenance_tasks?: { every_months: number; title: string; replace: string }[];
+          ai_notes?: string | null;
           created_at?: string;
         };
         Update: {

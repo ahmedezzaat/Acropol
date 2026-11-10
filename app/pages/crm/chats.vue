@@ -14,6 +14,7 @@ const canReply = computed(() => hasPermission("crm_chats", "reply"));
 const canCreate = computed(() => hasPermission("crm_chats", "create_contact"));
 // a deal can be created from the chat by someone who may create deals
 const canDeal = computed(() => hasPermission("crm_deals", "create"));
+const canFixLink = computed(() => hasPermission("settings", "integrations"));
 
 interface Conversation {
   id: string; wa_id: string; display_name: string | null; status: "qualifying" | "qualified" | "handed_over" | "known" | "closed";
@@ -23,17 +24,102 @@ interface Conversation {
 }
 interface Message { id: string; direction: "in" | "out"; sender: "customer" | "ai" | "agent"; body: string | null; created_at: string; media_path: string | null; media_type: string | null; media_name: string | null }
 
-const filter = ref<"all" | "unread" | "handed_over" | "qualifying" | "qualified">("all");
+const filter = ref<"all" | "unread" | "waiting" | "handed_over" | "qualifying" | "qualified">("all");
+// a chat waits for us when the customer wrote last (both times are set together when a message arrives)
+const isWaiting = (c: Conversation) => !!c.last_inbound_at && c.status !== "closed" && new Date(c.last_message_at).getTime() - new Date(c.last_inbound_at).getTime() < 2000;
 const { data: convs, refresh } = await useAsyncData<Conversation[]>("wa-conversations", async () => {
   const { data } = await supabase.from("whatsapp_conversations").select("*").order("last_message_at", { ascending: false }).limit(150);
   return (data ?? []) as Conversation[];
 });
-const shown = computed(() => (convs.value ?? []).filter((c) => filter.value === "all" || (filter.value === "unread" ? c.unread : c.status === filter.value)));
+// ---- search: by name or number (here) and by message text (asked from the database, after a short pause)
+const search = ref("");
+const msgHits = ref<Record<string, string>>({});
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+watch(search, (q) => {
+  clearTimeout(searchTimer);
+  const term = q.trim();
+  if (term.length < 2) {
+    msgHits.value = {};
+    return;
+  }
+  searchTimer = setTimeout(async () => {
+    // % _ and \ are wildcards in a LIKE pattern: searched for literally
+    const like = `%${term.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+    const { data } = await supabase.from("whatsapp_messages").select("conversation_id, body, created_at").ilike("body", like).order("created_at", { ascending: false }).limit(300);
+    if (search.value.trim() !== term) return;
+    const hits: Record<string, string> = {};
+    for (const r of data ?? []) if (!hits[r.conversation_id]) hits[r.conversation_id] = r.body ?? "";
+    msgHits.value = hits;
+  }, 300);
+});
+const matchesSearch = (c: Conversation) => {
+  const term = search.value.trim().toLowerCase();
+  if (term.length < 1) return true;
+  const digits = term.replace(/\D/g, "");
+  return (c.display_name ?? "").toLowerCase().includes(term) || (digits.length >= 3 && c.wa_id.includes(digits)) || c.id in msgHits.value;
+};
+const snippet = (c: Conversation) => {
+  const body = msgHits.value[c.id];
+  const term = search.value.trim();
+  if (!body || term.length < 2 || (c.display_name ?? "").toLowerCase().includes(term.toLowerCase())) return "";
+  const i = body.toLowerCase().indexOf(term.toLowerCase());
+  const from = Math.max(0, i - 20);
+  return (from > 0 ? "…" : "") + body.slice(from, from + 70);
+};
+const matchesFilter = (c: Conversation) => filter.value === "all" || (filter.value === "unread" ? c.unread : filter.value === "waiting" ? isWaiting(c) : c.status === filter.value);
+const shown = computed(() => {
+  const list = (convs.value ?? []).filter((c) => matchesFilter(c) && matchesSearch(c));
+  // the ones that have waited longest come first
+  return filter.value === "waiting" ? [...list].sort((a, b) => new Date(a.last_inbound_at ?? 0).getTime() - new Date(b.last_inbound_at ?? 0).getTime()) : list;
+});
+// how long a chat has waited ("3 hours"), refreshed with the page's own timer
+const now = ref(Date.now());
+const rtf = computed(() => new Intl.RelativeTimeFormat(locale.value, { numeric: "always", style: "long" }));
+function agoText(ms: number) {
+  const mins = Math.max(0, Math.round(ms / 60_000));
+  const [v, unit] = mins < 60 ? [mins, "minute"] : mins < 1440 ? [Math.floor(mins / 60), "hour"] : [Math.floor(mins / 1440), "day"];
+  // the formatter only supplies the unit name and digits: its "ago" wording is removed
+  return rtf.value.format(-(v as number), unit as Intl.RelativeTimeFormatUnit).replace(/^(منذ|قبل)\s*|\s*(ago|منذ|قبل)$/g, "").trim();
+}
+const waitedFor = (c: Conversation) => agoText(now.value - new Date(c.last_inbound_at ?? now.value).getTime());
+// ---- the WhatsApp link: warns when messages cannot arrive, and says how the assistant is set
+interface Health { configured: boolean; problem: "unreachable" | "no_session" | "not_working" | "wrong_webhook" | null; status: string | null; mode: "off" | "draft" | "auto"; maxAiReplies: number; lastInboundAt: string | null }
+const health = ref<Health | null>(null);
+async function loadHealth() {
+  try {
+    health.value = await $fetch<Health>("/api/whatsapp/health");
+  } catch {
+    /* no banner when it cannot be checked */
+  }
+}
+// no message for this long is unusual for a company inbox (nights are quiet, a day is not)
+const SILENT_AFTER_MS = 12 * 3_600_000;
+const silentFor = computed(() => (health.value?.configured && health.value.lastInboundAt && now.value - new Date(health.value.lastInboundAt).getTime() > SILENT_AFTER_MS ? now.value - new Date(health.value.lastInboundAt).getTime() : 0));
+const banner = computed(() => {
+  const h = health.value;
+  if (!h?.configured) return null;
+  if (h.problem) return { color: "error" as const, text: t(`chats.health.${h.problem}`, { status: h.status ?? "" }), fixable: h.problem === "wrong_webhook" };
+  if (silentFor.value) return { color: "warning" as const, text: t("chats.health.silent", { ago: agoText(silentFor.value) }), fixable: false };
+  return null;
+});
+const fixing = ref(false);
+async function fixWebhook() {
+  fixing.value = true;
+  try {
+    await $fetch("/api/admin/waha-webhook-apply", { method: "POST" });
+    toast.add({ title: t("chats.health.fixed"), color: "success" });
+    await loadHealth();
+  } catch (err: any) {
+    toast.add({ title: t("chats.health.fixFailed"), description: err?.data?.statusMessage ?? err.message, color: "error" });
+  } finally {
+    fixing.value = false;
+  }
+}
 const counts = computed(() => {
   const all = convs.value ?? [];
-  return { all: all.length, unread: all.filter((c) => c.unread).length, handed_over: all.filter((c) => c.status === "handed_over").length, qualifying: all.filter((c) => c.status === "qualifying").length, qualified: all.filter((c) => c.status === "qualified").length };
+  return { all: all.length, unread: all.filter((c) => c.unread).length, waiting: all.filter(isWaiting).length, handed_over: all.filter((c) => c.status === "handed_over").length, qualifying: all.filter((c) => c.status === "qualifying").length, qualified: all.filter((c) => c.status === "qualified").length };
 });
-const tabs = computed(() => (["all", "unread", "handed_over", "qualifying", "qualified"] as const).map((k) => ({ value: k, label: `${t(`chats.filter.${k}`)} (${counts.value[k]})` })));
+const tabs = computed(() => (["all", "unread", "waiting", "handed_over", "qualifying", "qualified"] as const).map((k) => ({ value: k, label: `${t(`chats.filter.${k}`)} (${counts.value[k]})` })));
 const statusTone = { qualifying: "primary", qualified: "success", handed_over: "warning", known: "neutral", closed: "neutral" } as const;
 
 const openId = ref<string | null>(typeof route.query.open === "string" ? route.query.open : null);
@@ -110,8 +196,12 @@ onMounted(async () => {
 });
 // new messages arrive while the page is open
 let timer: ReturnType<typeof setInterval> | undefined;
+let ticks = 0;
 onMounted(() => {
+  loadHealth();
   timer = setInterval(() => {
+    now.value = Date.now();
+    if (++ticks % 4 === 0) loadHealth();
     refresh();
     loadMessages();
   }, 15_000);
@@ -179,9 +269,20 @@ async function discardDraft() {
   await supabase.from("whatsapp_conversations").update({ ai_draft: null }).eq("id", current.value.id);
   await refresh();
 }
+// ---- what the assistant does in this chat (WAHA chats), and taking it over / handing it back
+const agentState = computed(() => {
+  const c = current.value;
+  const h = health.value;
+  if (!c || c.provider !== "waha" || !h) return null;
+  if (h.mode === "off") return { key: "off", icon: "i-lucide-bot-off", tone: "neutral" as const, canToggle: false };
+  if (h.mode === "draft") return { key: "draft", icon: "i-lucide-pencil-line", tone: "primary" as const, canToggle: false };
+  if (c.ai_paused) return { key: "paused", icon: "i-lucide-hand", tone: "warning" as const, canToggle: true };
+  if (h.maxAiReplies && c.ai_replies >= h.maxAiReplies) return { key: "limit", icon: "i-lucide-octagon-alert", tone: "warning" as const, canToggle: false };
+  return { key: "auto", icon: "i-lucide-bot", tone: "success" as const, canToggle: true };
+});
 async function setAi(paused: boolean) {
   if (!current.value) return;
-  await supabase.from("whatsapp_conversations").update({ ai_paused: paused, ...(paused ? {} : { status: "qualifying" }) }).eq("id", current.value.id);
+  await supabase.from("whatsapp_conversations").update({ ai_paused: paused, ...(paused || current.value.provider === "waha" ? {} : { status: "qualifying" }) }).eq("id", current.value.id);
   await refresh();
 }
 const creating = ref(false);
@@ -214,21 +315,36 @@ async function createContact() {
     </template>
 
     <template #body>
+      <UAlert v-if="banner" :color="banner.color" variant="subtle" icon="i-lucide-triangle-alert" :title="banner.text" class="mb-4">
+        <template v-if="canFixLink" #actions>
+          <UButton v-if="banner.fixable" size="xs" color="neutral" variant="outline" icon="i-lucide-wrench" :label="t('chats.health.fix')" :loading="fixing" @click="fixWebhook" />
+          <UButton to="/admin/integrations" size="xs" color="neutral" variant="outline" :label="t('chats.health.openSettings')" />
+        </template>
+      </UAlert>
       <div class="grid gap-4 lg:grid-cols-[20rem_1fr] xl:grid-cols-[20rem_1fr_20rem]">
         <!-- The conversations -->
         <div class="space-y-3">
-          <UTabs v-model="filter" :items="tabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs" />
-          <p v-if="!shown.length" class="kords-card p-6 text-center text-sm text-muted">{{ t("chats.empty") }}</p>
+          <UInput v-model="search" icon="i-lucide-search" :placeholder="t('chats.search')" size="sm" class="w-full" :ui="{ trailing: 'pe-1' }">
+            <template v-if="search" #trailing>
+              <UButton color="neutral" variant="link" size="xs" icon="i-lucide-x" :aria-label="t('common.close')" @click="search = ''" />
+            </template>
+          </UInput>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="tab in tabs" :key="tab.value" type="button" class="rounded-full border px-3 py-1 text-xs transition" :class="filter === tab.value ? 'border-primary bg-primary text-white' : 'border-default text-muted hover:border-primary'" @click="filter = tab.value">{{ tab.label }}</button>
+          </div>
+          <p v-if="!shown.length" class="kords-card p-6 text-center text-sm text-muted">{{ search.trim() ? t("chats.noResults") : t("chats.empty") }}</p>
           <ul v-else class="space-y-2">
             <li v-for="c in shown" :key="c.id">
               <button type="button" class="kords-card flex w-full items-start gap-3 p-3 text-start transition hover:border-primary" :class="openId === c.id && 'border-primary'" @click="openId = c.id">
                 <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="c.unread ? 'bg-primary' : 'bg-transparent'" />
                 <span class="min-w-0 flex-1">
                   <span class="flex items-center justify-between gap-2">
-                    <span class="flex min-w-0 items-center gap-1.5"><span class="truncate font-medium text-highlighted">{{ title(c) }}</span><UIcon v-if="c.provider === 'waha'" name="i-lucide-smartphone" class="size-3.5 shrink-0 text-muted" :title="t('chats.viaPhone')" /></span>
+                    <span class="flex min-w-0 items-center gap-1.5"><span class="truncate font-medium text-highlighted">{{ title(c) }}</span><UIcon v-if="c.provider === 'waha' && health?.mode === 'auto' && c.ai_paused" name="i-lucide-hand" class="size-3.5 shrink-0 text-warning" :title="t('chats.agentState.paused')" /><UIcon v-if="c.provider === 'waha'" name="i-lucide-smartphone" class="size-3.5 shrink-0 text-muted" :title="t('chats.viaPhone')" /></span>
                     <KBadge :label="t(`chats.status.${c.status}`)" :tone="statusTone[c.status]" class="shrink-0" />
                   </span>
                   <span class="mt-0.5 block truncate text-xs text-muted"><bdi dir="ltr">{{ idLabel(c) }}</bdi> · {{ formatDMYTime(c.last_message_at, locale) }}</span>
+                  <span v-if="isWaiting(c)" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-warning"><UIcon name="i-lucide-clock" class="size-3.5" />{{ t("chats.waitingFor", { ago: waitedFor(c) }) }}</span>
+                  <span v-if="snippet(c)" class="mt-0.5 block truncate text-xs text-muted">{{ t("chats.foundInMessage") }} <bdi>{{ snippet(c) }}</bdi></span>
                 </span>
               </button>
             </li>
@@ -247,6 +363,8 @@ async function createContact() {
                 <KBadge :label="t(`chats.status.${current.status}`)" :tone="statusTone[current.status]" />
                 <UButton v-if="current.lead_id" :to="`/crm/leads?id=${current.lead_id}`" size="xs" color="neutral" variant="outline" icon="i-lucide-user-round" :label="t('chats.openLead')" />
                 <UButton v-if="canCreate && !current.lead_id && !current.customer_id && !isHidden(current)" size="xs" icon="i-lucide-user-plus" :label="t('chats.createContact')" :loading="creating" @click="createContact" />
+                <span v-if="agentState" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium" :class="{ 'bg-success/10 text-success': agentState.tone === 'success', 'bg-warning/10 text-warning': agentState.tone === 'warning', 'bg-primary/10 text-primary': agentState.tone === 'primary', 'bg-muted text-muted': agentState.tone === 'neutral' }"><UIcon :name="agentState.icon" class="size-3.5" />{{ t(`chats.agentState.${agentState.key}`) }}</span>
+                <UButton v-if="canReply && agentState?.canToggle" size="xs" color="neutral" variant="outline" :icon="current.ai_paused ? 'i-lucide-bot' : 'i-lucide-hand'" :label="current.ai_paused ? t('chats.resumeAi') : t('chats.takeOver')" @click="setAi(!current.ai_paused)" />
                 <UButton v-if="canReply && current.provider === 'cloud' && current.status !== 'known'" size="xs" color="neutral" variant="outline" :icon="current.ai_paused ? 'i-lucide-bot' : 'i-lucide-hand'" :label="current.ai_paused ? t('chats.resumeAi') : t('chats.takeOver')" @click="setAi(!current.ai_paused)" />
               </div>
             </div>
@@ -266,8 +384,8 @@ async function createContact() {
                   <audio v-else-if="isAudio(m) && mediaUrls[m.media_path]" :src="mediaUrls[m.media_path]" controls class="mb-1" />
                   <a v-else-if="mediaUrls[m.media_path]" :href="mediaUrls[m.media_path]" target="_blank" rel="noopener" :download="m.media_name ?? true" class="mb-1 flex items-center gap-1.5 underline"><UIcon name="i-lucide-paperclip" class="size-4" /><bdi dir="ltr">{{ m.media_name || t("chats.media.file") }}</bdi></a>
                 </template>
-                <span v-if="m.body && m.body !== '[media]'">{{ m.body }}</span>
-                <span v-else-if="m.body === '[media]'" class="inline-flex items-center gap-1 italic opacity-80"><UIcon name="i-lucide-image" class="size-3.5" />{{ t("chats.media.unavailable") }}</span>
+                <span v-if="m.body && m.body !== '[media]' && m.body !== '[no text]'">{{ m.body }}</span>
+                <span v-else-if="m.body === '[media]' || m.body === '[no text]'" class="inline-flex items-center gap-1 italic opacity-80"><UIcon name="i-lucide-image" class="size-3.5" />{{ t("chats.media.unavailable") }}</span>
                 <p class="mt-1 text-[10px] opacity-60">{{ formatDMYTime(m.created_at, locale) }}</p>
               </div>
             </div>

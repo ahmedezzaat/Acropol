@@ -12,6 +12,7 @@ interface CategoryRow {
   maintenance_interval_months: number | null;
   warranty_policies: WarrantyPolicy[];
   maintenance_tasks: MaintenanceTask[];
+  ai_notes: string;
   open: boolean; // details panel expanded
 }
 
@@ -40,6 +41,7 @@ watchEffect(() => {
     maintenance_interval_months: c.maintenance_interval_months,
     warranty_policies: (c.warranty_policies ?? []).map((x) => ({ ...x })),
     maintenance_tasks: (c.maintenance_tasks ?? []).map((x) => ({ ...x })),
+    ai_notes: c.ai_notes ?? "",
     open: false,
   }));
 });
@@ -52,6 +54,7 @@ function addCategory() {
     maintenance_interval_months: null,
     warranty_policies: [],
     maintenance_tasks: [],
+    ai_notes: "",
     open: true,
   });
 }
@@ -111,6 +114,7 @@ async function save() {
       name: row.name,
       sort_order: index + 1,
       maintenance_interval_months: row.maintenance_interval_months,
+      ai_notes: row.ai_notes.trim() || null,
       warranty_policies: row.warranty_policies
         .filter((x) => x.text.trim())
         .map((x, i) => ({ name: x.name.trim() || `${t('admin.productCategories.policyDefault')} ${i + 1}`, text: x.text.trim() })),
@@ -177,6 +181,7 @@ async function save() {
                   />
                   <span class="text-xs text-muted">{{ t("admin.productCategories.months") }}</span>
                 </div>
+                <UIcon v-if="row.ai_notes.trim()" name="i-lucide-sparkles" class="size-4 text-primary" :title="t('admin.productCategories.aiNotes')" />
                 <UButton
                   :icon="row.open ? 'i-lucide-chevron-up' : 'i-lucide-settings-2'"
                   color="neutral"
@@ -190,6 +195,13 @@ async function save() {
 
               <!-- Warranty and maintenance policies of the category -->
               <div v-if="row.open" class="space-y-5 border-t border-default bg-muted/30 p-3">
+                <div class="space-y-2">
+                  <div class="flex items-center gap-1.5 text-sm font-medium text-highlighted"><UIcon name="i-lucide-sparkles" class="size-4 text-primary" />{{ t("admin.productCategories.aiNotes") }}</div>
+                  <p class="text-xs text-muted">{{ t("admin.productCategories.aiNotesHint") }}</p>
+                  <UTextarea v-model="row.ai_notes" :rows="6" autoresize :maxlength="2000" :placeholder="t('admin.productCategories.aiNotesPlaceholder')" class="w-full" />
+                  <p class="text-end text-xs text-muted"><bdi>{{ row.ai_notes.length }} / 2000</bdi></p>
+                </div>
+
                 <div class="space-y-2">
                   <div class="text-sm font-medium text-highlighted">{{ t("admin.productCategories.warrantyPolicy") }}</div>
                   <p class="text-xs text-muted">{{ t("admin.productCategories.warrantyPolicyHint") }}</p>

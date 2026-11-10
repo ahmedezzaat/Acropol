@@ -61,6 +61,22 @@ interface WahaPayload {
   _data?: { notifyName?: unknown; pushName?: unknown; key?: { remoteJidAlt?: unknown; senderPn?: unknown } };
 }
 
+// What a message with no text is (a voice note, a sticker...), from the field names WAHA/NOWEB keeps in the raw message
+function kindLabel(payload: any): string {
+  const keys = Object.keys(payload?._data?.message ?? {});
+  const has = (k: string) => keys.includes(k);
+  if (has("audioMessage")) return "🎤 رسالة صوتية";
+  if (has("stickerMessage")) return "🏷️ ملصق";
+  if (has("videoMessage") || has("ptvMessage")) return "🎬 فيديو";
+  if (has("imageMessage")) return "📷 صورة";
+  if (has("documentMessage") || has("documentWithCaptionMessage")) return "📎 ملف";
+  if (has("locationMessage") || has("liveLocationMessage")) return "📍 موقع";
+  if (has("contactMessage") || has("contactsArrayMessage")) return "👤 جهة اتصال";
+  if (has("reactionMessage")) return "👍 تفاعل";
+  if (has("pollCreationMessage") || has("pollCreationMessageV3")) return "📊 استطلاع";
+  return "[رسالة غير نصية]";
+}
+
 // Where is the real phone number? "<digits>@c.us" is the number itself; "@lid"
 // is a privacy id, so look for the number WAHA may carry beside it.
 function phoneFrom(payload: WahaPayload, chat: unknown): { digits: string } | { skip: string } {
@@ -188,7 +204,7 @@ async function handleWahaCall(event: H3Event) {
 
   // ---- the inbox (never allowed to break the lead below: a failure here is only logged)
   const text = clean(payload.body, MAX_TEXT);
-  const first = text || (payload.hasMedia === true ? "[media]" : "[no text]");
+  const first = text || (payload.hasMedia === true ? "[media]" : kindLabel(payload));
   const e164 = `+${waId}`;
   const name = clean(payload._data?.notifyName, MAX_NAME) || clean(payload._data?.pushName, MAX_NAME) || e164;
   const admin = serverSupabaseServiceRole(event);
@@ -201,7 +217,7 @@ async function handleWahaCall(event: H3Event) {
       chatId: hidden ? from : null,
       name: fromMe ? null : name,
       wamid: typeof payload.id === "string" ? payload.id : null,
-      text: clean(payload.body, 4000) || (payload.hasMedia === true ? (media ? "" : "[media]") : "[no text]"),
+      text: clean(payload.body, 4000) || (payload.hasMedia === true ? (media ? "" : "[media]") : kindLabel(payload)),
       fromMe,
       media,
     });

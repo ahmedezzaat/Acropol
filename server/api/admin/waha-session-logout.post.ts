@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   let configured = false;
   let configError: string | null = null;
   try {
-    const webhook = wahaWebhookConfig(getRequestURL(event).origin, await ensureWahaWebhookKeys(event, userId));
+    const webhook = wahaWebhookConfig(publicOrigin(event), await ensureWahaWebhookKeys(event, userId));
     await wahaFetch(event, `/api/sessions/${name}`, {
       method: "PUT",
       body: { name: c.session, config: { webhooks: [webhook], noweb: { markOnline: true, store: { enabled: true, fullSync: true } } } },

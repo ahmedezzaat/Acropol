@@ -60,7 +60,7 @@ export async function handleInboundChat(event: H3Event, admin: SupabaseClient, m
   const [{ data: rows }, { data: areas }, { data: categories }] = await Promise.all([
     admin.from("whatsapp_messages").select("sender, body, created_at").eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(20),
     admin.from("service_areas").select("name").order("sort_order"),
-    admin.from("product_categories").select("name").order("sort_order"),
+    admin.from("product_categories").select("name, ai_notes").order("sort_order"),
   ]);
   const history = (rows ?? []).reverse().map((r) => ({ role: (r.sender === "customer" ? "user" : "assistant") as "user" | "assistant", text: r.body ?? "" }));
   const required = { need: settings.qualify_need, area: settings.qualify_area, timing: settings.qualify_timing, budget: settings.qualify_budget };
@@ -74,6 +74,7 @@ export async function handleInboundChat(event: H3Event, admin: SupabaseClient, m
       collected: conv.collected ?? {},
       areas: [...new Set((areas ?? []).map((a) => a.name as string))],
       categories: (categories ?? []).map((c) => c.name as string),
+      productNotes: productNotesBlock(categories),
       history,
     });
   } catch (err) {

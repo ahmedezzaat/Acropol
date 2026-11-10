@@ -23,7 +23,7 @@ export async function runWahaAgent(event: H3Event, admin: SupabaseClient, conver
   const [{ data: rows }, { data: areas }, { data: categories }] = await Promise.all([
     admin.from("whatsapp_messages").select("sender, body, created_at, direction").eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(30),
     admin.from("service_areas").select("name").order("sort_order"),
-    admin.from("product_categories").select("name").order("sort_order"),
+    admin.from("product_categories").select("name, ai_notes").order("sort_order"),
   ]);
   const history = (rows ?? []).reverse();
   // the agent answers a customer message: the chat must end with one
@@ -37,7 +37,7 @@ About the company:
 ${s.business_description || "(no description set)"}
 Products and services: ${(categories ?? []).map((c) => c.name).join("، ") || "not listed"}.
 Areas served: ${(areas ?? []).map((a) => a.name).join("، ") || "not listed"}.
-
+${productNotesBlock(categories) ? `\nPRODUCT NOTES (written by the company for each product category; use these facts when the customer asks about them):\n${productNotesBlock(categories)}\n` : ""}
 PLAYBOOK (learned from the team's real chats; follow its tone, answers and flow):
 ${s.playbook || "(empty: be polite and short, ask what the person needs)"}
 
@@ -45,7 +45,7 @@ Already known about this person: ${JSON.stringify(conv.collected ?? {})}
 ${conv.customer_id ? "This person is an EXISTING CUSTOMER." : conv.lead_id ? "This person is already a lead." : ""}
 
 Rules:
-- Answer only from the company description and the playbook. Never invent prices, discounts, dates or guarantees: if the playbook has no answer, say a colleague will confirm and set decision "handover".
+- Answer only from the company description, the product notes and the playbook. Never invent prices, discounts, dates or guarantees: if the playbook has no answer, say a colleague will confirm and set decision "handover".
 - Find out, one or two questions at a time: what they need, the area/location, when, and their name. Put everything learned in "collected" (name, need, area, timing, budget).
 - decision "ready_for_deal" only when the need AND the area are known and the person wants to go ahead or asked for a visit/quote. Then tell them a colleague will contact them.
 - decision "handover" for complaints, existing orders, anger, requests for a person, or anything you cannot answer.
