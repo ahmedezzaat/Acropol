@@ -111,7 +111,12 @@ export async function handleWaha(event: H3Event) {
         chat: typeof (fromMe ? p.to : p.from) === "string" ? String(fromMe ? p.to : p.from).replace(/\d(?=\d{4})/g, "•") : null,
         from_me: typeof p.fromMe === "boolean" ? p.fromMe : null,
         outcome,
-        detail,
+        // a message with no text: record its shape (field names only, never content) to see why media is missing
+        detail:
+          detail ??
+          (p && typeof p === "object" && !p.body
+            ? `shape hasMedia=${String(p.hasMedia)} type=${String(p._data?.messageType ?? p.type ?? "")} media=${p.media ? `{${Object.keys(p.media).join(",")}${p.media.error ? ` error=${String(p.media.error).slice(0, 60)}` : ""}}` : "none"} msg=[${Object.keys(p._data?.message ?? {}).slice(0, 4).join(",")}]`.slice(0, 200)
+            : null),
       });
       // keep it short
       if (Math.random() < 0.05) {
