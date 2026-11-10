@@ -290,6 +290,7 @@ async function confirmRemove() {
         </div>
         <UButton v-if="canManage" icon="i-lucide-upload" size="xs" color="neutral" variant="outline" :label="t('files.upload')" :loading="uploading && pickKind === s.kind" @click="pickFor(s.kind)" />
       </div>
+      <slot v-if="s.kind === 'contract'" name="contract" />
       <p v-if="!s.rows.length" class="kords-card p-4 text-center text-xs text-muted">{{ t("files.emptySection") }}</p>
       <ul v-else class="space-y-2">
       <li v-for="r in s.rows" :key="r.id" class="kords-card flex items-center gap-3 p-3">

@@ -24,6 +24,7 @@ interface ContractRow {
 
 const { hasPermission } = usePermissions();
 const canCreate = computed(() => hasPermission("crm_customers", "create"));
+const canDelete = computed(() => hasPermission("crm_customers", "delete"));
 const createOpen = ref(false);
 
 const { data: contracts, status, refresh } = await useAsyncData<ContractRow[]>("crm-contracts", async () =>
@@ -113,6 +114,28 @@ const money = (v: number) => formatReportMoney(v, t("common.currency"));
 const totalValue = computed(() => rows.value.reduce((n, c) => n + (valueOf(c) ?? 0), 0));
 // the contract file: a short-lived link that saves it under its own name
 const toast = useToast();
+// ---- delete a contract (its file goes too; the customer's products stay, only unlinked from it)
+const deleteTarget = ref<ContractRow | null>(null);
+const deleteOpen = computed({ get: () => !!deleteTarget.value, set: (v) => { if (!v) deleteTarget.value = null; } });
+const deleting = ref(false);
+async function confirmDelete() {
+  const c = deleteTarget.value;
+  if (!c) return;
+  deleting.value = true;
+  // the row first: if that is refused the file must stay
+  const { data, error } = await supabase.from("contracts").delete().eq("id", c.id).select("id");
+  if (error || !data?.length) {
+    deleting.value = false;
+    toast.add({ title: t("crm.contracts.deleteFailed"), description: error?.message ?? t("crm.contracts.deleteNotAllowed"), color: "error" });
+    return;
+  }
+  if (c.file_path) await supabase.storage.from("contract-files").remove([c.file_path]);
+  deleting.value = false;
+  deleteTarget.value = null;
+  toast.add({ title: t("crm.contracts.deleted"), color: "success" });
+  await refresh();
+}
+
 async function downloadFile(c: ContractRow) {
   if (!c.file_path) return;
   const { data, error } = await supabase.storage.from("contract-files").createSignedUrl(c.file_path, 60, { download: c.file_name ?? true });
@@ -165,7 +188,7 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
           <NuxtLink v-for="c in paged" :key="c.id" :to="`/crm/contracts/${c.id}`" class="kords-kcard block border border-default bg-default p-3">
             <div class="flex items-start justify-between gap-2">
               <span class="min-w-0 font-semibold text-highlighted">{{ titleOf(c) }}</span>
-              <span class="shrink-0 text-xs text-muted">{{ formatDMY(c.created_at) }}</span>
+              <span class="flex shrink-0 items-center gap-1 text-xs text-muted">{{ formatDMY(c.created_at) }}<UButton v-if="canDelete" icon="i-lucide-trash" color="error" variant="ghost" size="xs" :aria-label="t('crm.contracts.delete')" @click.prevent.stop="deleteTarget = c" /></span>
             </div>
             <p class="mt-1 truncate text-sm text-toned">{{ customerTitle(c) }}<template v-if="c.code"> · <bdi dir="ltr">#{{ c.code }}</bdi></template></p>
             <p v-if="agentsOf(c).length" class="mt-0.5 flex items-center gap-1 text-xs text-muted"><UIcon name="i-lucide-user" class="size-3" />{{ agentsOf(c).join("، ") }}</p>
@@ -187,6 +210,7 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.signedOn") }}</th>
                 <th class="px-4 py-3 text-start font-medium">{{ t("crm.contracts.generatedOn") }}</th>
                 <th class="w-12 px-2 py-3"><span class="sr-only">{{ t("crm.contracts.file") }}</span></th>
+                <th v-if="canDelete" class="w-12 px-2 py-3"><span class="sr-only">{{ t("common.delete") }}</span></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-default">
@@ -208,6 +232,7 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
                 <td class="whitespace-nowrap px-4 py-3">{{ c.signed_on ? formatDMY(c.signed_on) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3 text-muted">{{ formatDMYTime(c.created_at) }}</td>
                 <td class="px-2 py-2 text-end"><UButton v-if="c.file_path" icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :title="c.file_name ?? t('crm.contracts.file')" :aria-label="t('crm.contracts.file')" @click="downloadFile(c)" /></td>
+                <td v-if="canDelete" class="px-2 py-2 text-end"><UButton icon="i-lucide-trash" color="error" variant="ghost" size="sm" :title="t('crm.contracts.delete')" :aria-label="t('crm.contracts.delete')" @click="deleteTarget = c" /></td>
               </tr>
             </tbody>
           </table>
@@ -224,6 +249,8 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
       </template>
     </template>
   </UDashboardPanel>
+
+  <KDeleteConfirmation v-model:open="deleteOpen" :title="t('crm.contracts.delete')" :message="t('crm.contracts.deleteBody', { name: deleteTarget ? titleOf(deleteTarget) : '' })" :loading="deleting" @confirm="confirmDelete" />
 
   <CrmContractModal v-model:open="createOpen" :taken-deal-ids="(contracts ?? []).map((c) => c.deal_id).filter((x): x is string => !!x)" @saved="refresh" />
 </template>

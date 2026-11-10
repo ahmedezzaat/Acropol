@@ -69,6 +69,38 @@ const { data: takenDealIds, refresh: refreshTaken } = await useAsyncData<string[
 async function onEdited() {
   await Promise.all([refreshContract(), refreshTaken(), refreshNuxtData(`crm-contract-${contractId}-products`)]);
 }
+// ---- the printed contract (PDF): made from the template of what was bought, with the values typed in
+interface ContractDocRow { id: string; template_key: string; year: number; seq: number; doc_date: string; variables: ContractDocVars; created_at: string }
+const { data: docs, refresh: refreshDocs } = await useAsyncData<ContractDocRow[]>(`crm-contract-${contractId}-docs`, async () => {
+  // the contract's own documents and the ones made earlier on its deal
+  const dealId = contract.value?.deal_id;
+  const { data } = await supabase.from("contract_documents").select("id, template_key, year, seq, doc_date, variables, created_at").or(dealId ? `contract_id.eq.${contractId},deal_id.eq.${dealId}` : `contract_id.eq.${contractId}`).order("created_at", { ascending: false });
+  return (data ?? []) as unknown as ContractDocRow[];
+});
+const productCategoryNames = computed(() => (products.value ?? []).map((p) => (p.category_id ? categories.value?.[p.category_id] ?? "" : "")).filter(Boolean));
+const docTemplate = computed(() => templateForCategories(productCategoryNames.value));
+const docRef = (d: ContractDocRow) => { const tp = templateByKey(d.template_key); return tp ? contractRef(tp.prefix, d.year, d.seq) : `${d.year} - ${d.seq}`; };
+const docDefaults = computed<ContractDocVars | null>(() => {
+  const tp = docTemplate.value;
+  const c = contract.value;
+  if (!tp || !c) return null;
+  const count = (products.value ?? []).filter((p) => p.category_id && tp.categoryNames.includes(categories.value?.[p.category_id] ?? "")).reduce((n, p) => n + (p.quantity || 1), 0);
+  return tp.defaults({ customerName: c.customer?.name ?? "", address: c.customer?.address ?? "", phone: c.customer?.phone ?? "", date: c.signed_on ?? new Date().toISOString().slice(0, 10), value: c.value ?? c.deal?.value ?? null, count: count || 1 });
+});
+const docOpen = ref(false);
+const docEditing = ref<ContractDocRow | null>(null);
+function newDoc() {
+  docEditing.value = null;
+  docOpen.value = true;
+}
+function editDoc(d: ContractDocRow) {
+  docEditing.value = d;
+  docOpen.value = true;
+}
+async function onDocSaved(id: string) {
+  await refreshDocs();
+  await navigateTo(`/print/contract/${id}`);
+}
 const canSeeFiles = computed(() => hasAnyModulePermission("crm_deals"));
 
 async function downloadFile() {
@@ -177,6 +209,27 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
           </UPageCard>
 
           <div class="min-w-0 space-y-5">
+            <!-- ===== The printed contract (PDF) ===== -->
+            <section v-if="docTemplate || docs?.length" class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">{{ t("crm.contracts.doc.title") }}
+                  <UBadge :label="String(docs?.length ?? 0)" color="neutral" variant="subtle" size="sm" class="cds-tag" />
+                </h3>
+                <UButton v-if="canEdit && docTemplate" size="sm" icon="i-lucide-file-plus" :label="t('crm.contracts.doc.new')" @click="newDoc" />
+              </div>
+              <p v-if="!docs?.length" class="kords-card p-4 text-sm text-muted">{{ t("crm.contracts.doc.none") }}</p>
+              <article v-for="d in docs" :key="d.id" class="kords-card flex flex-wrap items-center justify-between gap-3 p-4">
+                <div class="min-w-0">
+                  <p class="font-medium text-highlighted"><bdi dir="ltr">{{ docRef(d) }}</bdi></p>
+                  <p class="text-xs text-muted">{{ formatDate(d.doc_date) }} · {{ d.variables.count }} × {{ d.variables.capacity }} {{ t("crm.contracts.doc.litre") }} · {{ d.variables.ownerName }}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <UButton :to="`/print/contract/${d.id}`" icon="i-lucide-file-down" size="sm" :label="t('crm.contracts.doc.open')" />
+                  <UButton v-if="canEdit" icon="i-lucide-pencil" size="sm" color="neutral" variant="outline" :label="t('crm.contracts.doc.editValues')" @click="editDoc(d)" />
+                </div>
+              </article>
+            </section>
+
             <!-- ===== Products on this contract ===== -->
             <section class="space-y-3">
               <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
@@ -213,5 +266,15 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
     </template>
   </UDashboardPanel>
 
+  <CrmContractDocModal
+    v-if="contract && canEdit && docTemplate && docDefaults"
+    v-model:open="docOpen"
+    :contract-id="contract.id"
+    :deal-id="contract.deal_id"
+    :template="docTemplate.key"
+    :defaults="docDefaults"
+    :document="docEditing ? { id: docEditing.id, ref: docRef(docEditing), vars: docEditing.variables } : null"
+    @saved="onDocSaved"
+  />
   <CrmContractEditModal v-if="contract && canEdit" v-model:open="editOpen" :contract="contract" :taken-deal-ids="takenDealIds ?? []" @saved="onEdited" />
 </template>

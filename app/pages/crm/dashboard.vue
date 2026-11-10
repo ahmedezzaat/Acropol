@@ -171,7 +171,7 @@ const __ad6 = useAsyncData<Stage[]>("dashboard-stages", async () => {
 });
 const { data: stages } = __ad6;
 const __ad7 = useAsyncData<Profile[]>("dashboard-profiles", async () => {
-  if (!canDeals.value) return [];
+  if (!canDeals.value && !canCustomers.value) return [];
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, email, team_id")
@@ -181,15 +181,44 @@ const __ad7 = useAsyncData<Profile[]>("dashboard-profiles", async () => {
 });
 const { data: profiles } = __ad7;
 const __ad8 = useAsyncData<Team[]>("dashboard-teams", async () => {
-  if (!canDeals.value) return [];
+  if (!canDeals.value && !canCustomers.value) return [];
   const { data, error } = await supabase.from("teams").select("id, name");
   if (error) throw error;
   return data ?? [];
 });
 const { data: teams } = __ad8;
 
+// Sales volume: the value of the contracts made in the period (by the contract's own date, else when it was made).
+// A contract's value is its own, else its deal's.
+interface ContractRow {
+  id: string;
+  signed_on: string | null;
+  created_at: string;
+  value: number | null;
+  deal: { value: number | null; assigned_to: string | null } | null;
+  products: { sales_person_id: string | null }[] | null;
+}
+const __ad9 = useAsyncData<ContractRow[]>(
+  "dashboard-contracts",
+  async () => {
+    if (!canCustomers.value) return [];
+    const a = fromDate.value;
+    const b = toDate.value;
+    return fetchAll<ContractRow>((from, to) =>
+      supabase
+        .from("contracts")
+        .select("id, signed_on, created_at, value, deal:deals(value, assigned_to), products:customer_products(sales_person_id)")
+        .or(`and(signed_on.gte.${a},signed_on.lte.${b}),and(signed_on.is.null,created_at.gte.${rangeStartIso(a)},created_at.lte.${rangeEndIso(b)})`)
+        .order("id")
+        .range(from, to) as never,
+    );
+  },
+  { watch: [fromDate, toDate] },
+);
+const { data: contractsData } = __ad9;
+
 // Load everything at once instead of one request after another.
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8]);
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8, __ad9]);
 
 const isLoading = computed(
   () => !loaded.value || leadsStatus.value === "pending" || dealsStatus.value === "pending",
@@ -213,6 +242,71 @@ function teamName(id: string | null) {
   if (!id) return t("crm.dashboard.noTeam");
   return teams.value?.find((tm) => tm.id === id)?.name ?? "—";
 }
+
+// --- Sales volume (from contracts) ---
+const { locale } = useI18n();
+const money = (v: number) => formatReportMoney(v, t("common.currency"));
+const contractValue = (c: ContractRow) => (c.value != null ? Number(c.value) : c.deal?.value != null ? Number(c.deal.value) : 0);
+const salesTotal = computed(() => (contractsData.value ?? []).reduce((n, c) => n + contractValue(c), 0));
+const salesCount = computed(() => contractsData.value?.length ?? 0);
+const salesAverage = computed(() => (salesCount.value ? Math.round(salesTotal.value / salesCount.value) : 0));
+
+interface SalesRow {
+  label: string;
+  value: number;
+  count: number;
+}
+const monthFmt = computed(() => new Intl.DateTimeFormat(locale.value, { month: "long", year: "numeric" }));
+const salesByMonth = computed<SalesRow[]>(() => {
+  const m = new Map<string, SalesRow>();
+  for (const c of contractsData.value ?? []) {
+    const key = (c.signed_on ?? c.created_at).slice(0, 7);
+    const row = m.get(key) ?? { label: key, value: 0, count: 0 };
+    row.value += contractValue(c);
+    row.count += 1;
+    m.set(key, row);
+  }
+  return [...m.values()]
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map((r) => ({ ...r, label: monthFmt.value.format(new Date(`${r.label}-01T12:00:00`)) }));
+});
+const salesByMonthMax = computed(() => Math.max(1, ...salesByMonth.value.map((r) => r.value)));
+
+// the salespeople recorded on a contract's products share its value; none recorded: its deal's agent; none: unassigned
+function contractAgents(c: ContractRow): (string | null)[] {
+  const ids = [...new Set((c.products ?? []).map((p) => p.sales_person_id).filter((x): x is string => !!x))];
+  if (ids.length) return ids;
+  return [c.deal?.assigned_to ?? null];
+}
+const salesByAgent = computed<(SalesRow & { share: number })[]>(() => {
+  const m = new Map<string, SalesRow>();
+  for (const c of contractsData.value ?? []) {
+    const agents = contractAgents(c);
+    for (const id of agents) {
+      const key = id ?? "unassigned";
+      const row = m.get(key) ?? { label: id ? profileLabel(id) : t("common.unassigned"), value: 0, count: 0 };
+      row.value += contractValue(c) / agents.length;
+      row.count += 1 / agents.length;
+      m.set(key, row);
+    }
+  }
+  return [...m.values()].sort((a, b) => b.value - a.value).map((r) => ({ ...r, share: salesTotal.value ? r.value / salesTotal.value : 0 }));
+});
+const salesByTeam = computed<(SalesRow & { share: number })[]>(() => {
+  const m = new Map<string, SalesRow>();
+  for (const c of contractsData.value ?? []) {
+    const agents = contractAgents(c);
+    for (const id of agents) {
+      const teamId = id ? profiles.value?.find((p) => p.id === id)?.team_id ?? null : null;
+      const key = teamId ?? "no-team";
+      const row = m.get(key) ?? { label: teamId ? teamName(teamId) : t("crm.dashboard.noTeam"), value: 0, count: 0 };
+      row.value += contractValue(c) / agents.length;
+      row.count += 1 / agents.length;
+      m.set(key, row);
+    }
+  }
+  return [...m.values()].sort((a, b) => b.value - a.value).map((r) => ({ ...r, share: salesTotal.value ? r.value / salesTotal.value : 0 }));
+});
 
 interface StageCount {
   pipeline: string;
@@ -379,6 +473,63 @@ const dealsByTeam = computed<TeamCount[]>(() => {
           <!-- Quotes stat card hidden alongside the rest of the Quotes
           feature — see crm/deals/[id].vue and layouts/dashboard.vue. -->
         </div>
+
+        <!-- Sales volume: the value of the contracts made in the period -->
+        <template v-if="canCustomers">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <UPageCard class="kords-card" to="/crm/contracts">
+              <div class="text-2xl font-bold text-highlighted">{{ money(salesTotal) }}</div>
+              <div class="text-sm text-muted">{{ t("crm.dashboard.salesVolume") }}</div>
+            </UPageCard>
+            <UPageCard class="kords-card" to="/crm/contracts">
+              <div class="text-2xl font-bold text-highlighted">{{ salesCount }}</div>
+              <div class="text-sm text-muted">{{ t("crm.dashboard.contractsCount") }}</div>
+            </UPageCard>
+            <UPageCard class="kords-card">
+              <div class="text-2xl font-bold text-highlighted">{{ money(salesAverage) }}</div>
+              <div class="text-sm text-muted">{{ t("crm.dashboard.avgContract") }}</div>
+            </UPageCard>
+          </div>
+
+          <UPageCard class="kords-card" :title="t('crm.dashboard.salesByMonth')" :description="t('crm.dashboard.salesBasis')">
+            <div v-if="!salesByMonth.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
+            <div v-else class="space-y-3">
+              <div v-for="row in salesByMonth" :key="row.label" class="space-y-1">
+                <div class="flex items-baseline justify-between gap-2 text-xs">
+                  <span class="text-highlighted">{{ row.label }} <span class="text-muted">· {{ t("crm.dashboard.contractsN", { n: row.count }) }}</span></span>
+                  <span class="font-medium text-highlighted">{{ money(row.value) }}</span>
+                </div>
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-elevated">
+                  <div class="h-full rounded-full bg-kords-primary-500" :style="{ width: `${(row.value / salesByMonthMax) * 100}%` }" />
+                </div>
+              </div>
+            </div>
+          </UPageCard>
+
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <UPageCard v-for="block in [{ key: 'agent', title: t('crm.dashboard.salesByAgent'), rows: salesByAgent, head: t('crm.dashboard.agent') }, { key: 'team', title: t('crm.dashboard.salesByTeam'), rows: salesByTeam, head: t('crm.dashboard.team') }]" :key="block.key" class="kords-card" :title="block.title">
+              <div v-if="!block.rows.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>
+              <table v-else class="w-full text-sm">
+                <thead>
+                  <tr class="text-start text-muted">
+                    <th class="py-1 text-start font-medium">{{ block.head }}</th>
+                    <th class="py-1 text-end font-medium">{{ t("crm.dashboard.contractsCount") }}</th>
+                    <th class="py-1 text-end font-medium">{{ t("crm.dashboard.salesVolume") }}</th>
+                    <th class="py-1 text-end font-medium">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in block.rows" :key="row.label" class="border-t border-default">
+                    <td class="py-1.5 text-highlighted">{{ row.label }}</td>
+                    <td class="py-1.5 text-end">{{ Math.round(row.count * 10) / 10 }}</td>
+                    <td class="whitespace-nowrap py-1.5 text-end font-medium text-highlighted">{{ money(row.value) }}</td>
+                    <td class="py-1.5 text-end text-muted">{{ Math.round(row.share * 100) }}%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </UPageCard>
+          </div>
+        </template>
 
         <UPageCard class="kords-card" v-if="canLeads" :title="t('crm.dashboard.leadsByType')">
           <div v-if="!leadsData?.length" class="text-sm text-muted">{{ t("crm.dashboard.noData") }}</div>

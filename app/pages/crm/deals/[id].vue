@@ -1434,7 +1434,11 @@ function isPastDue(iso: string | null) {
 
           <UTabs v-model="mainTab" :items="mainTabs" value-key="value" variant="link" :content="false" class="kords-pilltabs" />
 
-          <FilesPanel v-if="mainTab === 'files'" :deal-id="dealId" :can-edit="canEdit" @changed="refreshAttachments" />
+          <FilesPanel v-if="mainTab === 'files'" :deal-id="dealId" :can-edit="canEdit" @changed="refreshAttachments">
+            <template #contract>
+              <DealContractDocs v-if="deal" :deal-id="dealId" :deal="deal" :can-edit="canEdit" />
+            </template>
+          </FilesPanel>
 
           <div v-show="mainTab === 'details'" class="space-y-6">
           <!-- Stage: where the deal is, and moving it -->
