@@ -131,7 +131,8 @@ async function loadMessages() {
     return;
   }
   const { data } = await supabase.from("whatsapp_messages").select("id, direction, sender, body, created_at, media_path, media_type, media_name").eq("conversation_id", openId.value).order("created_at");
-  messages.value = (data ?? []) as Message[];
+  // "[رسالة غير نصية]" is what WhatsApp's own bookkeeping (deleted/edited message, settings) was stored as: not shown
+  messages.value = ((data ?? []) as Message[]).filter((m) => m.body !== "[رسالة غير نصية]");
   await loadMediaUrls();
   // opening a chat marks it read
   if (current.value?.unread && canReply.value) {

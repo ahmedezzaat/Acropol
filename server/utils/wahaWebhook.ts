@@ -61,6 +61,9 @@ interface WahaPayload {
   _data?: { notifyName?: unknown; pushName?: unknown; key?: { remoteJidAlt?: unknown; senderPn?: unknown } };
 }
 
+// Message kinds that are WhatsApp's own bookkeeping, never something a person wrote
+const SYSTEM_MESSAGE_KINDS = new Set(["protocolMessage", "senderKeyDistributionMessage", "encReactionMessage", "keepInChatMessage", "pinInChatMessage", "messageHistoryBundle"]);
+
 // What a message with no text is (a voice note, a sticker...), from the field names WAHA/NOWEB keeps in the raw message
 function kindLabel(payload: any): string {
   const keys = Object.keys(payload?._data?.message ?? {});
@@ -186,6 +189,12 @@ async function handleWahaCall(event: H3Event) {
   if (!from) return reply("ignored", { reason: "no_chat" });
   if (from.endsWith("@g.us")) return reply("ignored", { reason: "group" });
   if (from.startsWith("status@") || from === "status@broadcast") return reply("ignored", { reason: "status" });
+  // WhatsApp's own bookkeeping (a message deleted or edited, a disappearing-messages setting, key exchange...) carries
+  // no text and no file: it is not a message from the person, so it is not kept (nor does it open a chat or a lead)
+  if (!clean((payload as { body?: unknown }).body, 10) && (payload as { hasMedia?: unknown }).hasMedia !== true) {
+    const kinds = Object.keys((payload as { _data?: { message?: Record<string, unknown> } })._data?.message ?? {}).filter((k) => k !== "messageContextInfo");
+    if (kinds.length && kinds.every((k) => SYSTEM_MESSAGE_KINDS.has(k))) return reply("ignored", { reason: "protocol_message" });
+  }
 
   const sessionName = clean(body.session, 80) || "default";
   let phone = phoneFrom(payload, from);
