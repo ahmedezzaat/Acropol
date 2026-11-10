@@ -30,7 +30,7 @@ const dates = computed(() => dateIndex(stageDates.value ?? []));
 
 const { data: customers } = await useAsyncData<CsCustomer[]>("cs-installations-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
-    supabase.from("customers").select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id").order("id").range(from, to) as never,
+    supabase.from("customers").select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id").eq("cs_pending", false).order("id").range(from, to) as never,
   ),
 );
 const { data: categories } = await useAsyncData<{ id: string; name: string }[]>("cs-installations-categories", async () => {

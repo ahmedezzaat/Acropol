@@ -19,7 +19,7 @@ const STUCK_DAYS = 30;
 
 const __ad1 = useAsyncData<CsCustomer[]>("cs-dash-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
-    supabase.from("customers").select("id, name, company, phone, email, address, area_id, created_at").order("id").range(from, to) as never,
+    supabase.from("customers").select("id, name, company, phone, email, address, area_id, created_at").eq("cs_pending", false).order("id").range(from, to) as never,
   ),
 );
 const { data: customers, status } = __ad1;

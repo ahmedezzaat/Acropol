@@ -105,7 +105,7 @@ async function save() {
   let customer = customerId.value!;
   if (customer.startsWith("l:")) {
     const leadId = customer.slice(2);
-    const { data: newCustomer, error: convertError } = await supabase.rpc("crm_convert_lead", { p_lead_id: leadId });
+    const { data: newCustomer, error: convertError } = await supabase.rpc("crm_convert_lead", { p_lead_id: leadId, p_pending: true });
     if (convertError || !newCustomer) {
       saving.value = false;
       toast.add({ title: t("crm.contracts.convertFailed"), description: convertError?.message, color: "error" });

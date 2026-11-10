@@ -22,6 +22,7 @@ const __ad1 = useAsyncData<CsCustomer[]>("cs-customers", async () =>
     supabase
       .from("customers")
       .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, created_at, customer_type, cs_agent_id")
+      .eq("cs_pending", false)
       .order("created_at", { ascending: false })
       .order("id")
       .range(from, to) as never,

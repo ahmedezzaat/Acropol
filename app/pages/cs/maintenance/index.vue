@@ -34,7 +34,7 @@ const __ad1 = useAsyncData<CsProduct[]>("cs-maintenance", async () =>
 const { data: allProducts, refresh, status } = __ad1;
 const __ad2 = useAsyncData<CsCustomer[]>("cs-maintenance-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
-    supabase.from("customers").select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id").order("id").range(from, to) as never,
+    supabase.from("customers").select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id").eq("cs_pending", false).order("id").range(from, to) as never,
   ),
 );
 const { data: customers } = __ad2;

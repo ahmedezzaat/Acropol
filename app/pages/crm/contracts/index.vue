@@ -17,7 +17,7 @@ interface ContractRow {
   created_at: string;
   customer_id: string;
   deal_id: string | null;
-  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null } | null;
+  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; cs_pending: boolean } | null;
   deal: { id: string; title: string; assigned_to: string | null; value: number | null } | null;
   products: { name: string; quantity: number | null; sales_person_id: string | null }[] | null;
 }
@@ -31,7 +31,7 @@ const { data: contracts, status, refresh } = await useAsyncData<ContractRow[]>("
   fetchAll<ContractRow>((from, to) =>
     supabase
       .from("contracts")
-      .select("id, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names), deal:deals(id, title, assigned_to, value), products:customer_products(name, quantity, sales_person_id)")
+      .select("id, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, cs_pending), deal:deals(id, title, assigned_to, value), products:customer_products(name, quantity, sales_person_id)")
       .order("created_at", { ascending: false })
       .order("id")
       .range(from, to) as never,
@@ -221,6 +221,7 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
                 </td>
                 <td class="px-4 py-3">
                   <span class="font-medium text-highlighted">{{ customerTitle(c) }}</span>
+                  <UBadge v-if="c.customer?.cs_pending" :label="t('crm.contracts.csPendingShort')" color="warning" variant="subtle" size="sm" class="ms-2 cds-tag" />
                   <div v-if="c.customer?.phone" class="text-xs text-muted" dir="ltr">{{ c.customer.phone }}</div>
                 </td>
                 <td class="px-4 py-3">{{ agentsOf(c).join("، ") || "—" }}</td>

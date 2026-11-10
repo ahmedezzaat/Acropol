@@ -5,7 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // against a lead alone. Called wherever a deal's stage is about to become
 // the pipeline's fixed "Won" stage. Reuses the lead's customer if it was
 // already converted independently (e.g. the manual "Convert to customer"
-// button on the lead page), otherwise converts it now via crm_convert_lead.
+// button on the lead page), otherwise converts it now via crm_convert_lead. A customer made here is "pending": Customer
+// Service does not see it until someone sends it there (the button on the contract).
 export async function resolveWonCustomerId(
   supabase: SupabaseClient,
   leadId: string | null,
@@ -22,7 +23,7 @@ export async function resolveWonCustomerId(
   if (leadError) return { customerId: null, error: leadError.message };
   if (lead.customer_id) return { customerId: lead.customer_id as string, error: null };
 
-  const { data, error } = await supabase.rpc("crm_convert_lead", { p_lead_id: leadId });
+  const { data, error } = await supabase.rpc("crm_convert_lead", { p_lead_id: leadId, p_pending: true });
   if (error || !data) return { customerId: null, error: error?.message ?? "conversion failed" };
   return { customerId: data as string, error: null };
 }

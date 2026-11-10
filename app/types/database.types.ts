@@ -173,6 +173,7 @@ export type Database = {
           cs_agent_id: string | null;
           area_id: string | null;
           customer_type: "individual" | "company";
+          cs_pending: boolean;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -190,6 +191,7 @@ export type Database = {
           assigned_to?: string | null;
           cs_agent_id?: string | null;
           area_id?: string | null;
+          cs_pending?: boolean;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -207,6 +209,7 @@ export type Database = {
           assigned_to?: string | null;
           cs_agent_id?: string | null;
           area_id?: string | null;
+          cs_pending?: boolean;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -1559,7 +1562,7 @@ export type Database = {
         Returns: boolean;
       };
       crm_convert_lead: {
-        Args: { p_lead_id: string };
+        Args: { p_lead_id: string; p_pending?: boolean };
         Returns: string;
       };
       complete_deal_activity_with_followup: {

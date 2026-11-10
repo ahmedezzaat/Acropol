@@ -17,14 +17,14 @@ const { hasAnyModulePermission, hasPermission } = usePermissions();
 interface ContractFull {
   id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
   customer_id: string; deal_id: string | null; created_by: string | null; created_at: string;
-  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null } | null;
+  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; cs_pending: boolean } | null;
   deal: { id: string; title: string; value: number | null; assigned_to: string | null; stage: { name: string; system_key: string | null } | null } | null;
 }
 
 const { data: contract, status, refresh: refreshContract } = await useAsyncData<ContractFull | null>(`crm-contract-${contractId}`, async () => {
   const { data, error } = await supabase
     .from("contracts")
-    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
+    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
     .eq("id", contractId)
     .maybeSingle();
   if (error) throw error;
@@ -60,52 +60,82 @@ const paymentColor = { paid: "success", unpaid: "error" } as const;
 // editing a contract needs the CRM edit permission on contracts
 const canEdit = computed(() => hasPermission("crm_customers", "edit"));
 const editOpen = ref(false);
+const customerEditOpen = ref(false);
+// a customer made from this contract is pending until someone sends it to Customer Service
+const pushOpen = ref(false);
+const canPushToCs = computed(() => hasPermission("crm_customers", "push_to_cs"));
 // the deals already used by this customer's other contracts
 const { data: takenDealIds, refresh: refreshTaken } = await useAsyncData<string[]>(`crm-contract-${contractId}-taken`, async () => {
   if (!contract.value) return [];
   const { data } = await supabase.from("contracts").select("deal_id").eq("customer_id", contract.value.customer_id).neq("id", contractId).not("deal_id", "is", null);
   return (data ?? []).map((c) => c.deal_id as string);
 });
+async function onCustomerEdited() {
+  await refreshContract();
+}
 async function onEdited() {
   await Promise.all([refreshContract(), refreshTaken(), refreshNuxtData(`crm-contract-${contractId}-products`)]);
-}
-// ---- the printed contract (PDF): made from the template of what was bought, with the values typed in
-interface ContractDocRow { id: string; template_key: string; year: number; seq: number; doc_date: string; variables: ContractDocVars; created_at: string }
-const { data: docs, refresh: refreshDocs } = await useAsyncData<ContractDocRow[]>(`crm-contract-${contractId}-docs`, async () => {
-  // the contract's own documents and the ones made earlier on its deal
-  const dealId = contract.value?.deal_id;
-  const { data } = await supabase.from("contract_documents").select("id, template_key, year, seq, doc_date, variables, created_at").or(dealId ? `contract_id.eq.${contractId},deal_id.eq.${dealId}` : `contract_id.eq.${contractId}`).order("created_at", { ascending: false });
-  return (data ?? []) as unknown as ContractDocRow[];
-});
-const productCategoryNames = computed(() => (products.value ?? []).map((p) => (p.category_id ? categories.value?.[p.category_id] ?? "" : "")).filter(Boolean));
-const docTemplate = computed(() => templateForCategories(productCategoryNames.value));
-const docRef = (d: ContractDocRow) => { const tp = templateByKey(d.template_key); return tp ? contractRef(tp.prefix, d.year, d.seq) : `${d.year} - ${d.seq}`; };
-const docDefaults = computed<ContractDocVars | null>(() => {
-  const tp = docTemplate.value;
-  const c = contract.value;
-  if (!tp || !c) return null;
-  const count = (products.value ?? []).filter((p) => p.category_id && tp.categoryNames.includes(categories.value?.[p.category_id] ?? "")).reduce((n, p) => n + (p.quantity || 1), 0);
-  return tp.defaults({ customerName: c.customer?.name ?? "", address: c.customer?.address ?? "", phone: c.customer?.phone ?? "", date: c.signed_on ?? new Date().toISOString().slice(0, 10), value: c.value ?? c.deal?.value ?? null, count: count || 1 });
-});
-const docOpen = ref(false);
-const docEditing = ref<ContractDocRow | null>(null);
-function newDoc() {
-  docEditing.value = null;
-  docOpen.value = true;
-}
-function editDoc(d: ContractDocRow) {
-  docEditing.value = d;
-  docOpen.value = true;
-}
-async function onDocSaved(id: string) {
-  await refreshDocs();
-  await navigateTo(`/print/contract/${id}`);
 }
 const canSeeFiles = computed(() => hasAnyModulePermission("crm_deals"));
 
 async function downloadFile() {
   if (!contract.value?.file_path) return;
   const { data, error } = await supabase.storage.from("contract-files").createSignedUrl(contract.value.file_path, 60, { download: contract.value.file_name ?? true });
+  if (error || !data) {
+    toast.add({ title: t("crm.contracts.fileFailed"), description: error?.message, color: "error" });
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = data.signedUrl;
+  a.click();
+}
+
+// ---- the contract file: upload it here (it replaces the contract's file), and show the contract uploaded on the deal
+const fileInput = ref<HTMLInputElement | null>(null);
+const uploading = ref(false);
+const MAX_FILE = 25 * 1024 * 1024;
+async function onPickFile(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const f = input.files?.[0];
+  input.value = "";
+  if (!f || !contract.value) return;
+  if (f.size > MAX_FILE) {
+    toast.add({ title: t("crm.contracts.fileTooBig"), color: "error" });
+    return;
+  }
+  uploading.value = true;
+  const previous = contract.value.file_path;
+  const path = `${contract.value.id}/${Date.now()}-${f.name}`;
+  const { error: upError } = await supabase.storage.from("contract-files").upload(path, f);
+  if (upError) {
+    uploading.value = false;
+    toast.add({ title: t("crm.contracts.fileFailed"), description: upError.message, color: "error" });
+    return;
+  }
+  const { error } = await supabase.rpc("crm_update_contract", { p_contract_id: contract.value.id, p_patch: { file_path: path, file_name: f.name } as never });
+  if (error) {
+    await supabase.storage.from("contract-files").remove([path]);
+    uploading.value = false;
+    toast.add({ title: t("crm.contracts.editFailed"), description: error.message, color: "error" });
+    return;
+  }
+  // the replaced file is not needed any more
+  if (previous) await supabase.storage.from("contract-files").remove([previous]);
+  uploading.value = false;
+  toast.add({ title: t("crm.contracts.edited"), color: "success" });
+  await refreshContract();
+}
+interface DealFile { id: string; file_name: string; storage_path: string; created_at: string }
+const { data: dealContractFiles } = await useAsyncData<DealFile[]>(`crm-contract-${contractId}-dealfiles`, async () => {
+  const dealId = contract.value?.deal_id;
+  if (!dealId || !canSeeFiles.value) return [];
+  const { data } = await supabase.from("deal_attachments").select("id, file_name, storage_path, created_at").eq("deal_id", dealId).eq("kind", "contract").order("created_at", { ascending: false });
+  return (data ?? []) as DealFile[];
+});
+// a file already kept on the contract itself is not listed twice
+const dealFilesShown = computed(() => (dealContractFiles.value ?? []).filter((f) => f.file_name !== contract.value?.file_name));
+async function openDealFile(f: DealFile) {
+  const { data, error } = await supabase.storage.from("deal-attachments").createSignedUrl(f.storage_path, 60, { download: f.file_name });
   if (error || !data) {
     toast.add({ title: t("crm.contracts.fileFailed"), description: error?.message, color: "error" });
     return;
@@ -154,8 +184,8 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
             </div>
           </div>
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <UButton v-if="canEdit" icon="i-lucide-pencil" :label="t('crm.contracts.edit')" @click="editOpen = true" />
             <UButton v-if="contract.file_path" icon="i-lucide-download" color="neutral" variant="outline" :label="contract.file_name || t('crm.contracts.file')" @click="downloadFile" />
+            <UButton v-if="contract.deal_id && canSeeFiles" :to="`/crm/deals/${contract.deal_id}`" icon="i-lucide-handshake" color="neutral" variant="outline" :label="t('crm.contracts.openDeal')" />
             <UButton v-if="contract.customer?.phone" :to="`tel:${contract.customer.phone}`" icon="i-lucide-phone" color="neutral" variant="outline" :label="t('crm.deals.callContact')" />
             <UButton v-if="contract.customer && waLink(contract.customer.phone)" :to="waLink(contract.customer.phone)!" icon="i-simple-icons-whatsapp" color="neutral" variant="outline" :label="t('cs.profile.whatsapp')" />
           </div>
@@ -163,11 +193,19 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
 
         <div class="grid items-start gap-5 lg:grid-cols-[22rem_minmax(0,1fr)]">
           <!-- ===== Who and what it belongs to ===== -->
-          <UPageCard :title="t('crm.contracts.dataTitle')">
+          <UPageCard :title="t('crm.contracts.customerCard')">
+            <div v-if="contract.customer?.cs_pending" class="mb-4 space-y-2 rounded-[10px] bg-warning/10 p-3 text-sm">
+              <p class="flex items-center gap-1.5 font-medium text-warning"><UIcon name="i-lucide-clock" class="size-4" />{{ t("crm.contracts.csPending") }}</p>
+              <p class="text-xs text-toned">{{ t("crm.contracts.csPendingHint") }}</p>
+              <UButton v-if="canPushToCs" size="sm" icon="i-lucide-send" :label="t('crm.contracts.createCustomerAndSend')" block @click="pushOpen = true" />
+            </div>
             <dl class="space-y-4 text-sm">
               <div>
                 <dt class="text-xs text-muted">{{ t("crm.contracts.customer") }}</dt>
-                <dd><NuxtLink :to="`/crm/customers/${contract.customer_id}`" class="font-medium text-primary hover:underline">{{ customerName }}</NuxtLink></dd>
+                <dd class="flex items-center justify-between gap-2">
+                  <NuxtLink :to="`/crm/customers/${contract.customer_id}`" class="font-medium text-primary hover:underline">{{ customerName }}</NuxtLink>
+                  <UButton v-if="canEdit && contract.customer" icon="i-lucide-pencil" size="xs" color="neutral" variant="outline" :label="t('crm.contracts.editCustomer')" @click="customerEditOpen = true" />
+                </dd>
               </div>
               <div v-if="contract.customer?.phone">
                 <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>
@@ -185,48 +223,52 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
                 <dt class="text-xs text-muted">{{ t("crm.customers.address") }}</dt>
                 <dd class="whitespace-pre-line">{{ contract.customer.address }}</dd>
               </div>
-              <div>
-                <dt class="text-xs text-muted">{{ t("crm.contracts.agent") }}</dt>
-                <dd>{{ agents.join("، ") || "—" }}</dd>
-              </div>
-              <div>
-                <dt class="text-xs text-muted">{{ t("crm.contracts.deal") }}</dt>
-                <dd>
-                  <NuxtLink v-if="contract.deal" :to="`/crm/deals/${contract.deal.id}`" class="text-primary hover:underline">{{ contract.deal.title }}</NuxtLink>
-                  <UBadge v-if="contract.deal?.stage" :label="contract.deal.stage.name" color="neutral" variant="subtle" size="sm" class="cds-tag ms-2" />
-                  <span v-else-if="!contract.deal" class="text-muted">—</span>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-muted">{{ t("crm.customers.enteredBy") }}</dt>
-                <dd>{{ personName(contract.created_by) || "—" }} <span class="block text-xs text-muted">{{ formatDMYTime(contract.created_at, locale) }}</span></dd>
-              </div>
-              <div v-if="contract.notes">
-                <dt class="text-xs text-muted">{{ t("crm.customers.notes") }}</dt>
-                <dd class="whitespace-pre-line">{{ contract.notes }}</dd>
-              </div>
             </dl>
           </UPageCard>
 
           <div class="min-w-0 space-y-5">
-            <!-- ===== The printed contract (PDF) ===== -->
-            <section v-if="docTemplate || docs?.length" class="space-y-3">
+            <!-- ===== The contract: every field entered on it ===== -->
+            <section class="space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted">{{ t("crm.contracts.doc.title") }}
-                  <UBadge :label="String(docs?.length ?? 0)" color="neutral" variant="subtle" size="sm" class="cds-tag" />
-                </h3>
-                <UButton v-if="canEdit && docTemplate" size="sm" icon="i-lucide-file-plus" :label="t('crm.contracts.doc.new')" @click="newDoc" />
+                <h3 class="flex items-center gap-2 text-sm font-semibold text-highlighted"><UIcon name="i-lucide-file-signature" class="size-4 text-muted" />{{ t("crm.contracts.contractSection") }}</h3>
+                <UButton v-if="canEdit" size="sm" icon="i-lucide-pencil" :label="t('crm.contracts.edit')" @click="editOpen = true" />
               </div>
-              <p v-if="!docs?.length" class="kords-card p-4 text-sm text-muted">{{ t("crm.contracts.doc.none") }}</p>
-              <article v-for="d in docs" :key="d.id" class="kords-card flex flex-wrap items-center justify-between gap-3 p-4">
-                <div class="min-w-0">
-                  <p class="font-medium text-highlighted"><bdi dir="ltr">{{ docRef(d) }}</bdi></p>
-                  <p class="text-xs text-muted">{{ formatDate(d.doc_date) }} · {{ d.variables.count }} × {{ d.variables.capacity }} {{ t("crm.contracts.doc.litre") }} · {{ d.variables.ownerName }}</p>
-                </div>
-                <div class="flex items-center gap-2">
-                  <UButton :to="`/print/contract/${d.id}`" icon="i-lucide-file-down" size="sm" :label="t('crm.contracts.doc.open')" />
-                  <UButton v-if="canEdit" icon="i-lucide-pencil" size="sm" color="neutral" variant="outline" :label="t('crm.contracts.doc.editValues')" @click="editDoc(d)" />
-                </div>
+              <article class="kords-card p-4">
+                <dl class="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+                  <div><dt class="text-xs text-muted">{{ t("crm.contracts.code") }}</dt><dd><bdi dir="ltr">#{{ contract.code }}</bdi></dd></div>
+                  <div><dt class="text-xs text-muted">{{ t("crm.contracts.signedOn") }}</dt><dd>{{ contract.signed_on ? formatDate(contract.signed_on) : "—" }}</dd></div>
+                  <div><dt class="text-xs text-muted">{{ t("crm.contracts.value") }}</dt><dd class="font-semibold text-success">{{ money(contract.value) }}</dd></div>
+                  <div><dt class="text-xs text-muted">{{ t("crm.contracts.agent") }}</dt><dd>{{ agents.join("، ") || "—" }}</dd></div>
+                  <div>
+                    <dt class="text-xs text-muted">{{ t("crm.contracts.deal") }}</dt>
+                    <dd>
+                      <NuxtLink v-if="contract.deal" :to="`/crm/deals/${contract.deal.id}`" class="text-primary hover:underline">{{ contract.deal.title }}</NuxtLink>
+                      <UBadge v-if="contract.deal?.stage" :label="contract.deal.stage.name" color="neutral" variant="subtle" size="sm" class="cds-tag ms-2" />
+                      <span v-else-if="!contract.deal" class="text-muted">—</span>
+                    </dd>
+                  </div>
+                  <div class="sm:col-span-2">
+                    <dt class="text-xs text-muted">{{ t("crm.contracts.file") }}</dt>
+                    <dd class="flex flex-wrap items-center gap-2">
+                      <button v-if="contract.file_path" type="button" class="inline-flex items-center gap-1.5 text-primary hover:underline" @click="downloadFile"><UIcon name="i-lucide-paperclip" class="size-4" /><bdi>{{ contract.file_name || t("crm.contracts.file") }}</bdi></button>
+                      <span v-else class="text-muted">—</span>
+                      <template v-if="canEdit">
+                        <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-upload" :label="contract.file_path ? t('crm.contracts.replaceFileBtn') : t('crm.contracts.uploadFile')" :loading="uploading" @click="fileInput?.click()" />
+                        <input ref="fileInput" type="file" class="hidden" @change="onPickFile" />
+                      </template>
+                    </dd>
+                    <ul v-if="dealFilesShown.length" class="mt-2 space-y-1.5">
+                      <li v-for="f in dealFilesShown" :key="f.id" class="flex flex-wrap items-center gap-2 rounded-[10px] bg-muted px-3 py-2">
+                        <UIcon name="i-lucide-file-signature" class="size-4 shrink-0 text-primary" />
+                        <button type="button" class="min-w-0 flex-1 truncate text-start hover:underline" @click="openDealFile(f)"><bdi>{{ f.file_name }}</bdi></button>
+                        <UBadge :label="t('crm.contracts.fromDeal')" color="neutral" variant="subtle" size="sm" class="cds-tag" />
+                        <UButton icon="i-lucide-download" size="xs" color="neutral" variant="ghost" :aria-label="t('files.open')" @click="openDealFile(f)" />
+                      </li>
+                    </ul>
+                  </div>
+                  <div><dt class="text-xs text-muted">{{ t("crm.customers.enteredBy") }}</dt><dd>{{ personName(contract.created_by) || "—" }} <span class="block text-xs text-muted">{{ formatDMYTime(contract.created_at, locale) }}</span></dd></div>
+                  <div class="sm:col-span-2"><dt class="text-xs text-muted">{{ t("crm.customers.notes") }}</dt><dd class="whitespace-pre-line">{{ contract.notes || "—" }}</dd></div>
+                </dl>
               </article>
             </section>
 
@@ -258,23 +300,13 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
               </article>
             </section>
 
-            <!-- ===== Files of the deal this contract came from ===== -->
-            <FilesPanel v-if="canSeeFiles && contract.deal_id" :deal-id="contract.deal_id" />
           </div>
         </div>
       </div>
     </template>
   </UDashboardPanel>
 
-  <CrmContractDocModal
-    v-if="contract && canEdit && docTemplate && docDefaults"
-    v-model:open="docOpen"
-    :contract-id="contract.id"
-    :deal-id="contract.deal_id"
-    :template="docTemplate.key"
-    :defaults="docDefaults"
-    :document="docEditing ? { id: docEditing.id, ref: docRef(docEditing), vars: docEditing.variables } : null"
-    @saved="onDocSaved"
-  />
+  <PushToCsModal v-if="contract?.customer?.cs_pending && canPushToCs" v-model:open="pushOpen" :customer-id="contract.customer_id" :customer-name="customerName" @pushed="refreshContract" />
+  <CrmCustomerEditModal v-if="contract?.customer && canEdit" v-model:open="customerEditOpen" :customer="contract.customer" @saved="onCustomerEdited" />
   <CrmContractEditModal v-if="contract && canEdit" v-model:open="editOpen" :contract="contract" :taken-deal-ids="takenDealIds ?? []" @saved="onEdited" />
 </template>
