@@ -48,6 +48,8 @@ interface Profile {
 
 const search = ref("");
 const statusFilter = ref("all");
+// Filter by where the lead came from ("all", a source, or "none" for leads with no source).
+const sourceFilter = ref("all");
 // Quick filter above the list: everyone, individuals, or companies.
 const typeFilter = ref<"all" | "individual" | "company">("all");
 // Sentinel for "Unassigned" — null means "no assignee filter".
@@ -130,7 +132,8 @@ const filteredLeads = computed(() => {
       assigneeFilter.value === null ||
       (assigneeFilter.value === UNASSIGNED ? lead.assigned_to === null : lead.assigned_to === assigneeFilter.value);
     const matchesType = typeFilter.value === "all" || lead.lead_type === typeFilter.value;
-    return matchesSearch && matchesStatus && matchesAssignee && matchesType;
+    const matchesSource = !canSeeSource.value || sourceFilter.value === "all" || (sourceFilter.value === "none" ? !lead.source : lead.source === sourceFilter.value);
+    return matchesSearch && matchesStatus && matchesAssignee && matchesType && matchesSource;
   });
 });
 
@@ -163,6 +166,20 @@ const sourceKeys = ["external_client", "facebook", "instagram", "meta", "google"
 const sourceOptions = computed(() =>
   sourceKeys.map((s) => ({ label: t(`crm.leads.sourceValues.${s}`), value: s })),
 );
+
+// the sources in use (the known ones first, then any other value found on a lead), each with how many leads
+const sourceFilterOptions = computed(() => {
+  const all = leads.value ?? [];
+  const count = (src: string | null) => all.filter((l) => (src === null ? !l.source : l.source === src)).length;
+  const known = sourceKeys.filter((k) => count(k) > 0);
+  const others = [...new Set(all.map((l) => l.source).filter((x): x is string => !!x && !(sourceKeys as readonly string[]).includes(x)))];
+  return [
+    { label: t("crm.leads.allSources"), value: "all" },
+    ...known.map((k) => ({ label: `${t(`crm.leads.sourceValues.${k}`)} (${count(k)})`, value: k as string })),
+    ...others.map((o) => ({ label: `${o} (${count(o)})`, value: o })),
+    ...(count(null) ? [{ label: `${t("crm.leads.noSource")} (${count(null)})`, value: "none" }] : []),
+  ];
+});
 
 const assigneeOptions = computed(() => [
   { label: t("common.unassigned"), value: null },
@@ -443,6 +460,7 @@ function backToList() {
                 class="w-full"
               />
               <USelect v-model="statusFilter" :items="statusOptions" value-key="value" class="w-full" />
+              <USelect v-if="canSeeSource" v-model="sourceFilter" :items="sourceFilterOptions" value-key="value" icon="i-lucide-megaphone" class="col-span-2 w-full" />
             </div>
           </div>
 

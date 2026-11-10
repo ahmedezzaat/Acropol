@@ -41,6 +41,8 @@ const profiles = ref<Profile[]>([]);
 const categoryIds = ref<string[]>([]);
 const pipelineId = ref<string | undefined>(undefined);
 const assignedTo = ref<string | null>(null);
+// an optional first note: it goes into the deal's timeline notes
+const note = ref("");
 const saving = ref(false);
 
 const canAssign = computed(() => hasPermission("crm_deals", "assign"));
@@ -55,6 +57,7 @@ const assigneeItems = computed(() => [
 watch(open, async (isOpen) => {
   if (!isOpen) return;
   categoryIds.value = [];
+  note.value = "";
   assignedTo.value = props.lead?.assigned_to ?? null;
   const [cats, pips, stg, people] = await Promise.all([
     supabase.from("product_categories").select("id, name").order("sort_order"),
@@ -100,6 +103,11 @@ async function create() {
     toast.add({ title: t("crm.deals.createDealFailed"), description: error.message, color: "error" });
     return;
   }
+  // the note is the first entry of the deal's notes; the deal itself is already made if it fails
+  if (created?.id && note.value.trim()) {
+    const { error: noteError } = await supabase.from("deal_activities").insert({ deal_id: created.id, type: "note", content: note.value.trim() });
+    if (noteError) toast.add({ title: t("crm.leads.createDealNoteFailed"), description: noteError.message, color: "warning" });
+  }
   notifyNewDeal(created?.id);
   toast.add({ title: t("crm.deals.dealCreated"), color: "success" });
   open.value = false;
@@ -142,6 +150,10 @@ function removeCategory(id: string) {
 
         <UFormField v-if="canAssign" :label="t('crm.deals.assignedTo')">
           <USelect v-model="assignedTo" :items="assigneeItems" value-key="value" class="w-full" />
+        </UFormField>
+
+        <UFormField :label="t('crm.leads.createDealNote')" :hint="t('crm.leads.createDealNoteHint')">
+          <UTextarea v-model="note" :rows="3" :placeholder="t('crm.leads.createDealNotePlaceholder')" class="w-full" />
         </UFormField>
 
         <UButton

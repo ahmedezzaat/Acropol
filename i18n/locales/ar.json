@@ -880,7 +880,13 @@
       "createDeal": "إنشاء صفقة",
       "noDealsYet": "لا توجد صفقات لهذا العميل المحتمل بعد.",
       "createDealFor": "صفقة جديدة لـ {name}",
-      "createDealSubmit": "إنشاء الصفقة"
+      "createDealSubmit": "إنشاء الصفقة",
+      "createDealNote": "ملاحظة",
+      "allSources": "كل المصادر",
+      "noSource": "بدون مصدر",
+      "createDealNoteHint": "اختيارية",
+      "createDealNotePlaceholder": "اكتب ملاحظة عن الصفقة، وتظهر في ملاحظات الصفقة",
+      "createDealNoteFailed": "تم إنشاء الصفقة لكن تعذّر حفظ الملاحظة"
     },
     "deals": {
       "title": "الصفقات",
@@ -898,6 +904,7 @@
       "reasonRequired": "هذه المرحلة تتطلب اختيار سبب.",
       "changeStage": "تغيير المرحلة إلى: {stage}",
       "stageChangeNote": "ملاحظة",
+      "keepEachStage": "إبقاء مرحلة كل صفقة كما هي",
       "stageChangeNotePlaceholder": "لماذا يتم نقل هذه الصفقة؟",
       "value": "القيمة",
       "expectedCloseDate": "تاريخ الإغلاق المتوقع",

@@ -72,6 +72,7 @@ interface LeadOption {
   lead_type: "individual" | "company";
   company_name: string | null;
   customer_id: string | null;
+  source: string | null;
 }
 
 interface Profile {
@@ -262,7 +263,7 @@ const __ad9 = useAsyncData<LeadOption[]>(
   async () => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, name, phone, phone2, lead_type, company_name, customer_id")
+      .select("id, name, phone, phone2, lead_type, company_name, customer_id, source")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -426,6 +427,25 @@ const noteFilterOptions = computed(() => [
   { label: t("crm.deals.notesWith"), value: "with" },
   { label: t("crm.deals.notesWithout"), value: "without" },
 ]);
+// --- Filter by where the deal's lead came from (only for people who may see the source of leads) ---
+const canSeeLeadSource = computed(() => hasPermission("crm_leads", "view_all"));
+const sourceFilter = ref("all");
+const dealSource = (deal: Deal): string | null => (deal.lead_id ? (leadsList.value?.find((l) => l.id === deal.lead_id)?.source ?? null) : null);
+const sourceFilterOptions = computed(() => {
+  // counted among the deals of the pipeline being looked at (the board and the list show one pipeline)
+  const all = (deals.value ?? []).filter((d) => d.pipeline_id === activePipelineId.value);
+  const count = (src: string | null) => all.filter((d) => dealSource(d) === src).length;
+  const keys = [...new Set((leadsList.value ?? []).map((l) => l.source).filter((x): x is string => !!x))];
+  // the known sources keep their usual order, any other value comes after
+  const known = (sourceKeys as readonly string[]).filter((k) => keys.includes(k));
+  const others = keys.filter((k) => !known.includes(k));
+  const label = (k: string) => ((sourceKeys as readonly string[]).includes(k) ? t(`crm.leads.sourceValues.${k}`) : k);
+  return [
+    { label: t("crm.leads.allSources"), value: "all" },
+    ...[...known, ...others].filter((k) => count(k) > 0).map((k) => ({ label: `${label(k)} (${count(k)})`, value: k })),
+    ...(count(null) ? [{ label: `${t("crm.leads.noSource")} (${count(null)})`, value: "none" }] : []),
+  ];
+});
 const __ad12 = useAsyncData<string[]>("crm-deals-with-activity", async () => {
   const { data, error } = await supabase.rpc("deals_with_activity");
   if (error) throw error;
@@ -450,6 +470,10 @@ function matchesFilters(deal: Deal) {
   if (stageFilter.value !== null && deal.stage_id !== stageFilter.value) return false;
   if (noteFilter.value === "with" && !dealsWithNotes.value.has(deal.id)) return false;
   if (noteFilter.value === "without" && dealsWithNotes.value.has(deal.id)) return false;
+  if (canSeeLeadSource.value && sourceFilter.value !== "all") {
+    const src = dealSource(deal);
+    if (sourceFilter.value === "none" ? src !== null : src !== sourceFilter.value) return false;
+  }
   if (dateFrom.value && deal.created_at < dateFrom.value) return false;
   if (dateTo.value && deal.created_at.slice(0, 10) > dateTo.value) return false;
   if (dealSearch.value) {
@@ -540,7 +564,7 @@ const sorting = ref([{ id: "created", desc: true }]);
 const pagination = ref({ pageIndex: 0, pageSize: 20 });
 // Any filter changing the row set should land the user back on page 1
 // instead of possibly showing an empty out-of-range page.
-watch([assigneeFilter, stageFilter, noteFilter, dateFrom, dateTo, dealSearch, activePipelineId], () => {
+watch([assigneeFilter, stageFilter, noteFilter, sourceFilter, dateFrom, dateTo, dealSearch, activePipelineId], () => {
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 
@@ -596,6 +620,8 @@ const reassigning = ref(false);
 const reassignOpen = ref(false);
 const reassignDealIds = ref<string[]>([]);
 const reassignTarget = ref<string | null>(null);
+// "keep": every selected deal stays on its own stage (only the assignee changes)
+const KEEP_STAGE = "__keep";
 const reassignStageId = ref<string | null>(null);
 const reassignReasonId = ref<string | null>(null);
 const reassignHideHistory = ref(false);
@@ -627,11 +653,12 @@ const reassignSingleDeal = computed(() =>
 const reassignIsWon = computed(
   () => reassignStage.value?.system_key === "won" && !!reassignSingleDeal.value && reassignStageId.value !== reassignSingleDeal.value.stage_id,
 );
-const reassignStageItems = computed(() =>
-  activeStages.value
+const reassignStageItems = computed(() => [
+  { label: t("crm.deals.keepEachStage"), value: KEEP_STAGE },
+  ...activeStages.value
     .filter((s) => s.system_key !== "won" || reassignDealIds.value.length <= 1)
     .map((s) => ({ label: s.name, value: s.id })),
-);
+]);
 watch(reassignStageId, (stageId) => {
   if (!reassignOpen.value) return;
   if (allStages.value?.find((s) => s.id === stageId)?.system_key === "won" && reassignSingleDeal.value && stageId !== reassignSingleDeal.value.stage_id) {
@@ -652,8 +679,8 @@ function openReassign(dealIds: string[], prefillAssignee?: string | null) {
   // A single deal defaults to staying on its current stage (still an
   // explicit, changeable choice); bulk has no single sensible default
   // since the selected deals can already be on different stages.
-  reassignStageId.value =
-    dealIds.length === 1 ? (deals.value?.find((d) => d.id === dealIds[0])?.stage_id ?? null) : null;
+  // Bulk (and a single deal) starts on "keep the stage": only the assignee changes.
+  reassignStageId.value = KEEP_STAGE;
   reassignReasonId.value = null;
   reassignHideHistory.value = false;
   reassignOpen.value = true;
@@ -667,11 +694,13 @@ async function confirmReassign() {
   if (!reassignValid.value || !reassignDealIds.value.length) return;
   reassigning.value = true;
 
-  const updates: Record<string, unknown> = {
-    assigned_to: reassignTarget.value,
-    stage_id: reassignStageId.value,
-    stage_reason_id: reassignStage.value?.reason_category ? reassignReasonId.value : null,
-  };
+  const keepStage = reassignStageId.value === KEEP_STAGE;
+  const updates: Record<string, unknown> = { assigned_to: reassignTarget.value };
+  // a stage is only written when one was picked: otherwise each deal keeps its own
+  if (!keepStage) {
+    updates.stage_id = reassignStageId.value;
+    updates.stage_reason_id = reassignStage.value?.reason_category ? reassignReasonId.value : null;
+  }
   if (reassignHideHistory.value) updates.history_hidden_before = new Date().toISOString();
 
   let error: { message: string } | null = null;
@@ -1162,6 +1191,7 @@ function openDeal(deal: Deal) {
               class="w-44"
             />
             <USelect v-model="noteFilter" :items="noteFilterOptions" value-key="value" icon="i-lucide-sticky-note" class="w-40" />
+            <USelect v-if="canSeeLeadSource" v-model="sourceFilter" :items="sourceFilterOptions" value-key="value" icon="i-lucide-megaphone" class="w-48" />
             <UInput v-model="dateFrom" type="date" :placeholder="t('crm.deals.createdFrom')" class="w-40" />
             <UInput v-model="dateTo" type="date" :placeholder="t('crm.deals.createdTo')" class="w-40" />
             <UButton
@@ -1741,6 +1771,9 @@ function openDeal(deal: Deal) {
         </UFormField>
         <UFormField :label="t('crm.deals.notes')">
           <USelect v-model="noteFilter" :items="noteFilterOptions" value-key="value" icon="i-lucide-sticky-note" class="w-full" />
+        </UFormField>
+        <UFormField v-if="canSeeLeadSource" :label="t('crm.leads.source')">
+          <USelect v-model="sourceFilter" :items="sourceFilterOptions" value-key="value" icon="i-lucide-megaphone" class="w-full" />
         </UFormField>
         <div class="grid grid-cols-2 gap-3">
           <UFormField :label="t('crm.deals.createdFrom')">

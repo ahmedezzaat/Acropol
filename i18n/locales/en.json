@@ -880,7 +880,13 @@
       "createDeal": "Create deal",
       "noDealsYet": "No deals for this lead yet.",
       "createDealFor": "New deal for {name}",
-      "createDealSubmit": "Create deal"
+      "createDealSubmit": "Create deal",
+      "createDealNote": "Note",
+      "allSources": "All sources",
+      "noSource": "No source",
+      "createDealNoteHint": "optional",
+      "createDealNotePlaceholder": "Write a note about the deal; it shows in the deal's notes",
+      "createDealNoteFailed": "The deal was created but the note could not be saved"
     },
     "deals": {
       "title": "Deals",
@@ -898,6 +904,7 @@
       "reasonRequired": "This stage requires selecting a reason.",
       "changeStage": "Change stage to: {stage}",
       "stageChangeNote": "Note",
+      "keepEachStage": "Keep each deal on its current stage",
       "stageChangeNotePlaceholder": "Why is this deal moving?",
       "value": "Value",
       "expectedCloseDate": "Expected close date",
