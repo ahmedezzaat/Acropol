@@ -160,3 +160,16 @@ export const contractTemplates: ContractTemplate[] = [heaterTemplate];
 export const templateByKey = (key: string) => contractTemplates.find((t) => t.key === key) ?? null;
 /** the template made for what a contract covers: the first whose product category is among the contract's products */
 export const templateForCategories = (names: string[]) => contractTemplates.find((t) => t.categoryNames.some((n) => names.includes(n))) ?? null;
+
+// One piece of a printed contract (a heading, a paragraph, the signatures...), measured and put on A4 pages by the print page.
+export interface ContractAtomData {
+  t: "title" | "center" | "party" | "line" | "u" | "p" | "h2" | "intro" | "sigTitle" | "sig";
+  text?: string;
+  label?: string;
+  bold?: boolean;
+  ltr?: boolean;
+  // stays on the same page as the piece after it (headings)
+  keep?: boolean;
+  owner?: string;
+  rep?: string;
+}

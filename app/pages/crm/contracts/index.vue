@@ -214,25 +214,25 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
               </tr>
             </thead>
             <tbody class="divide-y divide-default">
-              <tr v-for="c in paged" :key="c.id" class="hover:bg-elevated">
+              <tr v-for="c in paged" :key="c.id" class="cursor-pointer hover:bg-elevated" @click="navigateTo(`/crm/contracts/${c.id}`)">
                 <td class="max-w-72 px-4 py-3">
                   <NuxtLink :to="`/crm/contracts/${c.id}`" class="block font-medium text-highlighted hover:text-primary">{{ titleOf(c) }}</NuxtLink>
                   <span v-if="c.code" class="text-xs text-muted"><bdi dir="ltr">#{{ c.code }}</bdi></span>
                 </td>
                 <td class="px-4 py-3">
-                  <NuxtLink :to="`/crm/customers/${c.customer_id}`" class="font-medium text-highlighted hover:text-primary">{{ customerTitle(c) }}</NuxtLink>
+                  <span class="font-medium text-highlighted">{{ customerTitle(c) }}</span>
                   <div v-if="c.customer?.phone" class="text-xs text-muted" dir="ltr">{{ c.customer.phone }}</div>
                 </td>
                 <td class="px-4 py-3">{{ agentsOf(c).join("، ") || "—" }}</td>
                 <td class="px-4 py-3">
-                  <NuxtLink v-if="c.deal" :to="`/crm/deals/${c.deal.id}`" class="text-primary hover:underline">{{ c.deal.title }}</NuxtLink>
+                  <NuxtLink v-if="c.deal" :to="`/crm/deals/${c.deal.id}`" class="text-primary hover:underline" @click.stop>{{ c.deal.title }}</NuxtLink>
                   <span v-else class="text-muted">—</span>
                 </td>
                 <td class="whitespace-nowrap px-4 py-3 text-end font-medium">{{ valueOf(c) !== null ? money(valueOf(c)!) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3">{{ c.signed_on ? formatDMY(c.signed_on) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3 text-muted">{{ formatDMYTime(c.created_at) }}</td>
-                <td class="px-2 py-2 text-end"><UButton v-if="c.file_path" icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :title="c.file_name ?? t('crm.contracts.file')" :aria-label="t('crm.contracts.file')" @click="downloadFile(c)" /></td>
-                <td v-if="canDelete" class="px-2 py-2 text-end"><UButton icon="i-lucide-trash" color="error" variant="ghost" size="sm" :title="t('crm.contracts.delete')" :aria-label="t('crm.contracts.delete')" @click="deleteTarget = c" /></td>
+                <td class="px-2 py-2 text-end"><UButton v-if="c.file_path" icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :title="c.file_name ?? t('crm.contracts.file')" :aria-label="t('crm.contracts.file')" @click.stop="downloadFile(c)" /></td>
+                <td v-if="canDelete" class="px-2 py-2 text-end"><UButton icon="i-lucide-trash" color="error" variant="ghost" size="sm" :title="t('crm.contracts.delete')" :aria-label="t('crm.contracts.delete')" @click.stop="deleteTarget = c" /></td>
               </tr>
             </tbody>
           </table>
