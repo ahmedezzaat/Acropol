@@ -115,7 +115,7 @@ export async function handleWaha(event: H3Event) {
         detail:
           detail ??
           (p && typeof p === "object" && !p.body
-            ? `shape hasMedia=${String(p.hasMedia)} type=${String(p._data?.messageType ?? p.type ?? "")} media=${p.media ? `{${Object.keys(p.media).join(",")}${p.media.error ? ` error=${String(p.media.error).slice(0, 60)}` : ""}}` : "none"} msg=[${Object.keys(p._data?.message ?? {}).slice(0, 4).join(",")}]`.slice(0, 200)
+            ? `shape hasMedia=${String(p.hasMedia)} type=${String(p._data?.messageType ?? p.type ?? "")} media=${p.media ? `{${Object.keys(p.media).join(",")} at=${String(p.media.url ?? "").replace(/^(https?:\/\/[^/]+)(\/[^/?]*\/?[^/?]*).*$/, "$1$2")}${p.media.error ? ` error=${String(p.media.error).slice(0, 60)}` : ""}}` : "none"} msg=[${Object.keys(p._data?.message ?? {}).slice(0, 4).join(",")}]`.slice(0, 200)
             : null),
       });
       // keep it short
@@ -250,11 +250,16 @@ async function saveIncomingMedia(event: H3Event, admin: ReturnType<typeof server
   if (payload?.hasMedia !== true || !info || typeof info.url !== "string" || info.error) return null;
   try {
     const cfg = await getWahaConfig(event);
-    // only the WAHA server itself is called with the key
-    const url = new URL(info.url, cfg.url);
-    if (url.origin !== new URL(cfg.url).origin) return null;
+    // WAHA builds this link from its own base address setting (often http://localhost:3000 behind a proxy), so only
+    // the path is used and it is fetched from the configured WAHA server: the key never goes anywhere else
+    const given = new URL(info.url, cfg.url);
+    if (!given.pathname.startsWith("/api/")) return null;
+    const url = new URL(given.pathname + given.search, cfg.url);
     const res = await fetch(url, { headers: { "X-Api-Key": cfg.apiKey } });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error("[waha-webhook] media download refused", res.status);
+      return null;
+    }
     const bytes = Buffer.from(await res.arrayBuffer());
     if (bytes.length > 25 * 1024 * 1024) return null;
     const type = clean(info.mimetype, 100) || res.headers.get("content-type") || null;
