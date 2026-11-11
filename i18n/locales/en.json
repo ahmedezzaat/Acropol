@@ -408,6 +408,18 @@
       "typesSaved": "Saved",
       "saveFailed": "Failed to save"
     },
+    "customerCategories": {
+      "title": "Customer categories",
+      "description": "How customers and contacts are classified (individual, hotels, companies and factories, engineering offices...). Used when adding a contact or customer, and to filter the lists.",
+      "name": "Category name",
+      "add": "Add a category",
+      "oneVisit": "One maintenance visit per customer",
+      "oneVisitHint": "When on for a category (such as hotels), all of a customer's products are maintained in one visit instead of one visit per product.",
+      "removeHint": "Removing a category does not delete customers: their category becomes empty.",
+      "invalid": "Give every category a name, and do not repeat names",
+      "saved": "Categories saved",
+      "saveFailed": "Could not save the categories"
+    },
     "productCategories": {
       "title": "Product Categories",
       "description": "The categories available in the \"Customer is interested in\" field when creating a deal.",
@@ -882,6 +894,8 @@
       "createDealFor": "New deal for {name}",
       "createDealSubmit": "Create deal",
       "createDealNote": "Note",
+      "category": "Category",
+      "categoryAuto": "By type (automatic)",
       "allSources": "All sources",
       "noSource": "No source",
       "createDealNoteHint": "optional",
@@ -1586,6 +1600,9 @@
       "none": "None",
       "title2": "Maintenance",
       "viewList": "Work list",
+      "hotelUnits": "{units} units in {batches} batches",
+      "discount": "Discount",
+      "beforeDiscount": "Total before the discount",
       "viewTrack": "Tracking",
       "p7d": "Last 7 days",
       "p28d": "Last 28 days",

@@ -2,7 +2,7 @@
 // Edit the customer's details from where the contract is (needs the CRM edit permission on customers/contracts):
 // name, company, phones, email, area and address. The customer's own page edits the same record.
 const props = defineProps<{
-  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; notes: string | null };
+  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; notes: string | null; category_id: string | null };
 }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();
@@ -18,6 +18,9 @@ const email = ref("");
 const address = ref("");
 const areaId = ref<string | null>(null);
 const notes = ref("");
+const categoryId = ref<string | null>(null);
+const { loadCategories, categoryOptions } = useCustomerCategories();
+loadCategories();
 const extraContacts = ref(toExtraContacts(null, null));
 const saving = ref(false);
 
@@ -32,6 +35,7 @@ watch(open, (isOpen) => {
   address.value = c.address ?? "";
   areaId.value = c.area_id ?? null;
   notes.value = c.notes ?? "";
+  categoryId.value = c.category_id ?? null;
   extraContacts.value = toExtraContacts(c.extra_phones, c.extra_phone_names);
 }, { immediate: true });
 
@@ -51,6 +55,7 @@ async function save() {
       address: address.value.trim() || null,
       area_id: areaId.value || null,
       notes: notes.value.trim() || null,
+      category_id: categoryId.value || null,
     })
     .eq("id", props.customer.id)
     .select("id");
@@ -74,6 +79,7 @@ async function save() {
           <UFormField :label="t('common.name')" required><UInput v-model="name" class="w-full" /></UFormField>
           <UFormField :label="t('crm.customers.company')"><UInput v-model="company" class="w-full" /></UFormField>
         </div>
+        <UFormField :label="t('crm.leads.category')"><USelect v-model="categoryId" :items="categoryOptions" value-key="value" icon="i-lucide-layers" class="w-full" /></UFormField>
         <UFormField :label="t('common.phone')"><PhoneInput v-model="phone" /></UFormField>
         <UFormField :label="t('common.extraPhones')"><ExtraPhones v-model="extraContacts" /></UFormField>
         <UFormField :label="t('common.email')"><UInput v-model="email" type="email" class="w-full" /></UFormField>

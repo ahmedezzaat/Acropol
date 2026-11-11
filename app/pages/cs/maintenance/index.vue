@@ -34,10 +34,13 @@ const __ad1 = useAsyncData<CsProduct[]>("cs-maintenance", async () =>
 const { data: allProducts, refresh, status } = __ad1;
 const __ad2 = useAsyncData<CsCustomer[]>("cs-maintenance-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
-    supabase.from("customers").select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id").eq("cs_pending", false).order("id").range(from, to) as never,
+    supabase.from("customers").select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, category_id").eq("cs_pending", false).order("id").range(from, to) as never,
   ),
 );
 const { data: customers } = __ad2;
+// Customers of a category with "one maintenance visit per customer" (e.g. فنادق) are one row on this board
+const { categories: customerCategories, loadCategories } = useCustomerCategories();
+await loadCategories();
 const __ad3 = useAsyncData<{ id: string; name: string; maintenance_interval_months: number | null }[]>(
   "cs-maintenance-categories",
   async () => {
@@ -67,6 +70,9 @@ interface Row {
   declined: boolean;
   // an appointment the customer has confirmed by phone (needed before it can be marked done)
   confirmed: boolean;
+  // a customer with one visit for all its products is one row: how many units and purchase batches it covers
+  units: number;
+  batches: number;
 }
 function rowOf(p: CsProduct): Row {
   const months = categoryOf(p.category_id)?.maintenance_interval_months ?? null;
@@ -75,15 +81,45 @@ function rowOf(p: CsProduct): Row {
   const due = declined ? null : maintenanceDue(p, months);
   const appointment = !declined && !!p.next_maintenance_at;
   const at = appointment ? new Date(p.next_maintenance_at!).getTime() : due ? new Date(`${due}T09:00:00`).getTime() : null;
-  return { p, months, due, at, appointment, declined, confirmed: appointment && !!p.maintenance_confirmed_at };
+  return { p, months, due, at, appointment, declined, confirmed: appointment && !!p.maintenance_confirmed_at, units: p.quantity || 1, batches: 1 };
 }
 
-const allRows = computed<Row[]>(() =>
-  (allProducts.value ?? [])
-    .filter((p) => !!stageById(p.stage_id)?.is_final)
-    .map(rowOf)
-    .sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity)),
-);
+const oneVisitCustomer = (customerId: string) => {
+  const cat = customers.value?.find((c) => c.id === customerId)?.category_id;
+  return !!cat && !!customerCategories.value.find((x) => x.id === cat)?.one_visit_per_customer;
+};
+const allRows = computed<Row[]>(() => {
+  const finals = (allProducts.value ?? []).filter((p) => !!stageById(p.stage_id)?.is_final);
+  const groups = new Map<string, CsProduct[]>();
+  const out: Row[] = [];
+  for (const p of finals) {
+    if (oneVisitCustomer(p.customer_id)) {
+      const key = `${p.customer_id}|${p.category_id ?? ""}`;
+      groups.set(key, [...(groups.get(key) ?? []), p]);
+    } else out.push(rowOf(p));
+  }
+  // one row for all of a customer's products of a kind: they share the same maintenance state (the database keeps it so)
+  for (const list of groups.values()) {
+    const rep = [...list].sort((a, b) => a.id.localeCompare(b.id))[0]!;
+    out.push({ ...rowOf(rep), units: list.reduce((n, x) => n + (x.quantity || 1), 0), batches: list.length });
+  }
+  return out.sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity));
+});
+function productLabel(r: Row) {
+  return r.batches > 1 ? `${categoryOf(r.p.category_id)?.name ?? r.p.name} · ${t("cs.maintenance.hotelUnits", { units: r.units, batches: r.batches })}` : r.p.name;
+}
+
+// ---- Customer category (فرد / فنادق / شركات ومصانع / ...): the board per kind of customer. "all" = every customer.
+const customerCatFilter = ref<string>("all");
+const inCustomerCategory = (p: CsProduct) =>
+  customerCatFilter.value === "all" || customers.value?.find((c) => c.id === p.customer_id)?.category_id === customerCatFilter.value;
+const customerCatTabs = computed(() => [
+  { value: "all", label: `${t("common.all")} (${allRows.value.length})` },
+  ...customerCategories.value.map((c) => ({
+    value: c.id,
+    label: `${c.name} (${allRows.value.filter((r) => customers.value?.find((x) => x.id === r.p.customer_id)?.category_id === c.id).length})`,
+  })),
+]);
 
 // ---- Product category chips (multi-select): none picked = every category.
 // "none" stands for products without a category. Everything below (tabs and
@@ -95,14 +131,14 @@ function toggleCategory(id: string) {
 const inCategories = (p: CsProduct) => !categoryFilter.value.length || categoryFilter.value.includes(p.category_id ?? "none");
 const categoryChips = computed(() => {
   const counts = new Map<string, number>();
-  for (const r of allRows.value) counts.set(r.p.category_id ?? "none", (counts.get(r.p.category_id ?? "none") ?? 0) + 1);
+  for (const r of allRows.value.filter((x) => inCustomerCategory(x.p))) counts.set(r.p.category_id ?? "none", (counts.get(r.p.category_id ?? "none") ?? 0) + 1);
   const named = [...counts.keys()]
     .filter((id) => id !== "none")
     .map((id) => ({ id, label: categoryOf(id)?.name ?? "—", count: counts.get(id)! }))
     .sort((a, b) => a.label.localeCompare(b.label));
   return [...named, ...(counts.has("none") ? [{ id: "none", label: t("cs.profile.noCategory"), count: counts.get("none")! }] : [])];
 });
-const rows = computed(() => allRows.value.filter((r) => inCategories(r.p)));
+const rows = computed(() => allRows.value.filter((r) => inCategories(r.p) && inCustomerCategory(r.p)));
 
 // ---- Time buckets (local time)
 const startOfToday = () => {
@@ -214,7 +250,7 @@ const statKey = ref<"overdue" | "scheduled" | "done" | "declined">("overdue");
 const overdueRows = computed(() => rows.value.filter((r) => r.at !== null && r.at < startOfToday()));
 const logsInCategories = computed(() => (logs.value ?? []).filter((l) => {
   const p = (allProducts.value ?? []).find((x) => x.id === l.product_id);
-  return !!p && inCategories(p);
+  return !!p && inCategories(p) && inCustomerCategory(p);
 }));
 const scheduledLogs = computed(() => logsInCategories.value.filter((l) => l.kind === "scheduled" || l.kind === "rescheduled"));
 const declinedLogs = computed(() => logsInCategories.value.filter((l) => l.kind === "declined"));
@@ -290,7 +326,7 @@ const trackRows = computed<TrackRow[]>(() => {
     );
 });
 const trackPagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([statKey, period, categoryFilter], () => (trackPagination.value = { ...trackPagination.value, pageIndex: 0 }));
+watch([statKey, period, categoryFilter, customerCatFilter], () => (trackPagination.value = { ...trackPagination.value, pageIndex: 0 }));
 const trackPaged = computed(() =>
   trackRows.value.slice(trackPagination.value.pageIndex * trackPagination.value.pageSize, (trackPagination.value.pageIndex + 1) * trackPagination.value.pageSize),
 );
@@ -369,7 +405,7 @@ const columns = computed<TableColumn<Row>[]>(() => [
   { id: "actions", header: "" },
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([search, areaFilter, tab, categoryFilter, lastFrom, lastTo, neverMaintained, confirmFilter], () => {
+watch([search, areaFilter, tab, categoryFilter, customerCatFilter, lastFrom, lastTo, neverMaintained, confirmFilter], () => {
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
@@ -427,6 +463,10 @@ function openRecord(productId: string) {
       <KPageHeader :title="t('cs.maintenance.title')" :count="counts.all" />
 
       <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
+        <!-- Kind of customer: فرد / فنادق / شركات ومصانع ... -->
+        <div v-if="customerCategories.length" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+          <UTabs v-model="customerCatFilter" :items="customerCatTabs" value-key="value" variant="pill" size="sm" :content="false" class="kords-segment-tabs w-max min-w-full sm:w-auto sm:min-w-0" />
+        </div>
         <UTabs v-model="mode" :items="modeTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs" />
         <div v-if="mode === 'track'" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
           <UTabs v-model="period" :items="periodTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
@@ -522,7 +562,7 @@ function openRecord(productId: string) {
                     {{ customerOf(r.p.customer_id) ? customerTitle(customerOf(r.p.customer_id)!) : "—" }}
                   </div>
                   <div class="truncate text-xs text-toned">
-                    {{ r.p.name }}<bdi v-if="r.p.contract_code" dir="ltr" class="ms-1 text-muted">#{{ r.p.contract_code }}</bdi>
+                    {{ productLabel(r) }}<bdi v-if="r.p.contract_code" dir="ltr" class="ms-1 text-muted">#{{ r.p.contract_code }}</bdi>
                   </div>
                   <p v-if="r.note" class="mt-0.5 line-clamp-1 text-xs text-muted">{{ r.note }}</p>
                 </div>
@@ -601,7 +641,7 @@ function openRecord(productId: string) {
           <template #product-cell="{ row }">
             <div class="min-w-0">
               <div class="truncate text-sm">
-                {{ row.original.p.name }}
+                {{ productLabel(row.original) }}
                 <bdi v-if="row.original.p.contract_code" dir="ltr" class="ms-1 text-xs text-muted">#{{ row.original.p.contract_code }}</bdi>
               </div>
               <div class="flex flex-wrap items-center gap-x-2 text-xs text-muted">
@@ -684,7 +724,7 @@ function openRecord(productId: string) {
               <div class="min-w-0">
                 <div class="truncate font-semibold text-highlighted">{{ customerOf(r.p.customer_id) ? customerTitle(customerOf(r.p.customer_id)!) : "—" }}</div>
                 <div class="mt-0.5 truncate text-xs text-toned">
-                  {{ r.p.name }}<bdi v-if="r.p.contract_code" dir="ltr" class="ms-1 text-muted">#{{ r.p.contract_code }}</bdi>
+                  {{ productLabel(r) }}<bdi v-if="r.p.contract_code" dir="ltr" class="ms-1 text-muted">#{{ r.p.contract_code }}</bdi>
                 </div>
               </div>
               <KBadge

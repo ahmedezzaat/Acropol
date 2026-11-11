@@ -175,6 +175,7 @@ export type Database = {
           customer_type: "individual" | "company";
           cs_pending: boolean;
           notes: string | null;
+          category_id: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -194,6 +195,7 @@ export type Database = {
           area_id?: string | null;
           cs_pending?: boolean;
           notes?: string | null;
+          category_id?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -213,6 +215,7 @@ export type Database = {
           area_id?: string | null;
           cs_pending?: boolean;
           notes?: string | null;
+          category_id?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -256,6 +259,7 @@ export type Database = {
           assigned_to: string | null;
           created_by: string | null;
           customer_id: string | null;
+          category_id: string | null;
           area_id: string | null;
           created_at: string;
           updated_at: string;
@@ -274,6 +278,7 @@ export type Database = {
           assigned_to?: string | null;
           created_by?: string;
           customer_id?: string | null;
+          category_id?: string | null;
           area_id?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -292,6 +297,7 @@ export type Database = {
           assigned_to?: string | null;
           created_by?: string;
           customer_id?: string | null;
+          category_id?: string | null;
           area_id?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -810,6 +816,7 @@ export type Database = {
           maintenance_confirm_note: string | null;
           maintenance_confirm_parts: Json | null;
           maintenance_confirm_fee: number | null;
+          maintenance_confirm_discount: number | null;
           maintenance_technician_id: string | null;
           maintenance_assigned_at: string | null;
           deal_id: string | null;
@@ -845,6 +852,7 @@ export type Database = {
           maintenance_confirm_note?: string | null;
           maintenance_confirm_parts?: Json | null;
           maintenance_confirm_fee?: number | null;
+          maintenance_confirm_discount?: number | null;
           maintenance_technician_id?: string | null;
           maintenance_assigned_at?: string | null;
           deal_id?: string | null;
@@ -880,6 +888,7 @@ export type Database = {
           maintenance_confirm_note?: string | null;
           maintenance_confirm_parts?: Json | null;
           maintenance_confirm_fee?: number | null;
+          maintenance_confirm_discount?: number | null;
           maintenance_technician_id?: string | null;
           maintenance_assigned_at?: string | null;
           deal_id?: string | null;
@@ -1108,6 +1117,7 @@ export type Database = {
           reschedule_reason: string | null;
           marked_rescheduled: boolean;
           visit_cost: number | null;
+          discount: number | null;
           signature_path: string | null;
           edited_at: string | null;
           edited_by: string | null;
@@ -1129,6 +1139,7 @@ export type Database = {
           reschedule_reason?: string | null;
           marked_rescheduled?: boolean;
           visit_cost?: number | null;
+          discount?: number | null;
           signature_path?: string | null;
           edited_at?: string | null;
           edited_by?: string | null;
@@ -1150,6 +1161,7 @@ export type Database = {
           reschedule_reason?: string | null;
           marked_rescheduled?: boolean;
           visit_cost?: number | null;
+          discount?: number | null;
           signature_path?: string | null;
           edited_at?: string | null;
           edited_by?: string | null;

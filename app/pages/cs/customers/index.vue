@@ -21,7 +21,7 @@ const __ad1 = useAsyncData<CsCustomer[]>("cs-customers", async () =>
   fetchAll<CsCustomer>((from, to) =>
     supabase
       .from("customers")
-      .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, created_at, customer_type, cs_agent_id")
+      .select("id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, created_at, customer_type, cs_agent_id, category_id")
       .eq("cs_pending", false)
       .order("created_at", { ascending: false })
       .order("id")
@@ -89,7 +89,9 @@ const stageFilter = ref<string | null>(null);
 // Filter by the product category (heaters, boilers, …) of a customer's products.
 const categoryFilter = ref<string | null>(null);
 // Quick switch above the list: everyone, individuals, or companies.
-const typeFilter = ref<"all" | "individual" | "company">("all");
+const typeFilter = ref<string>("all"); // "all" or a customer category id (فرد، فنادق، شركات ومصانع...)
+const { categories: customerCategories, loadCategories } = useCustomerCategories();
+await loadCategories();
 
 const areaItems = computed(() => [
   { label: t("cs.customers.allAreas"), value: null },
@@ -123,17 +125,13 @@ function stagesOf(customerId: string) {
   return (products.value ?? []).filter((p) => p.customer_id === customerId).map((p) => p.stage_id);
 }
 
-const typeCounts = computed(() => {
+const typeTabs = computed(() => {
   const all = customers.value ?? [];
-  const companies = all.filter((c) => isCompanyCustomer(c)).length;
-  return { all: all.length, company: companies, individual: all.length - companies };
+  return [
+    { value: "all", label: `${t("common.all")} (${all.length})` },
+    ...customerCategories.value.map((c) => ({ value: c.id, label: `${c.name} (${all.filter((x) => x.category_id === c.id).length})` })),
+  ];
 });
-const typeTabs = computed(() =>
-  (["all", "individual", "company"] as const).map((k) => ({
-    value: k,
-    label: `${k === "all" ? t("common.all") : t(`crm.leads.type.${k}`)} (${typeCounts.value[k]})`,
-  })),
-);
 
 // Order of the list: by when the customer was added (newest first by default).
 type SortMode = "newest" | "oldest" | "name";
@@ -152,7 +150,7 @@ const sortedCustomers = computed(() => {
 
 const filtered = computed(() =>
   sortedCustomers.value.filter((c) => {
-    if (typeFilter.value !== "all" && (isCompanyCustomer(c) ? "company" : "individual") !== typeFilter.value) return false;
+    if (typeFilter.value !== "all" && c.category_id !== typeFilter.value) return false;
     if (areaFilter.value && c.area_id !== areaFilter.value) return false;
     if (agentFilter.value && (agentFilter.value === "none" ? !!c.cs_agent_id : c.cs_agent_id !== agentFilter.value)) return false;
     if (stageFilter.value && !stagesOf(c.id).includes(stageFilter.value)) return false;

@@ -17,6 +17,8 @@ const { hasPermission, hasAnyModulePermission } = usePermissions();
 // every lead is worked the same way. Seeing all leads is what unlocks the source.
 const canSeeSource = computed(() => hasPermission("crm_leads", "view_all"));
 const { areaName, loadAreas } = useCs();
+const { categories, loadCategories, categoryOptions, categoryName } = useCustomerCategories();
+await loadCategories();
 useAsyncData("crm-leads-areas", async () => {
   await loadAreas();
   return true;
@@ -35,6 +37,7 @@ interface Lead {
   lead_type: "individual" | "company";
   company_name: string | null;
   source: string | null;
+  category_id: string | null;
   notes: string | null;
   customer_id: string | null;
   area_id: string | null;
@@ -51,7 +54,7 @@ const statusFilter = ref("all");
 // Filter by where the lead came from ("all", a source, or "none" for leads with no source).
 const sourceFilter = ref("all");
 // Quick filter above the list: everyone, individuals, or companies.
-const typeFilter = ref<"all" | "individual" | "company">("all");
+const typeFilter = ref<string>("all"); // "all" or a customer category id
 // Sentinel for "Unassigned" — null means "no assignee filter".
 const UNASSIGNED = "__unassigned__";
 const assigneeFilter = ref<string | null>(null);
@@ -61,7 +64,7 @@ const __ad1 = useAsyncData<Lead[]>(
   async () => {
     const { data, error } = await supabase
       .from("leads")
-      .select("id, name, phone, phone2, email, status, assigned_to, created_at, lead_type, company_name, source, notes, customer_id, area_id")
+      .select("id, name, phone, phone2, email, status, assigned_to, created_at, lead_type, company_name, source, notes, customer_id, area_id, category_id")
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data ?? [];
@@ -131,26 +134,19 @@ const filteredLeads = computed(() => {
     const matchesAssignee =
       assigneeFilter.value === null ||
       (assigneeFilter.value === UNASSIGNED ? lead.assigned_to === null : lead.assigned_to === assigneeFilter.value);
-    const matchesType = typeFilter.value === "all" || lead.lead_type === typeFilter.value;
+    const matchesType = typeFilter.value === "all" || lead.category_id === typeFilter.value;
     const matchesSource = !canSeeSource.value || sourceFilter.value === "all" || (sourceFilter.value === "none" ? !lead.source : lead.source === sourceFilter.value);
     return matchesSearch && matchesStatus && matchesAssignee && matchesType && matchesSource;
   });
 });
 
-const typeCounts = computed(() => {
+const typeTabs = computed(() => {
   const all = leads.value ?? [];
-  return {
-    all: all.length,
-    individual: all.filter((l) => l.lead_type === "individual").length,
-    company: all.filter((l) => l.lead_type === "company").length,
-  };
+  return [
+    { value: "all", label: `${t("common.all")} (${all.length})` },
+    ...categories.value.map((c) => ({ value: c.id, label: `${c.name} (${all.filter((l) => l.category_id === c.id).length})` })),
+  ];
 });
-const typeTabs = computed(() =>
-  (["all", "individual", "company"] as const).map((k) => ({
-    value: k,
-    label: `${k === "all" ? t("common.all") : t(`crm.leads.type.${k}`)} (${typeCounts.value[k]})`,
-  })),
-);
 
 // --- Create lead ---
 const createOpen = ref(false);
@@ -199,6 +195,7 @@ const schema = computed(() =>
       notes: z.string().optional(),
       assigned_to: z.uuid().nullable().optional(),
       area_id: z.uuid().nullable().optional(),
+      category_id: z.uuid().nullable().optional(),
     })
     .superRefine((data, ctx) => {
       if (data.lead_type === "company" && !data.company_name?.trim()) {
@@ -217,6 +214,7 @@ type Schema = {
   notes?: string;
   assigned_to?: string | null;
   area_id?: string | null;
+  category_id?: string | null;
 };
 const state = reactive<Partial<Schema>>({
   lead_type: "individual",
@@ -229,7 +227,23 @@ const state = reactive<Partial<Schema>>({
   notes: "",
   assigned_to: null,
   area_id: null,
+  category_id: null,
 });
+
+// the usual classification of a new contact follows its type (changeable)
+const categoryIdByName = (name: string) => categories.value.find((c) => c.name === name)?.id ?? null;
+watch(
+  () => state.lead_type,
+  (type) => {
+    const person = categoryIdByName("فرد");
+    const company = categoryIdByName("شركات ومصانع");
+    if (type === "company" && state.category_id === person) state.category_id = company;
+    if (type === "individual" && state.category_id === company) state.category_id = person;
+  },
+);
+
+// the first time the form opens it already has the usual classification
+if (!state.category_id) state.category_id = categoryIdByName("فرد");
 
 function resetCreateState() {
   state.lead_type = "individual";
@@ -242,6 +256,7 @@ function resetCreateState() {
   state.notes = "";
   state.assigned_to = null;
   state.area_id = null;
+  state.category_id = categoryIdByName("فرد");
 }
 
 // Catch the common case of a rep (re-)entering a lead someone already has,
@@ -272,6 +287,7 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     source: event.data.source,
     notes: event.data.notes || null,
     area_id: event.data.area_id || null,
+    category_id: event.data.category_id || null,
   };
   if (canAssign.value) payload.assigned_to = event.data.assigned_to || null;
 
@@ -546,7 +562,7 @@ function backToList() {
                   <h2 class="truncate text-xl font-semibold text-highlighted">{{ primaryName(selectedLead) }}</h2>
                   <p v-if="secondaryName(selectedLead)" class="truncate text-sm text-toned">{{ secondaryName(selectedLead) }}</p>
                   <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    <KBadge :label="t(`crm.leads.type.${selectedLead.lead_type}`)" tone="neutral" />
+                    <KBadge :label="categoryName(selectedLead.category_id) ?? t(`crm.leads.type.${selectedLead.lead_type}`)" tone="neutral" />
                     <KBadge :label="t(`crm.leads.status.${displayStatus(selectedLead)}`)" :tone="statusColors[displayStatus(selectedLead)]" />
                     <KBadge v-if="selectedLead.customer_id" :label="t('crm.leads.converted')" tone="success" />
                   </div>
@@ -678,6 +694,10 @@ function backToList() {
       <UForm :schema="schema" :state="state" class="space-y-4" @submit="onCreate">
         <UFormField name="lead_type" :label="t('crm.leads.leadType')">
           <URadioGroup v-model="state.lead_type" orientation="horizontal" :items="leadTypeOptions" value-key="value" />
+        </UFormField>
+
+        <UFormField name="category_id" :label="t('crm.leads.category')">
+          <USelect v-model="state.category_id" :items="categoryOptions" value-key="value" icon="i-lucide-layers" class="w-full" />
         </UFormField>
 
         <UFormField v-if="state.lead_type === 'company'" name="company_name" :label="t('crm.leads.companyName')">

@@ -10,6 +10,8 @@ const customerId = route.params.id as string;
 useHead({ htmlAttrs: { class: "carbon" } });
 
 const supabase = useSupabaseClient();
+const { loadCategories, categoryOptions } = useCustomerCategories();
+await loadCategories();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
 const { t, locale } = useI18n();
@@ -189,7 +191,7 @@ async function onContractSaved() {
 }
 
 // ---- unsaved changes in the details form
-const formState = () => JSON.stringify([customer.value?.name, customer.value?.company, customer.value?.phone, customer.value?.email, customer.value?.address, customer.value?.area_id, customer.value?.assigned_to, customer.value?.notes, extraContacts.value]);
+const formState = () => JSON.stringify([customer.value?.name, customer.value?.company, customer.value?.phone, customer.value?.email, customer.value?.address, customer.value?.area_id, customer.value?.assigned_to, customer.value?.notes, customer.value?.category_id, extraContacts.value]);
 const snapshot = ref("");
 watch(customerPayload, () => (snapshot.value = formState()), { immediate: true });
 const dirty = computed(() => snapshot.value !== formState());
@@ -221,6 +223,7 @@ async function save() {
     address: customer.value.address,
     area_id: customer.value.area_id || null,
     notes: (customer.value.notes ?? "").trim() || null,
+    category_id: customer.value.category_id || null,
   };
   if (canAssign.value) payload.assigned_to = customer.value.assigned_to;
 
@@ -328,6 +331,9 @@ async function remove() {
               </UFormField>
               <UFormField :label="t('crm.customers.company')">
                 <UInput v-model="customer.company" :disabled="!canEdit" class="w-full" />
+              </UFormField>
+              <UFormField :label="t('crm.leads.category')">
+                <USelect v-model="customer.category_id" :items="categoryOptions" value-key="value" icon="i-lucide-layers" :disabled="!canEdit" class="w-full" />
               </UFormField>
               <UFormField :label="t('common.phone')">
                 <PhoneInput v-model="customer.phone" :disabled="!canEdit" />

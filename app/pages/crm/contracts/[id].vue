@@ -17,14 +17,14 @@ const { hasAnyModulePermission, hasPermission } = usePermissions();
 interface ContractFull {
   id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
   customer_id: string; deal_id: string | null; created_by: string | null; created_at: string;
-  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; cs_pending: boolean; notes: string | null } | null;
+  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; cs_pending: boolean; notes: string | null; category_id: string | null } | null;
   deal: { id: string; title: string; value: number | null; assigned_to: string | null; stage: { name: string; system_key: string | null } | null } | null;
 }
 
 const { data: contract, status, refresh: refreshContract } = await useAsyncData<ContractFull | null>(`crm-contract-${contractId}`, async () => {
   const { data, error } = await supabase
     .from("contracts")
-    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending, notes), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
+    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending, notes, category_id), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
     .eq("id", contractId)
     .maybeSingle();
   if (error) throw error;
@@ -61,6 +61,8 @@ const paymentColor = { paid: "success", unpaid: "error" } as const;
 const canEdit = computed(() => hasPermission("crm_customers", "edit"));
 const editOpen = ref(false);
 const customerEditOpen = ref(false);
+const { loadCategories, categoryName } = useCustomerCategories();
+await loadCategories();
 // a customer made from this contract is pending until someone sends it to Customer Service
 const pushOpen = ref(false);
 const canPushToCs = computed(() => hasPermission("crm_customers", "push_to_cs"));
@@ -206,6 +208,10 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
                   <NuxtLink :to="`/crm/customers/${contract.customer_id}`" class="font-medium text-primary hover:underline">{{ customerName }}</NuxtLink>
                   <UButton v-if="canEdit && contract.customer" icon="i-lucide-pencil" size="xs" color="neutral" variant="outline" :label="t('crm.contracts.editCustomer')" @click="customerEditOpen = true" />
                 </dd>
+              </div>
+              <div v-if="categoryName(contract.customer?.category_id)">
+                <dt class="text-xs text-muted">{{ t("crm.leads.category") }}</dt>
+                <dd>{{ categoryName(contract.customer?.category_id) }}</dd>
               </div>
               <div v-if="contract.customer?.phone">
                 <dt class="text-xs text-muted">{{ t("common.phone") }}</dt>

@@ -165,11 +165,14 @@ def sql_of(hotels, admin_id):
         else: main_name = ""
         contact_name = (main_name or (h["contacts"][0][0] if h["contacts"] else "")) or h["name"]
         notes = "\n".join(h["notes"])
+        # the customer is dated from the first installation (تاريخ التركيب); no installation date: the day of the import
+        first = min((e["date"] for e in h["entries"] if e["date"]), default=None)
+        created = f"({q(first.isoformat() + ' 09:00:00')}::timestamp at time zone 'Africa/Cairo')" if first else "now()"
         arr = lambda xs: "array[" + ",".join(q(x) for x in xs) + "]::text[]" if xs else "'{}'::text[]"
         area = f"(select id from service_areas where name = {q(h['area'])} limit 1)" if h["area"] else "null"
         out.append(
-            "insert into customers (id, name, company, phone, extra_phones, extra_phone_names, address, area_id, notes, created_by) values "
-            f"({q(cid)}, {q(contact_name)}, {q(h['name'])}, {q(main)}, {arr([c[1] for c in extras])}, {arr([c[0] for c in extras])}, {q(h['address'])}, {area}, {q(notes)}, {q(admin_id)});")
+            "insert into customers (id, name, company, phone, extra_phones, extra_phone_names, address, area_id, notes, created_by, created_at) values "
+            f"({q(cid)}, {q(contact_name)}, {q(h['name'])}, {q(main)}, {arr([c[1] for c in extras])}, {arr([c[0] for c in extras])}, {q(h['address'])}, {area}, {q(notes)}, {q(admin_id)}, {created})")
         entries = h["entries"] or [{"qty": 1, "cap": None, "date": None, "src": "", "from": "none"}]
         products = []
         for e in entries:

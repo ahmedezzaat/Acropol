@@ -50,6 +50,7 @@ export const SETTINGS_ITEMS: SettingsItemDef[] = [
   { key: "pipelines", path: "/admin/pipelines", titleKey: "admin.pipelines.title", icon: "i-lucide-git-branch" },
   { key: "activity_types", path: "/admin/activity-types", titleKey: "admin.activityTypes.title", icon: "i-lucide-list-checks" },
   { key: "product_categories", path: "/admin/product-categories", titleKey: "admin.productCategories.title", icon: "i-lucide-tags" },
+  { key: "customer_categories", path: "/admin/customer-categories", titleKey: "admin.customerCategories.title", icon: "i-lucide-layers" },
   { key: "teams", path: "/admin/teams", titleKey: "admin.teams.title", icon: "i-lucide-users-round" },
   { key: "automation", path: "/admin/automation", titleKey: "admin.automation.title", icon: "i-lucide-zap" },
   { key: "service_areas", path: "/admin/service-areas", titleKey: "admin.serviceAreas.title", icon: "i-lucide-map" },

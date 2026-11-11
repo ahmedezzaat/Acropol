@@ -28,6 +28,8 @@ const extraPhones = ref<ExtraContact[]>([]);
 const email = ref("");
 const address = ref("");
 const areaId = ref<string | null>(null);
+const categoryId = ref<string | null>(null);
+const { categoryOptions, loadCategories } = useCustomerCategories();
 // the customer's spare parts price list (none: the default, the individual customers' one)
 const priceLists = ref<{ id: string; name: string; is_default: boolean }[]>([]);
 const priceListId = ref<string | null>(null);
@@ -53,6 +55,9 @@ watch(open, async (isOpen) => {
   email.value = c?.email ?? "";
   address.value = c?.address ?? "";
   areaId.value = c?.area_id ?? null;
+  await loadCategories();
+  // a new customer gets the usual one for its type (changeable); an existing one keeps its own
+  categoryId.value = c ? ((c as { category_id?: string | null }).category_id ?? null) : null;
   const { data: lists } = await supabase.from("spare_part_price_lists").select("id, name, is_default").order("sort_order").order("created_at");
   priceLists.value = (lists ?? []) as typeof priceLists.value;
   priceListId.value = null;
@@ -105,6 +110,8 @@ async function save() {
     email: email.value.trim() || null,
     address: address.value.trim() || null,
     area_id: areaId.value,
+    // empty: the database picks the one that matches the type
+    ...(categoryId.value || props.customer ? { category_id: categoryId.value } : {}),
     // sent only when changed, so saving still works where the column is not there yet
     ...(priceListId.value !== initialPriceListId.value ? { price_list_id: priceListId.value } : {}),
     // Only someone allowed to assign sends the agent; for a new customer the
@@ -167,6 +174,9 @@ async function save() {
         </UFormField>
         <UFormField :label="t('crm.leads.leadType')">
           <URadioGroup v-model="type" orientation="horizontal" :items="typeItems" value-key="value" />
+        </UFormField>
+        <UFormField :label="t('crm.leads.category')">
+          <USelect v-model="categoryId" :items="categoryOptions" value-key="value" icon="i-lucide-layers" :placeholder="t('crm.leads.categoryAuto')" class="w-full" />
         </UFormField>
         <UFormField v-if="type === 'company'" :label="t('crm.leads.companyName')" required>
           <UInput v-model="company" class="w-full" />

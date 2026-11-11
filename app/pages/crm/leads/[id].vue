@@ -9,6 +9,8 @@ const leadId = route.params.id as string;
 useHead({ htmlAttrs: { class: "carbon" } });
 
 const supabase = useSupabaseClient();
+const { loadCategories, categoryOptions } = useCustomerCategories();
+await loadCategories();
 const toast = useToast();
 const { hasPermission } = usePermissions();
 // A user who sees only their own leads doesn't see where a lead came from, so
@@ -30,6 +32,7 @@ interface Lead {
   assigned_to: string | null;
   customer_id: string | null;
   area_id: string | null;
+  category_id: string | null;
 }
 
 interface Profile {
@@ -109,6 +112,7 @@ async function save() {
     status: lead.value.status,
     notes: lead.value.notes,
     area_id: lead.value.area_id || null,
+    category_id: lead.value.category_id || null,
   };
   if (canAssign.value) payload.assigned_to = lead.value.assigned_to;
 
@@ -196,6 +200,10 @@ async function remove() {
 
         <UFormField :label="t('crm.leads.leadType')">
           <URadioGroup v-model="lead.lead_type" orientation="horizontal" :items="leadTypeOptions" value-key="value" :disabled="!canEdit" />
+        </UFormField>
+
+        <UFormField :label="t('crm.leads.category')">
+          <USelect v-model="lead.category_id" :items="categoryOptions" value-key="value" icon="i-lucide-layers" :disabled="!canEdit" class="w-full" />
         </UFormField>
 
         <UFormField v-if="lead.lead_type === 'company'" :label="t('crm.leads.companyName')">
