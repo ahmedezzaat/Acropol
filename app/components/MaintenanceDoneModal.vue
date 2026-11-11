@@ -20,11 +20,15 @@ const doneOn = ref("");
 const doneNote = ref("");
 // spare parts, visit fee and total: starts from what was set when the visit was confirmed
 // (one set per product; the visit fee is entered once, on the first product)
-const emptyFees = (): FeesState => ({ parts: [], fee: null, total: 0, checked: false, loaded: false });
+const emptyFees = (): FeesState => ({ parts: [], fee: null, discount: null, taxInvoice: false, tax: 0, total: 0, checked: false, loaded: false });
 const feesList = ref<FeesState[]>([]);
 const initialPartsOf = (p: CsProduct) => (p.maintenance_confirm_parts as FeePart[] | null | undefined) ?? null;
 // the visit fee settled at confirmation: on any of the products
 const initialFee = computed(() => props.products.find((p) => p.maintenance_confirm_fee !== null && p.maintenance_confirm_fee !== undefined)?.maintenance_confirm_fee ?? null);
+// the discount set at confirmation
+const initialDiscount = computed(() => props.products.find((p) => p.maintenance_confirm_discount !== null && p.maintenance_confirm_discount !== undefined)?.maintenance_confirm_discount ?? null);
+// chosen as a tax invoice at confirmation
+const initialTaxInvoice = computed(() => props.products.some((p) => !!p.maintenance_confirm_tax_invoice));
 const nextMonths = ref<number | null>(null);
 const nextWhen = ref("");
 const nextNote = ref("");
@@ -140,6 +144,9 @@ async function save() {
         done_on: doneOn.value,
         cost: f.total,
         visit_cost: fee,
+        discount: i === 0 ? f.discount : null,
+        tax_invoice: i === 0 ? f.taxInvoice : null,
+        tax_amount: i === 0 && f.taxInvoice ? f.tax : null,
         technician_id: product.maintenance_technician_id ?? null,
         marked_done: true,
         signature_path: signaturePath,
@@ -176,7 +183,7 @@ async function save() {
         <template v-if="feesList.length === products.length">
           <div v-for="(p, i) in products" :key="p.id" :class="products.length > 1 && 'space-y-3 rounded-[10px] border border-default p-3'">
             <p v-if="products.length > 1" class="text-sm font-semibold text-highlighted">{{ p.name }}</p>
-            <MaintenanceFeesEditor v-model="feesList[i]!" :product="p" :active="open" :initial-parts="initialPartsOf(p)" :initial-fee="i === 0 ? initialFee : null" :show-fee="i === 0" :price-list-id="p.maintenance_confirm_price_list_id ?? null" :editable-prices="canOverridePrices" required />
+            <MaintenanceFeesEditor v-model="feesList[i]!" :product="p" :active="open" :initial-parts="initialPartsOf(p)" :initial-fee="i === 0 ? initialFee : null" :initial-discount="i === 0 ? initialDiscount : null" :initial-tax-invoice="i === 0 && initialTaxInvoice" :show-fee="i === 0" :price-list-id="p.maintenance_confirm_price_list_id ?? null" :editable-prices="canOverridePrices" required />
           </div>
         </template>
 

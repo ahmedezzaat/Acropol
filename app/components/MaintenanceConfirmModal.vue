@@ -18,7 +18,7 @@ const { formatDateTime } = useCs();
 
 const when = ref("");
 const note = ref("");
-const fees = ref<FeesState>({ parts: [], fee: null, total: 0, checked: false, loaded: false });
+const fees = ref<FeesState>({ parts: [], fee: null, discount: null, taxInvoice: false, tax: 0, total: 0, checked: false, loaded: false });
 const initialParts = computed(() => (props.product?.maintenance_confirm_parts as FeePart[] | null | undefined) ?? null);
 const reason = ref("");
 // the price list for the spare parts (individual customers' list unless another one fits), and
@@ -118,6 +118,8 @@ async function save() {
       maintenance_assigned_at?: string;
       maintenance_confirm_parts?: Json | null;
       maintenance_confirm_fee?: number | null;
+      maintenance_confirm_discount?: number | null;
+      maintenance_confirm_tax_invoice?: boolean;
       maintenance_confirm_price_list_id?: string | null;
     } = {
       maintenance_confirmed_at: nowIso,
@@ -125,7 +127,7 @@ async function save() {
       maintenance_confirm_note: text,
       ...(moved ? { next_maintenance_at: newAt } : {}),
       // what the visit is expected to cost is settled on the visit itself, not its same-day companions
-      ...(target.id === product.id ? { maintenance_confirm_parts: fees.value.parts.length ? (fees.value.parts as unknown as Json) : null, maintenance_confirm_fee: fees.value.fee, maintenance_confirm_price_list_id: priceListId.value } : {}),
+      ...(target.id === product.id ? { maintenance_confirm_parts: fees.value.parts.length ? (fees.value.parts as unknown as Json) : null, maintenance_confirm_fee: fees.value.fee, maintenance_confirm_discount: fees.value.discount, maintenance_confirm_tax_invoice: fees.value.taxInvoice, maintenance_confirm_price_list_id: priceListId.value } : {}),
       ...(technicianId.value ? { maintenance_technician_id: technicianId.value, maintenance_assigned_at: nowIso } : {}),
     };
     const { error } = await supabase.from("customer_products").update(patch).eq("id", target.id);
@@ -181,7 +183,7 @@ function close() {
         <UFormField v-if="priceLists.length > 1" :label="t('cs.maintenance.priceList')">
           <USelect v-model="priceListId" :items="priceListItems" value-key="value" icon="i-lucide-tags" class="w-full" />
         </UFormField>
-        <MaintenanceFeesEditor v-model="fees" planning :price-list-id="priceListId" :editable-prices="canOverridePrices" :product="product" :active="open" :initial-parts="initialParts" :initial-fee="product.maintenance_confirm_fee ?? null" />
+        <MaintenanceFeesEditor v-model="fees" planning :price-list-id="priceListId" :editable-prices="canOverridePrices" :product="product" :active="open" :initial-parts="initialParts" :initial-fee="product.maintenance_confirm_fee ?? null" :initial-discount="product.maintenance_confirm_discount ?? null" :initial-tax-invoice="!!product.maintenance_confirm_tax_invoice" />
         <UFormField :label="t('cs.maintenance.confirmNote')">
           <UTextarea v-model="note" :rows="2" class="w-full" />
         </UFormField>

@@ -817,6 +817,7 @@ export type Database = {
           maintenance_confirm_parts: Json | null;
           maintenance_confirm_fee: number | null;
           maintenance_confirm_discount: number | null;
+          maintenance_confirm_tax_invoice: boolean;
           maintenance_technician_id: string | null;
           maintenance_assigned_at: string | null;
           deal_id: string | null;
@@ -853,6 +854,7 @@ export type Database = {
           maintenance_confirm_parts?: Json | null;
           maintenance_confirm_fee?: number | null;
           maintenance_confirm_discount?: number | null;
+          maintenance_confirm_tax_invoice?: boolean;
           maintenance_technician_id?: string | null;
           maintenance_assigned_at?: string | null;
           deal_id?: string | null;
@@ -889,6 +891,7 @@ export type Database = {
           maintenance_confirm_parts?: Json | null;
           maintenance_confirm_fee?: number | null;
           maintenance_confirm_discount?: number | null;
+          maintenance_confirm_tax_invoice?: boolean;
           maintenance_technician_id?: string | null;
           maintenance_assigned_at?: string | null;
           deal_id?: string | null;
@@ -1118,6 +1121,8 @@ export type Database = {
           marked_rescheduled: boolean;
           visit_cost: number | null;
           discount: number | null;
+          tax_invoice: boolean | null;
+          tax_amount: number | null;
           signature_path: string | null;
           edited_at: string | null;
           edited_by: string | null;
@@ -1140,6 +1145,8 @@ export type Database = {
           marked_rescheduled?: boolean;
           visit_cost?: number | null;
           discount?: number | null;
+          tax_invoice?: boolean | null;
+          tax_amount?: number | null;
           signature_path?: string | null;
           edited_at?: string | null;
           edited_by?: string | null;
@@ -1162,6 +1169,8 @@ export type Database = {
           marked_rescheduled?: boolean;
           visit_cost?: number | null;
           discount?: number | null;
+          tax_invoice?: boolean | null;
+          tax_amount?: number | null;
           signature_path?: string | null;
           edited_at?: string | null;
           edited_by?: string | null;

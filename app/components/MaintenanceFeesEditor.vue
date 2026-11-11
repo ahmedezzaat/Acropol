@@ -8,6 +8,10 @@ const props = withDefaults(defineProps<{
   active: boolean;
   initialParts?: FeePart[] | null;
   initialFee?: number | null;
+  // the discount set when the visit was confirmed
+  initialDiscount?: number | null;
+  // whether it was chosen as a tax invoice when the visit was confirmed
+  initialTaxInvoice?: boolean;
   // mark the parts and the fee as required (the dialog will not save without them)
   required?: boolean;
   // the visit fee is entered once per visit: off for the visit's other products
@@ -26,6 +30,10 @@ const { t } = useI18n();
 
 const lines = ref<FeePart[]>([]);
 const fee = ref<number | null>(null);
+// a discount on the total: typed as money or as a percentage of the total before it
+const discountInput = ref<number | null>(null);
+const discountMode = ref<"amount" | "percent">("amount");
+const taxInvoice = ref(false);
 const feeFromArea = ref(false);
 const noParts = ref(false);
 const search = ref("");
@@ -65,6 +73,9 @@ watch(
     if (!isActive) return;
     lines.value = [];
     fee.value = props.initialFee ?? null;
+    discountInput.value = props.initialDiscount ?? null;
+    discountMode.value = "amount";
+    taxInvoice.value = props.initialTaxInvoice ?? false;
     feeFromArea.value = false;
     noParts.value = false;
     search.value = "";
@@ -111,18 +122,35 @@ const shown = computed(() => {
 });
 const used = computed(() => lines.value.filter((p) => p.qty > 0));
 const partsTotal = computed(() => used.value.reduce((n, p) => n + p.price * p.qty, 0));
-const total = computed(() => partsTotal.value + (fee.value ?? 0));
+const subtotal = computed(() => partsTotal.value + (fee.value ?? 0));
+// never more than the total itself
+const discount = computed(() => {
+  const typed = Math.max(0, discountInput.value ?? 0);
+  const amount = discountMode.value === "percent" ? Math.round(subtotal.value * Math.min(100, typed)) / 100 : typed;
+  return Math.min(subtotal.value, amount);
+});
+const net = computed(() => Math.max(0, subtotal.value - discount.value));
+// a tax invoice adds the tax on what is left after the discount
+const tax = computed(() => (taxInvoice.value ? Math.round(net.value * TAX_RATE * 100) / 100 : 0));
+const total = computed(() => net.value + tax.value);
+const discountItems = computed(() => [
+  { label: t("common.currency"), value: "amount" },
+  { label: "%", value: "percent" },
+]);
 
 watch(used, (list) => {
   if (list.length) noParts.value = false;
 });
 
 watch(
-  [used, fee, total, noParts, loaded, lines],
+  [used, fee, total, discount, taxInvoice, noParts, loaded, lines],
   () => {
     model.value = {
       parts: used.value.map((p) => ({ ...p })),
       fee: fee.value,
+      discount: discount.value > 0 ? discount.value : null,
+      taxInvoice: taxInvoice.value,
+      tax: tax.value,
       total: total.value,
       checked: loaded.value && (!lines.value.length || used.value.length > 0 || noParts.value),
       loaded: loaded.value,
@@ -168,9 +196,23 @@ function setQty(p: FeePart, v: number | null) {
       <UInputNumber v-model="fee" :min="0" class="w-full" />
     </UFormField>
 
+    <!-- A discount on the total (entered once per visit, with the visit fee) -->
+    <UFormField v-if="showFee" :label="t('cs.maintenance.discount')" :help="discountMode === 'percent' && discount > 0 ? money(discount) : undefined">
+      <div class="flex items-center gap-2">
+        <UInputNumber v-model="discountInput" :min="0" :max="discountMode === 'percent' ? 100 : undefined" class="flex-1" />
+        <USelect v-model="discountMode" :items="discountItems" value-key="value" class="w-28" />
+      </div>
+    </UFormField>
+
+    <!-- فاتورة ضريبية: adds the tax to the total (chosen once per visit) -->
+    <UCheckbox v-if="showFee" v-model="taxInvoice" :label="t('cs.maintenance.taxInvoice', { rate: Math.round(TAX_RATE * 100) })" />
+
     <dl class="space-y-1 rounded-[10px] bg-muted p-3 text-sm">
       <div v-if="showFee" class="flex justify-between"><dt class="text-muted">{{ t("cs.maintenance.visitCost") }}</dt><dd>{{ money(fee ?? 0) }}</dd></div>
       <div class="flex justify-between"><dt class="text-muted">{{ t("cs.maintenance.partsTotal") }}</dt><dd>{{ money(partsTotal) }}</dd></div>
+      <div v-if="discount > 0" class="flex justify-between"><dt class="text-muted">{{ t("cs.maintenance.beforeDiscount") }}</dt><dd>{{ money(subtotal) }}</dd></div>
+      <div v-if="discount > 0" class="flex justify-between text-success"><dt>{{ t("cs.maintenance.discount") }}</dt><dd>− {{ money(discount) }}</dd></div>
+      <div v-if="tax > 0" class="flex justify-between"><dt class="text-muted">{{ t("cs.maintenance.taxLine", { rate: Math.round(TAX_RATE * 100) }) }}</dt><dd>+ {{ money(tax) }}</dd></div>
       <div class="flex justify-between border-t border-default pt-1 text-base font-semibold text-highlighted"><dt>{{ t(planning ? "cs.maintenance.finalFeesPlanned" : "cs.maintenance.finalFees") }}</dt><dd>{{ money(total) }}</dd></div>
     </dl>
   </div>

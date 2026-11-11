@@ -1603,6 +1603,8 @@
       "hotelUnits": "{units} وحدة في {batches} دفعات",
       "discount": "خصم",
       "beforeDiscount": "الإجمالي قبل الخصم",
+      "taxInvoice": "فاتورة ضريبية (+{rate}%)",
+      "taxLine": "ضريبة القيمة المضافة {rate}%",
       "viewTrack": "المتابعة",
       "p7d": "آخر 7 أيام",
       "p28d": "آخر 28 يومًا",
