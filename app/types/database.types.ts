@@ -174,6 +174,7 @@ export type Database = {
           area_id: string | null;
           customer_type: "individual" | "company";
           cs_pending: boolean;
+          notes: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -192,6 +193,7 @@ export type Database = {
           cs_agent_id?: string | null;
           area_id?: string | null;
           cs_pending?: boolean;
+          notes?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;
@@ -210,6 +212,7 @@ export type Database = {
           cs_agent_id?: string | null;
           area_id?: string | null;
           cs_pending?: boolean;
+          notes?: string | null;
           created_by?: string;
           created_at?: string;
           updated_at?: string;

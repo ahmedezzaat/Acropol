@@ -26,3 +26,6 @@ logs
 
 # Supabase CLI local state
 supabase/.temp
+
+# hotels import artifacts contain customer phone numbers
+docs/hotels-import*

@@ -17,14 +17,14 @@ const { hasAnyModulePermission, hasPermission } = usePermissions();
 interface ContractFull {
   id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
   customer_id: string; deal_id: string | null; created_by: string | null; created_at: string;
-  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; cs_pending: boolean } | null;
+  customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; cs_pending: boolean; notes: string | null } | null;
   deal: { id: string; title: string; value: number | null; assigned_to: string | null; stage: { name: string; system_key: string | null } | null } | null;
 }
 
 const { data: contract, status, refresh: refreshContract } = await useAsyncData<ContractFull | null>(`crm-contract-${contractId}`, async () => {
   const { data, error } = await supabase
     .from("contracts")
-    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
+    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending, notes), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
     .eq("id", contractId)
     .maybeSingle();
   if (error) throw error;
@@ -222,6 +222,10 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
               <div v-if="contract.customer?.address">
                 <dt class="text-xs text-muted">{{ t("crm.customers.address") }}</dt>
                 <dd class="whitespace-pre-line">{{ contract.customer.address }}</dd>
+              </div>
+              <div v-if="contract.customer?.notes">
+                <dt class="text-xs text-muted">{{ t("crm.customers.notes") }}</dt>
+                <dd class="whitespace-pre-line">{{ contract.customer.notes }}</dd>
               </div>
             </dl>
           </UPageCard>

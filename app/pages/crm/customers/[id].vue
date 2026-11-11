@@ -189,7 +189,7 @@ async function onContractSaved() {
 }
 
 // ---- unsaved changes in the details form
-const formState = () => JSON.stringify([customer.value?.name, customer.value?.company, customer.value?.phone, customer.value?.email, customer.value?.address, customer.value?.area_id, customer.value?.assigned_to, extraContacts.value]);
+const formState = () => JSON.stringify([customer.value?.name, customer.value?.company, customer.value?.phone, customer.value?.email, customer.value?.address, customer.value?.area_id, customer.value?.assigned_to, customer.value?.notes, extraContacts.value]);
 const snapshot = ref("");
 watch(customerPayload, () => (snapshot.value = formState()), { immediate: true });
 const dirty = computed(() => snapshot.value !== formState());
@@ -220,6 +220,7 @@ async function save() {
     email: customer.value.email,
     address: customer.value.address,
     area_id: customer.value.area_id || null,
+    notes: (customer.value.notes ?? "").trim() || null,
   };
   if (canAssign.value) payload.assigned_to = customer.value.assigned_to;
 
@@ -349,6 +350,9 @@ async function remove() {
               </UFormField>
               <UFormField :label="t('crm.customers.address')">
                 <UTextarea v-model="customer.address" :disabled="!canEdit" class="w-full" />
+              </UFormField>
+              <UFormField :label="t('crm.customers.notes')">
+                <UTextarea v-model="customer.notes" :disabled="!canEdit" :rows="3" class="w-full" />
               </UFormField>
               <UFormField :label="t('crm.customers.assignedTo')">
                 <USelect
