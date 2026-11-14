@@ -65,6 +65,7 @@ function moduleLinks(m: (typeof MODULES)[number]): NavigationMenuItem[] {
             { label: t("crm.dashboard.title"), to: "/cs/dashboard" },
             { label: t("cs.customers.title"), to: "/cs/customers" },
             { label: t("cs.installations.title"), to: "/cs/installations" },
+            { label: t("cs.quotations.title"), to: "/cs/quotations" },
           ]
         : []),
       ...(MAINTENANCE_FULL_ACTIONS.some((a) => hasPermission("cs_maintenance", a)) ? [{ label: t("cs.maintenance.title"), to: "/cs/maintenance" }] : []),

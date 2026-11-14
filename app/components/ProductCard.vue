@@ -40,6 +40,10 @@ const stepClass = {
 function daysInCurrent(prod: CsProduct) {
   return daysSince(dateOf(props.dates, prod.id, prod.stage_id) ?? prod.contract_date);
 }
+const currentStageLabel = computed(() => {
+  const reached = dateOf(props.dates, p.value.id, p.value.stage_id);
+  return reached ? `${stageName(p.value.stage_id)} · ${formatDate(reached)}` : stageName(p.value.stage_id);
+});
 function isOverdue(prod: CsProduct) {
   const limit = stageLimitDays(stageById(prod.stage_id));
   const days = daysInCurrent(prod);
@@ -55,9 +59,11 @@ function isOverdue(prod: CsProduct) {
         {{ p.name }}
         <bdi v-if="p.contract_code" dir="ltr" class="ms-1 text-xs font-normal text-muted">#{{ p.contract_code }}</bdi>
         <KBadge v-if="(p.quantity ?? 1) > 1" :label="`× ${p.quantity}`" tone="primary" class="ms-1.5 align-middle" />
+        <!-- without the funnel, the active stage and the date it was reached sit beside the name -->
+        <KBadge v-if="hideFunnel" :label="currentStageLabel" :tone="stageColor(p.stage_id)" icon="i-lucide-workflow" class="ms-1.5 align-middle" />
       </h4>
       <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <KBadge :label="stageName(p.stage_id)" :tone="stageColor(p.stage_id)" />
+        <KBadge v-if="!hideFunnel" :label="stageName(p.stage_id)" :tone="stageColor(p.stage_id)" />
         <KBadge v-if="isOverdue(p)" :label="t('cs.installations.overdue', { days: daysInCurrent(p) ?? 0 })" icon="i-lucide-triangle-alert" tone="error" />
         <KBadge v-if="categoryName" :label="categoryName" tone="neutral" outlined />
         <KBadge

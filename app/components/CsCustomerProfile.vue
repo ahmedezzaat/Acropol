@@ -196,10 +196,23 @@ const { data: deals } = useAsyncData<LinkedDeal[]>(`cs-customer-${customerId}-de
   return data ?? [];
 });
 
-const mainTab = ref<"main" | "files">("main");
+// The customer's quotations (عروض الأسعار), newest first
+interface QuoteRow { id: string; number: string; status: QuotationStatus; issue_date: string; valid_until: string | null; total: number }
+const { data: quotations } = useAsyncData<QuoteRow[]>(`cs-customer-${customerId}-quotations`, async () => {
+  const { data } = await supabase.from("cs_quotations").select("id, number, status, issue_date, valid_until, total").eq("customer_id", customerId).order("created_at", { ascending: false });
+  return ((data ?? []) as QuoteRow[]).map((q) => ({ ...q, total: Number(q.total) }));
+});
+const quoteMoney = (v: number) => formatReportMoney(v, t("common.currency"));
+
+const mainTab = ref<"main" | "maintenance" | "files" | "quotations">("main");
+// The products whose maintenance can be planned (they reached the completed stage, or already have a visit or a refusal)
+const maintenanceProducts = computed(() => products.value.filter((p) => canSchedule(p)));
+const showMaintenanceTab = computed(() => canMaintenance.value || maintenanceProducts.value.length > 0);
 // Everyone who sees the customer gets the Files tab; without access to deals it holds the proposal and contract files only.
 const mainTabs = computed(() => [
   { value: "main", label: t("cs.profile.products") },
+  ...(showMaintenanceTab.value ? [{ value: "maintenance", label: t("cs.maintenance.title") }] : []),
+  { value: "quotations", label: `${t("cs.quotations.title")} (${quotations.value?.length ?? 0})` },
   { value: "files", label: t("files.tab") },
 ]);
 
@@ -238,6 +251,7 @@ async function copyText(text: string | null | undefined) {
 function productMenu(p: CsProduct) {
   return [
     [
+      { label: t("cs.installations.updateProgress"), icon: "i-lucide-workflow", onSelect: () => openStage(p) },
       { label: t("cs.profile.editProduct"), icon: "i-lucide-pencil", onSelect: () => openEditProduct(p) },
       ...(canDelete.value
         ? [{ label: t("common.delete"), icon: "i-lucide-trash", color: "error" as const, onSelect: () => askDelete(p) }]
@@ -656,6 +670,29 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
 
         <FilesPanel v-if="mainTab === 'files'" :customer-id="customerId" :cs-mode="!canSeeDeals" />
 
+        <!-- The customer's quotations -->
+        <div v-if="mainTab === 'quotations'" class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-lg font-semibold text-highlighted">{{ t("cs.quotations.title") }}</h3>
+            <UButton icon="i-lucide-plus" size="sm" :label="t('cs.quotations.new')" :to="`/cs/quotations/new?customer=${customerId}`" />
+          </div>
+          <p v-if="!quotations?.length" class="kords-card p-6 text-center text-sm text-muted">{{ t("cs.quotations.noneForCustomer") }}</p>
+          <ul v-else class="kords-card divide-y divide-default overflow-hidden">
+            <li v-for="q in quotations" :key="q.id">
+              <NuxtLink :to="`/cs/quotations/${q.id}`" class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm transition-colors hover:bg-elevated">
+                <span class="min-w-0">
+                  <span class="flex items-center gap-2 font-medium text-highlighted"><UIcon name="i-lucide-file-text" class="size-4 text-primary" /><bdi dir="ltr">{{ q.number }}</bdi></span>
+                  <span class="block text-xs text-muted">{{ formatDMY(q.issue_date) }}<template v-if="q.valid_until"> · {{ t("cs.quotations.validUntil") }} {{ formatDMY(q.valid_until) }}</template></span>
+                </span>
+                <span class="flex items-center gap-3">
+                  <span class="font-semibold text-highlighted">{{ quoteMoney(q.total) }}</span>
+                  <KBadge :label="t(`cs.quotations.status.${q.status}`)" :tone="QUOTATION_TONES[q.status]" />
+                </span>
+              </NuxtLink>
+            </li>
+          </ul>
+        </div>
+
         <div v-show="mainTab === 'main'" class="space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex flex-wrap items-center gap-2">
@@ -729,6 +766,7 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
           <ProductCard
             v-for="p in g.products"
             :key="p.id"
+            hide-funnel
             :product="p"
             :dates="dates"
             :items="itemsOf(p.id)"
@@ -736,96 +774,89 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
             :sales-person-name="salesPersonName(p.sales_person_id)"
           >
             <template #actions>
-              <div class="flex shrink-0 items-center gap-1">
-                <UButton
-                  :to="`/cs/print/${customerId}?product=${p.id}`"
-                  target="_blank"
-                  icon="i-lucide-printer"
-                  size="sm"
-                  color="neutral"
-                  variant="outline"
-                  :aria-label="t('cs.print.menu')"
-                  :title="t('cs.print.menu')"
-                />
-                <template v-if="canEdit">
-                  <UButton icon="i-lucide-workflow" size="sm" :label="t('cs.installations.updateProgress')" @click="openStage(p)" />
-                  <UDropdownMenu :items="productMenu(p)">
-                    <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="outline" :aria-label="t('cs.profile.moreActions')" />
-                  </UDropdownMenu>
-                </template>
-              </div>
-            </template>
-            <template #extra>
-              <!-- Next maintenance -->
-              <div
-                v-if="canSchedule(p)"
-                class="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border p-3"
-                :class="maintenanceLate(p) ? 'border-error/40 bg-error/5' : 'border-default bg-muted'"
-              >
-                <div class="flex min-w-0 items-start gap-2.5">
-                  <UIcon name="i-lucide-wrench" class="mt-0.5 size-4 shrink-0" :class="maintenanceLate(p) ? 'text-error' : 'text-muted'" />
-                  <div class="min-w-0 text-sm">
-                    <div class="text-xs text-muted">{{ t("cs.maintenance.next") }}</div>
-                    <div v-if="p.maintenance_declined_at" class="font-medium text-error">{{ t("cs.maintenance.declinedNote") }}</div>
-                    <div v-else-if="p.next_maintenance_at" class="flex flex-wrap items-center gap-2 font-medium" :class="maintenanceLate(p) ? 'text-error' : 'text-highlighted'">
-                      {{ formatDateTime(p.next_maintenance_at) }}
-                      <KBadge
-                        :label="isConfirmed(p) ? t('cs.maintenance.confirmedBadge') : t('cs.maintenance.awaitingConfirmation')"
-                        :tone="isConfirmed(p) ? 'success' : 'warning'"
-                        :outlined="!isConfirmed(p)"
-                        :icon="isConfirmed(p) ? 'i-lucide-phone-call' : 'i-lucide-phone-missed'"
-                      />
-                    </div>
-                    <div v-else class="text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
-                    <p v-if="isConfirmed(p) && salesPersonName(p.maintenance_technician_id ?? null)" class="mt-0.5 flex items-center gap-1 text-xs text-muted">
-                      <UIcon name="i-lucide-hard-hat" class="size-3.5" />{{ t("cs.maintenance.assignedTo", { name: salesPersonName(p.maintenance_technician_id ?? null) ?? "" }) }}
-                    </p>
-                    <p v-if="p.next_maintenance_note" class="mt-0.5 whitespace-pre-line text-toned">{{ p.next_maintenance_note }}</p>
-                    <p v-if="intervalOf(p)" class="mt-1 text-xs text-muted">
-                      {{ t("cs.maintenance.periodic", { months: intervalOf(p) }) }}
-                      <template v-if="periodicDue(p)">· {{ t("cs.maintenance.dueOn", { date: formatDate(periodicDue(p)) }) }}</template>
-                      <template v-if="p.last_maintenance_on">· {{ t("cs.maintenance.lastDone") }}: {{ formatDate(p.last_maintenance_on) }}</template>
-                    </p>
-                  </div>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <UButton
-                    v-if="canMaintenance"
-                    :to="`/cs/maintenance/${p.id}`"
-                    icon="i-lucide-clipboard-list"
-                    size="sm"
-                    color="neutral"
-                    variant="ghost"
-                    :label="t('cs.maintenance.record')"
-                  />
-                  <template v-if="!p.maintenance_declined_at">
-                    <UButton v-if="p.next_maintenance_at && !isConfirmed(p) && canScheduleMaintenance" icon="i-lucide-phone-call" size="sm" :label="t('cs.maintenance.confirm')" @click="openConfirm(p)" />
-                    <UButton
-                      v-if="p.next_maintenance_at && isConfirmed(p) && canDoMaintenance"
-                      icon="i-lucide-check"
-                      size="sm"
-                      color="success"
-                      variant="soft"
-                      :label="t('cs.maintenance.markDone')"
-                      @click="openDone(p)"
-                    />
-                    <UButton
-                      v-if="canScheduleMaintenance"
-                      :icon="p.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
-                      size="sm"
-                      color="neutral"
-                      variant="outline"
-                      :label="t(p.next_maintenance_at ? 'cs.maintenance.reschedule' : 'cs.maintenance.schedule')"
-                      @click="openMaintenance(p)"
-                    />
-                  </template>
-                </div>
+              <div v-if="canEdit" class="flex shrink-0 items-center gap-1">
+                <UDropdownMenu :items="productMenu(p)">
+                  <UButton icon="i-lucide-ellipsis-vertical" size="sm" color="neutral" variant="outline" :aria-label="t('cs.profile.moreActions')" />
+                </UDropdownMenu>
               </div>
             </template>
           </ProductCard>
         </template>
 
-        <!-- ===== Maintenance history ===== -->
+        </div>
+
+        <!-- ===== Maintenance: the next visit of every product, then the history ===== -->
+        <div v-if="mainTab === 'maintenance'" class="space-y-4">
+          <section class="space-y-3">
+            <h3 class="text-lg font-semibold text-highlighted">{{ t("cs.maintenance.next") }}</h3>
+            <p v-if="!maintenanceProducts.length" class="kords-card p-6 text-center text-sm text-muted">{{ t("cs.maintenance.notScheduled") }}</p>
+            <div
+              v-for="p in maintenanceProducts"
+              :key="p.id"
+              class="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border p-3"
+              :class="maintenanceLate(p) ? 'border-error/40 bg-error/5' : 'border-default bg-muted'"
+            >
+              <div class="flex min-w-0 items-start gap-2.5">
+                <UIcon name="i-lucide-wrench" class="mt-0.5 size-4 shrink-0" :class="maintenanceLate(p) ? 'text-error' : 'text-muted'" />
+                <div class="min-w-0 text-sm">
+                  <div class="font-semibold text-highlighted">{{ p.name }}<bdi v-if="p.contract_code" dir="ltr" class="ms-1 text-xs font-normal text-muted">#{{ p.contract_code }}</bdi></div>
+                  <div v-if="p.maintenance_declined_at" class="font-medium text-error">{{ t("cs.maintenance.declinedNote") }}</div>
+                  <div v-else-if="p.next_maintenance_at" class="flex flex-wrap items-center gap-2 font-medium" :class="maintenanceLate(p) ? 'text-error' : 'text-highlighted'">
+                    {{ formatDateTime(p.next_maintenance_at) }}
+                    <KBadge
+                      :label="isConfirmed(p) ? t('cs.maintenance.confirmedBadge') : t('cs.maintenance.awaitingConfirmation')"
+                      :tone="isConfirmed(p) ? 'success' : 'warning'"
+                      :outlined="!isConfirmed(p)"
+                      :icon="isConfirmed(p) ? 'i-lucide-phone-call' : 'i-lucide-phone-missed'"
+                    />
+                  </div>
+                  <div v-else class="text-muted">{{ t("cs.maintenance.notScheduled") }}</div>
+                  <p v-if="isConfirmed(p) && salesPersonName(p.maintenance_technician_id ?? null)" class="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                    <UIcon name="i-lucide-hard-hat" class="size-3.5" />{{ t("cs.maintenance.assignedTo", { name: salesPersonName(p.maintenance_technician_id ?? null) ?? "" }) }}
+                  </p>
+                  <p v-if="p.next_maintenance_note" class="mt-0.5 whitespace-pre-line text-toned">{{ p.next_maintenance_note }}</p>
+                  <p v-if="intervalOf(p)" class="mt-1 text-xs text-muted">
+                    {{ t("cs.maintenance.periodic", { months: intervalOf(p) }) }}
+                    <template v-if="periodicDue(p)">· {{ t("cs.maintenance.dueOn", { date: formatDate(periodicDue(p)) }) }}</template>
+                    <template v-if="p.last_maintenance_on">· {{ t("cs.maintenance.lastDone") }}: {{ formatDate(p.last_maintenance_on) }}</template>
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <UButton
+                  v-if="canMaintenance"
+                  :to="`/cs/maintenance/${p.id}`"
+                  icon="i-lucide-clipboard-list"
+                  size="sm"
+                  color="neutral"
+                  variant="ghost"
+                  :label="t('cs.maintenance.record')"
+                />
+                <template v-if="!p.maintenance_declined_at">
+                  <UButton v-if="p.next_maintenance_at && !isConfirmed(p) && canScheduleMaintenance" icon="i-lucide-phone-call" size="sm" :label="t('cs.maintenance.confirm')" @click="openConfirm(p)" />
+                  <UButton
+                    v-if="p.next_maintenance_at && isConfirmed(p) && canDoMaintenance"
+                    icon="i-lucide-check"
+                    size="sm"
+                    color="success"
+                    variant="soft"
+                    :label="t('cs.maintenance.markDone')"
+                    @click="openDone(p)"
+                  />
+                  <UButton
+                    v-if="canScheduleMaintenance"
+                    :icon="p.next_maintenance_at ? 'i-lucide-calendar-sync' : 'i-lucide-calendar-plus'"
+                    size="sm"
+                    color="neutral"
+                    variant="outline"
+                    :label="t(p.next_maintenance_at ? 'cs.maintenance.reschedule' : 'cs.maintenance.schedule')"
+                    @click="openMaintenance(p)"
+                  />
+                </template>
+              </div>
+            </div>
+          </section>
+
         <section v-if="canMaintenance" class="space-y-3 pt-2">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
