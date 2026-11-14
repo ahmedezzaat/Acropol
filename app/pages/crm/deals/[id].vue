@@ -693,36 +693,35 @@ async function confirmReassign() {
   refreshActivities();
 }
 
-// Winning a deal asks what was bought (Customer Service products). A deal that
-// already has its products recorded is not asked again.
-const wonProducts = ref<WonProductDraft[]>([]);
-const wonHasProducts = ref(false);
-// ...and its contract file (an upload, unless the deal already has one).
-const contractFile = ref<File | null>(null);
+// Winning a deal asks for its contract: the same contract form as "إنشاء عقد" on the contracts page (code, date,
+// value, sales person, file, notes and the products bought). A deal whose contract and products are already
+// recorded is not asked again.
+const contractDraft = ref<ContractDraft>(newContractDraft());
 const hasContract = ref(false);
 async function prepareWonProducts(closeDate: string) {
-  wonProducts.value = [
-    newWonProduct({ name: deal.value?.title ?? "", contract_date: closeDate, sales_person_id: deal.value?.assigned_to ?? null }),
-  ];
-  contractFile.value = null;
-  const [products, contract] = await Promise.all([dealHasProducts(supabase, dealId), dealHasContract(supabase, dealId)]);
-  wonHasProducts.value = products;
-  hasContract.value = contract;
+  contractDraft.value = newContractDraft({
+    signedOn: closeDate,
+    value: deal.value?.value ?? null,
+    salesPersonId: deal.value?.assigned_to ?? null,
+    productName: deal.value?.title ?? "",
+  });
+  const [products, attachment, contract] = await Promise.all([
+    dealHasProducts(supabase, dealId),
+    dealHasContract(supabase, dealId),
+    supabase.from("contracts").select("id").eq("deal_id", dealId).maybeSingle(),
+  ]);
+  hasContract.value = products && (!!contract.data || attachment);
 }
-const wonProductsOk = computed(
-  () => (wonHasProducts.value || wonProductsValid(wonProducts.value)) && (hasContract.value || !!contractFile.value),
-);
-// Stores the contract file, then the products, before the deal moves to Won.
+const wonProductsOk = computed(() => hasContract.value || contractDraftValid(contractDraft.value));
+// Saves the contract and its products before the deal moves to Won.
 async function saveWonProducts(customerId: string | null) {
-  if (!hasContract.value && contractFile.value) {
-    const contractError = await uploadDealContract(supabase, dealId, contractFile.value);
-    if (contractError) return contractError;
-    hasContract.value = true;
-    refreshAttachments();
-  }
-  if (wonHasProducts.value) return null;
+  if (hasContract.value) return null;
   if (!customerId) return t("crm.deals.noLeadForConversion");
-  return await recordDealProducts(supabase, dealId, customerId, wonProducts.value);
+  const { error } = await saveContractDraft(supabase, { dealId, customerId, draft: contractDraft.value });
+  if (error) return error;
+  hasContract.value = true;
+  refreshAttachments();
+  return null;
 }
 
 const stageChangeModalOpen = ref(false);
@@ -777,6 +776,11 @@ function selectStage(stageId: string) {
 
 async function confirmStageChange() {
   if (!deal.value || !pendingStageId.value) return;
+  // the contract form holds the value and the date
+  if (isWonStage.value && !hasContract.value) {
+    pendingValue.value = contractDraft.value.value;
+    pendingCloseDate.value = contractDraft.value.signedOn;
+  }
   if (noteRequired.value && !pendingNote.value.trim()) return;
   if (pendingStage.value?.reason_category && !pendingReasonId.value) return;
   if (isWonStage.value && (pendingValue.value == null || !pendingCloseDate.value)) return;
@@ -1017,6 +1021,14 @@ const completeValue = ref<number | null>(null);
 const completeCloseDate = ref("");
 const completeFile = ref<File | null>(null);
 
+watch(
+  () => [contractDraft.value.value, contractDraft.value.signedOn],
+  () => {
+    if (hasContract.value) return;
+    completeValue.value = contractDraft.value.value;
+    completeCloseDate.value = contractDraft.value.signedOn;
+  },
+);
 const completeStage = computed(() => allStages.value?.find((s) => s.id === completeStageId.value));
 const completeReasonOptions = computed(() =>
   (allReasons.value ?? [])
@@ -1860,14 +1872,7 @@ function isPastDue(iso: string | null) {
         <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
           <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
         </UFormField>
-        <UFormField v-if="reassignIsWon && !hasContract" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
-          <UFileUpload v-model="contractFile" class="w-full" />
-        </UFormField>
-        <WonProductsFields
-          v-if="reassignIsWon && !wonHasProducts"
-          v-model="wonProducts"
-          :defaults="{ contract_date: today(getLocalTimeZone()).toString(), sales_person_id: deal?.assigned_to ?? null }"
-        />
+        <ContractForm v-if="reassignIsWon && !hasContract" v-model="contractDraft" />
         <UFormField :label="t('crm.deals.historyVisibility')">
           <URadioGroup
             v-model="reassignHideHistory"
@@ -1898,16 +1903,15 @@ function isPastDue(iso: string | null) {
           <USelect v-model="pendingReasonId" :items="pendingReasonOptions" value-key="value" class="w-full" />
         </template>
         <template v-if="isWonStage">
-          <UFormField :label="t('crm.deals.value')" required>
-            <UInputNumber v-model="pendingValue" class="w-full" />
-          </UFormField>
-          <UFormField :label="t('crm.deals.wonDate')" required>
-            <UInput v-model="pendingCloseDate" type="date" class="w-full" />
-          </UFormField>
-          <UFormField v-if="!hasContract" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
-            <UFileUpload v-model="contractFile" class="w-full" />
-          </UFormField>
-          <WonProductsFields v-if="!wonHasProducts" v-model="wonProducts" :defaults="{ contract_date: pendingCloseDate, sales_person_id: deal?.assigned_to ?? null }" />
+          <template v-if="hasContract">
+            <UFormField :label="t('crm.deals.value')" required>
+              <UInputNumber v-model="pendingValue" class="w-full" />
+            </UFormField>
+            <UFormField :label="t('crm.deals.wonDate')" required>
+              <UInput v-model="pendingCloseDate" type="date" class="w-full" />
+            </UFormField>
+          </template>
+          <ContractForm v-else v-model="contractDraft" />
         </template>
         <template v-if="isOfferSentStage && !hasQuote">
           <UAlert
@@ -1936,7 +1940,7 @@ function isPastDue(iso: string | null) {
           :disabled="
             (noteRequired && !pendingNote.trim()) ||
             (!!pendingStage?.reason_category && !pendingReasonId) ||
-            (isWonStage && (pendingValue == null || !pendingCloseDate)) ||
+            (isWonStage && hasContract && (pendingValue == null || !pendingCloseDate)) ||
             (isWonStage && !wonProductsOk) ||
             (isOfferSentStage && !hasQuote && !pendingFile)
           "
@@ -2023,20 +2027,15 @@ function isPastDue(iso: string | null) {
         </template>
 
         <template v-if="completeIsWonStage">
-          <UFormField :label="t('crm.deals.value')" required>
-            <UInputNumber v-model="completeValue" class="w-full" />
-          </UFormField>
-          <UFormField :label="t('crm.deals.wonDate')" required>
-            <UInput v-model="completeCloseDate" type="date" class="w-full" />
-          </UFormField>
-          <UFormField v-if="completeStageChanged && !hasContract" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
-            <UFileUpload v-model="contractFile" class="w-full" />
-          </UFormField>
-          <WonProductsFields
-            v-if="completeStageChanged && !wonHasProducts"
-            v-model="wonProducts"
-            :defaults="{ contract_date: completeCloseDate, sales_person_id: deal?.assigned_to ?? null }"
-          />
+          <template v-if="hasContract || !completeStageChanged">
+            <UFormField :label="t('crm.deals.value')" required>
+              <UInputNumber v-model="completeValue" class="w-full" />
+            </UFormField>
+            <UFormField :label="t('crm.deals.wonDate')" required>
+              <UInput v-model="completeCloseDate" type="date" class="w-full" />
+            </UFormField>
+          </template>
+          <ContractForm v-else v-model="contractDraft" />
         </template>
 
         <template v-if="completeIsOfferSentStage && !hasQuote">

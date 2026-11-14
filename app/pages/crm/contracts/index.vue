@@ -8,6 +8,8 @@ const { t } = useI18n();
 
 interface ContractRow {
   id: string;
+  // the number the system gives (a letter and 5 digits); code is the archive code people type
+  contract_no: string;
   code: string | null;
   signed_on: string | null;
   notes: string | null;
@@ -32,7 +34,7 @@ const { data: contracts, status, refresh } = await useAsyncData<ContractRow[]>("
   fetchAll<ContractRow>((from, to) =>
     supabase
       .from("contracts")
-      .select("id, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, sales_person_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, cs_pending), deal:deals(id, title, assigned_to, value), products:customer_products(name, quantity, sales_person_id)")
+      .select("id, contract_no, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, sales_person_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, cs_pending), deal:deals(id, title, assigned_to, value), products:customer_products(name, quantity, sales_person_id)")
       .order("created_at", { ascending: false })
       .order("id")
       .range(from, to) as never,
@@ -93,6 +95,7 @@ const rows = computed(() => {
     const cu = c.customer;
     return (
       (c.code ?? "").toLowerCase().includes(q) ||
+      (c.contract_no ?? "").toLowerCase().includes(q) ||
       `${titleOf(c)} ${c.code ?? ""} ${cu?.name ?? ""} ${cu?.company ?? ""} ${c.deal?.title ?? ""} ${c.notes ?? ""} ${agentsOf(c).join(" ")}`.toLowerCase().includes(q) ||
       anyPhoneMatches([cu?.phone, ...(cu?.extra_phones ?? [])], search.value) ||
       extraNamesMatch(cu?.extra_phone_names, search.value)
@@ -111,9 +114,9 @@ watch([search, sortMode, from, to], () => (pagination.page = 1));
 const pageCount = computed(() => Math.max(1, Math.ceil(rows.value.length / pagination.size)));
 const paged = computed(() => rows.value.slice((pagination.page - 1) * pagination.size, pagination.page * pagination.size));
 // the value of a contract: its own (a contract made by hand), else the value of the deal it came from
-const valueOf = (c: ContractRow) => (c.value != null ? Number(c.value) : c.deal?.value != null ? Number(c.deal.value) : null);
+const contractValueOf = (c: ContractRow) => (c.value != null ? Number(c.value) : c.deal?.value != null ? Number(c.deal.value) : null);
 const money = (v: number) => formatReportMoney(v, t("common.currency"));
-const totalValue = computed(() => rows.value.reduce((n, c) => n + (valueOf(c) ?? 0), 0));
+const totalValue = computed(() => rows.value.reduce((n, c) => n + (contractValueOf(c) ?? 0), 0));
 // the contract file: a short-lived link that saves it under its own name
 const toast = useToast();
 // ---- delete a contract (its file goes too; the customer's products stay, only unlinked from it)
@@ -192,9 +195,9 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
               <span class="min-w-0 font-semibold text-highlighted">{{ titleOf(c) }}</span>
               <span class="flex shrink-0 items-center gap-1 text-xs text-muted">{{ formatDMY(c.created_at) }}<UButton v-if="canDelete" icon="i-lucide-trash" color="error" variant="ghost" size="xs" :aria-label="t('crm.contracts.delete')" @click.prevent.stop="deleteTarget = c" /></span>
             </div>
-            <p class="mt-1 truncate text-sm text-toned">{{ customerTitle(c) }}<template v-if="c.code"> · <bdi dir="ltr">#{{ c.code }}</bdi></template></p>
+            <p class="mt-1 truncate text-sm text-toned">{{ customerTitle(c) }} · <bdi dir="ltr" class="font-medium">{{ c.contract_no }}</bdi><template v-if="c.code"> · {{ t("crm.contracts.code") }} <bdi dir="ltr">{{ c.code }}</bdi></template></p>
             <p v-if="agentsOf(c).length" class="mt-0.5 flex items-center gap-1 text-xs text-muted"><UIcon name="i-lucide-user" class="size-3" />{{ agentsOf(c).join("، ") }}</p>
-            <p v-if="valueOf(c) !== null" class="mt-0.5 text-sm font-medium text-success">{{ money(valueOf(c)!) }}</p>
+            <p v-if="contractValueOf(c) !== null" class="mt-0.5 text-sm font-medium text-success">{{ money(contractValueOf(c)!) }}</p>
             <p v-if="c.signed_on" class="mt-0.5 text-xs text-muted">{{ t("crm.contracts.signedOn") }}: {{ formatDMY(c.signed_on) }}</p>
           </NuxtLink>
         </div>
@@ -219,7 +222,7 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
               <tr v-for="c in paged" :key="c.id" class="cursor-pointer hover:bg-elevated" @click="navigateTo(`/crm/contracts/${c.id}`)">
                 <td class="max-w-72 px-4 py-3">
                   <NuxtLink :to="`/crm/contracts/${c.id}`" class="block font-medium text-highlighted hover:text-primary">{{ titleOf(c) }}</NuxtLink>
-                  <span v-if="c.code" class="text-xs text-muted"><bdi dir="ltr">#{{ c.code }}</bdi></span>
+                  <span class="text-xs text-muted"><bdi dir="ltr" class="font-medium text-toned">{{ c.contract_no }}</bdi><template v-if="c.code"> · {{ t("crm.contracts.code") }} <bdi dir="ltr">{{ c.code }}</bdi></template></span>
                 </td>
                 <td class="px-4 py-3">
                   <span class="font-medium text-highlighted">{{ customerTitle(c) }}</span>
@@ -231,7 +234,7 @@ const customerTitle = (c: ContractRow) => c.customer?.company || c.customer?.nam
                   <NuxtLink v-if="c.deal" :to="`/crm/deals/${c.deal.id}`" class="text-primary hover:underline" @click.stop>{{ c.deal.title }}</NuxtLink>
                   <span v-else class="text-muted">—</span>
                 </td>
-                <td class="whitespace-nowrap px-4 py-3 text-end font-medium">{{ valueOf(c) !== null ? money(valueOf(c)!) : "—" }}</td>
+                <td class="whitespace-nowrap px-4 py-3 text-end font-medium">{{ contractValueOf(c) !== null ? money(contractValueOf(c)!) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3">{{ c.signed_on ? formatDMY(c.signed_on) : "—" }}</td>
                 <td class="whitespace-nowrap px-4 py-3 text-muted">{{ formatDMYTime(c.created_at) }}</td>
                 <td class="px-2 py-2 text-end"><UButton v-if="c.file_path" icon="i-lucide-download" color="neutral" variant="ghost" size="sm" :title="c.file_name ?? t('crm.contracts.file')" :aria-label="t('crm.contracts.file')" @click.stop="downloadFile(c)" /></td>

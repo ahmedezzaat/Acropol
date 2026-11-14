@@ -2,7 +2,7 @@
 // Edit a contract (needs the CRM edit permission on contracts): its code, date, value, notes, the deal it belongs to
 // and its file. Its products keep following the code and date by themselves.
 const props = defineProps<{
-  contract: { id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; deal_id: string | null; file_name: string | null; file_path: string | null; customer_id: string; sales_person_id: string | null };
+  contract: { id: string; contract_no?: string; code: string; signed_on: string | null; value: number | null; notes: string | null; deal_id: string | null; file_name: string | null; file_path: string | null; customer_id: string; sales_person_id: string | null };
   // the deals of other contracts of this customer, which cannot be chosen again
   takenDealIds: string[];
 }>();
@@ -92,6 +92,7 @@ async function save() {
   <UModal v-model:open="open" :title="t('crm.contracts.editTitle')" :ui="{ content: 'max-w-xl' }">
     <template #body>
       <div class="space-y-4">
+        <p v-if="contract.contract_no" class="rounded-[10px] bg-muted px-3 py-2 text-sm">{{ t("crm.contracts.number") }}: <bdi dir="ltr" class="font-semibold">{{ contract.contract_no }}</bdi></p>
         <div class="grid gap-3 sm:grid-cols-2">
           <UFormField :label="t('crm.contracts.code')" required><UInput v-model="code" dir="ltr" class="w-full" /></UFormField>
           <UFormField :label="t('crm.contracts.signedOn')" required><UInput v-model="signedOn" type="date" class="w-full" /></UFormField>

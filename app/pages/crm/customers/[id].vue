@@ -150,13 +150,13 @@ function dealTitle(id: string | null) {
 }
 // ---- The customer's contracts, with everything entered on them (and on the products they cover)
 interface ContractFull {
-  id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
+  id: string; contract_no: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
   deal_id: string | null; created_by: string | null; created_at: string;
 }
 const { data: contracts, refresh: refreshContracts } = await useAsyncData<ContractFull[]>(`crm-customer-${customerId}-contracts`, async () => {
   const { data } = await supabase
     .from("contracts")
-    .select("id, code, signed_on, value, notes, file_name, file_path, deal_id, created_by, created_at")
+    .select("id, contract_no, code, signed_on, value, notes, file_name, file_path, deal_id, created_by, created_at")
     .eq("customer_id", customerId)
     .order("signed_on", { ascending: false });
   return (data ?? []) as ContractFull[];
@@ -397,7 +397,7 @@ async function remove() {
                 <li v-for="c in contracts" :key="c.id">
                   <NuxtLink :to="`/crm/contracts/${c.id}`" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-elevated">
                     <span class="min-w-0">
-                      <span class="flex items-center gap-2 font-medium text-highlighted"><UIcon name="i-lucide-file-signature" class="size-4 text-primary" /><span class="truncate">{{ contractTitleOf(c) }}</span><bdi dir="ltr" class="text-xs font-normal text-muted">#{{ c.code }}</bdi></span>
+                      <span class="flex items-center gap-2 font-medium text-highlighted"><UIcon name="i-lucide-file-signature" class="size-4 text-primary" /><span class="truncate">{{ contractTitleOf(c) }}</span><bdi dir="ltr" class="text-xs font-normal text-muted">{{ c.contract_no }}</bdi></span>
                       <span class="block text-xs text-muted">{{ t("crm.contracts.signedOn") }}: {{ c.signed_on ? formatDate(c.signed_on) : "—" }}<template v-if="agentsOfContract(c).length"> · {{ agentsOfContract(c).join("، ") }}</template></span>
                     </span>
                     <span class="flex shrink-0 items-center gap-3 text-sm"><span class="font-semibold text-success">{{ moneyFull(c.value) }}</span><UIcon name="i-lucide-chevron-left" class="size-4 text-muted" /></span>

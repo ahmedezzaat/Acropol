@@ -53,8 +53,10 @@ const picker = ref<HTMLInputElement | null>(null);
 
 // The files attached to the customer's contracts themselves (a contract made by hand, or one made when a deal was won)
 async function contractFileRows(existing: FileRow[]): Promise<FileRow[]> {
-  if (!props.customerId || props.dealId) return [];
-  const { data } = await supabase.from("contracts").select("id, code, deal_id, file_name, file_path, created_by, created_at").eq("customer_id", props.customerId).not("file_path", "is", null);
+  if (!props.customerId && !props.dealId) return [];
+  // a deal shows the file of its own contract (made when it was won); a customer, the files of all its contracts
+  const query = supabase.from("contracts").select("id, code, deal_id, file_name, file_path, created_by, created_at").not("file_path", "is", null);
+  const { data } = await (props.dealId ? query.eq("deal_id", props.dealId) : query.eq("customer_id", props.customerId!));
   const have = new Set(existing.filter((r) => r.kind === "contract").map((r) => r.file_name));
   return (data ?? [])
     .filter((c) => c.file_path && !have.has(c.file_name ?? ""))

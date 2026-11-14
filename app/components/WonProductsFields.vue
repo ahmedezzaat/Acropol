@@ -9,6 +9,8 @@ const props = defineProps<{
   optional?: boolean;
   // the contract box (date and code) is entered elsewhere (a form that has them itself)
   hideContract?: boolean;
+  // the seller is the contract's sales person (المسؤول عن العقد), chosen once in the contract form
+  hideSeller?: boolean;
 }>();
 
 const supabase = useSupabaseClient();
@@ -124,7 +126,7 @@ function remove(index: number) {
             @update:model-value="(v: string | undefined) => setCategory(p, v, index)"
           />
         </UFormField>
-        <UFormField :label="t('cs.profile.salesPerson')">
+        <UFormField v-if="!hideSeller" :label="t('cs.profile.salesPerson')">
           <USelect v-model="p.sales_person_id" :items="personItems" value-key="value" class="w-full" />
         </UFormField>
         <UFormField :label="t('cs.profile.warrantyLabel')">

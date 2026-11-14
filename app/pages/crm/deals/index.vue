@@ -634,17 +634,22 @@ const reassignReasonOptions = computed(() =>
 );
 // Winning a deal records what was bought, per deal — so a bulk reassign cannot
 // move several deals to Won at once, but a single deal can (with its products).
-const wonProducts = ref<WonProductDraft[]>([]);
-const wonHasProducts = ref(false);
-const contractFile = ref<File | null>(null);
+// The contract of the deal being won: the same contract form as "إنشاء عقد" (and as on the deal page). A deal whose
+// contract and products are already recorded is not asked again.
+const contractDraft = ref<ContractDraft>(newContractDraft());
 const hasContract = ref(false);
 async function prepareWonProducts(deal: Deal | undefined, closeDate: string) {
-  wonProducts.value = [
-    newWonProduct({ name: deal?.title ?? "", contract_date: closeDate, sales_person_id: deal?.assigned_to ?? null }),
-  ];
-  contractFile.value = null;
-  wonHasProducts.value = deal ? await dealHasProducts(supabase, deal.id) : false;
-  hasContract.value = deal ? await dealHasContract(supabase, deal.id) : false;
+  contractDraft.value = newContractDraft({ signedOn: closeDate, value: deal?.value ?? null, salesPersonId: deal?.assigned_to ?? null, productName: deal?.title ?? "" });
+  if (!deal) {
+    hasContract.value = false;
+    return;
+  }
+  const [products, attachment, contract] = await Promise.all([
+    dealHasProducts(supabase, deal.id),
+    dealHasContract(supabase, deal.id),
+    supabase.from("contracts").select("id").eq("deal_id", deal.id).maybeSingle(),
+  ]);
+  hasContract.value = products && (!!contract.data || attachment);
 }
 const todayStr = () => today(getLocalTimeZone()).toString();
 const reassignSingleDeal = computed(() =>
@@ -669,8 +674,7 @@ const reassignValid = computed(
   () =>
     !!reassignStageId.value &&
     (!reassignStage.value?.reason_category || !!reassignReasonId.value) &&
-    (!reassignIsWon.value ||
-      ((wonHasProducts.value || wonProductsValid(wonProducts.value)) && (hasContract.value || !!contractFile.value))),
+    (!reassignIsWon.value || hasContract.value || contractDraftValid(contractDraft.value)),
 );
 
 function openReassign(dealIds: string[], prefillAssignee?: string | null) {
@@ -718,18 +722,11 @@ async function confirmReassign() {
         }
         customerId = resolved;
       }
-      // The contract file and what was bought are recorded before the deal moves to Won.
-      if (reassignIsWon.value && !hasContract.value && contractFile.value) {
-        const contractError = await uploadDealContract(supabase, dealId, contractFile.value);
+      // The contract and what was bought are recorded before the deal moves to Won.
+      if (reassignIsWon.value && !hasContract.value) {
+        const { error: contractError } = await saveContractDraft(supabase, { dealId, customerId, draft: contractDraft.value });
         if (contractError) {
           error = { message: contractError };
-          break;
-        }
-      }
-      if (reassignIsWon.value && !wonHasProducts.value) {
-        const productsError = await recordDealProducts(supabase, dealId, customerId, wonProducts.value);
-        if (productsError) {
-          error = { message: productsError };
           break;
         }
       }
@@ -942,13 +939,9 @@ const createPipelineStages = computed(() =>
 const createStage = computed(() => allStages.value?.find((s) => s.id === state.stage_id));
 // A deal created straight into Won also records what was bought.
 const createIsWon = computed(() => createStage.value?.system_key === "won");
-const createProducts = ref<WonProductDraft[]>([]);
-const createContract = ref<File | null>(null);
+const createDraft = ref<ContractDraft>(newContractDraft());
 watch(createIsWon, (won) => {
-  if (won) {
-    createProducts.value = [newWonProduct({ contract_date: todayStr() })];
-    createContract.value = null;
-  }
+  if (won) createDraft.value = newContractDraft({ signedOn: todayStr(), salesPersonId: state.assigned_to ?? currentUserId.value ?? null });
 });
 const createReasonOptions = computed(() =>
   (allReasons.value ?? [])
@@ -1000,7 +993,7 @@ const duplicateNewLead = computed(() => {
 
 async function onCreate(event: FormSubmitEvent<Schema>) {
   if (duplicateNewLead.value) return;
-  if (createIsWon.value && (!wonProductsValid(createProducts.value) || !createContract.value)) return;
+  if (createIsWon.value && !contractDraftValid(createDraft.value)) return;
   creating.value = true;
 
   let leadId: string;
@@ -1066,6 +1059,8 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     pipeline_id: event.data.pipeline_id,
     stage_id: event.data.stage_id,
     stage_reason_id: event.data.stage_reason_id || null,
+    // won straight away: the contract's value and date are the deal's
+    ...(createIsWon.value ? { value: createDraft.value.value, expected_close_date: createDraft.value.signedOn } : {}),
   };
   if (canAssign.value) payload.assigned_to = event.data.assigned_to || null;
 
@@ -1077,19 +1072,12 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
     return;
   }
 
-  // Created straight into Won: store the contract file and record what was
-  // bought, against the new deal.
-  if (createIsWon.value && createContract.value) {
-    const contractError = await uploadDealContract(supabase, createdDeal.id, createContract.value);
-    if (contractError) {
-      toast.add({ title: t("crm.deals.attachmentUploadFailed"), description: contractError, color: "warning" });
-    }
-  }
+  // Created straight into Won: its contract and what was bought, against the new deal.
   if (createIsWon.value && customerId) {
-    const productsError = await recordDealProducts(supabase, createdDeal.id, customerId, createProducts.value);
-    if (productsError) {
+    const { error: contractError } = await saveContractDraft(supabase, { dealId: createdDeal.id, customerId, draft: createDraft.value });
+    if (contractError) {
       creating.value = false;
-      toast.add({ title: t("crm.deals.createDealFailed"), description: productsError, color: "error" });
+      toast.add({ title: t("crm.deals.createDealFailed"), description: contractError, color: "error" });
       refresh();
       return;
     }
@@ -1660,10 +1648,7 @@ function openDeal(deal: Deal) {
         <UFormField v-if="createStage?.reason_category" name="stage_reason_id" :label="t('crm.deals.reason')">
           <USelect v-model="state.stage_reason_id" :items="createReasonOptions" value-key="value" class="w-full" />
         </UFormField>
-        <UFormField v-if="createIsWon" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
-          <UFileUpload v-model="createContract" class="w-full" />
-        </UFormField>
-        <WonProductsFields v-if="createIsWon" v-model="createProducts" :defaults="{ contract_date: todayStr() }" />
+        <ContractForm v-if="createIsWon" v-model="createDraft" />
         <UFormField v-if="canAssign" name="assigned_to" :label="t('crm.deals.assignedTo')">
           <USelect v-model="state.assigned_to" :items="assigneeOptions" value-key="value" class="w-full" />
         </UFormField>
@@ -1675,7 +1660,7 @@ function openDeal(deal: Deal) {
           type="submit"
           :label="t('crm.deals.createDeal')"
           :loading="creating"
-          :disabled="!!duplicateNewLead || (createIsWon && (!wonProductsValid(createProducts) || !createContract))"
+          :disabled="!!duplicateNewLead || (createIsWon && !contractDraftValid(createDraft))"
           block
         />
       </UForm>
@@ -1699,10 +1684,7 @@ function openDeal(deal: Deal) {
         <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
           <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
         </UFormField>
-        <UFormField v-if="reassignIsWon && !hasContract" :label="t('crm.deals.contractFile')" :help="t('crm.deals.contractFileHint')" required>
-          <UFileUpload v-model="contractFile" class="w-full" />
-        </UFormField>
-        <WonProductsFields v-if="reassignIsWon && !wonHasProducts" v-model="wonProducts" :defaults="{ contract_date: todayStr(), sales_person_id: reassignSingleDeal?.assigned_to ?? null }" />
+        <ContractForm v-if="reassignIsWon && !hasContract" v-model="contractDraft" />
         <UFormField :label="t('crm.deals.historyVisibility')">
           <URadioGroup
             v-model="reassignHideHistory"

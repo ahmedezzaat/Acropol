@@ -12,23 +12,10 @@ const toast = useToast();
 const { t } = useI18n();
 
 const customerId = ref<string | null>(null);
-const code = ref("");
-const signedOn = ref("");
 const dealId = ref<string | null>(null);
-const notes = ref("");
-const value = ref<number | null>(null);
-const file = ref<File | null>(null);
-const products = ref<WonProductDraft[]>([]);
+// the contract itself and its products: the same form as when a deal is won
+const draft = ref<ContractDraft>(newContractDraft());
 const saving = ref(false);
-
-// the contract's code and date go onto every product (the products form has no contract box of its own here)
-watch([code, signedOn, () => products.value.length], () => {
-  for (const p of products.value) {
-    p.contract_code = code.value.trim();
-    p.contract_date = signedOn.value;
-  }
-});
-const productDefaults = computed(() => ({ contract_date: signedOn.value, contract_code: code.value.trim(), sales_person_id: (me.value?.sub as string | undefined) ?? null }));
 
 const todayIso = () => {
   const d = new Date();
@@ -62,6 +49,17 @@ watch(customerSearch, (q) => {
   }, 250);
 });
 
+// a linked deal fills the value and the sales person when they are still empty
+watch(dealId, async (id) => {
+  if (!id) return;
+  const { data } = await supabase.from("deals").select("value, assigned_to, title").eq("id", id).maybeSingle();
+  if (!data) return;
+  if (draft.value.value === null && data.value !== null) draft.value.value = Number(data.value);
+  if (data.assigned_to) draft.value.salesPersonId = data.assigned_to as string;
+  const first = draft.value.products[0];
+  if (first && !first.name.trim() && data.title) first.name = data.title as string;
+});
+
 // the chosen customer's deals that have no contract yet
 const dealOptions = ref<Option[]>([]);
 watch(customerId, async (id) => {
@@ -76,13 +74,8 @@ watch(customerId, async (id) => {
 watch(open, (isOpen) => {
   if (!isOpen) return;
   customerId.value = null;
-  code.value = "";
-  signedOn.value = todayIso();
   dealId.value = null;
-  notes.value = "";
-  value.value = null;
-  file.value = null;
-  products.value = [];
+  draft.value = newContractDraft({ signedOn: todayIso(), salesPersonId: (me.value?.sub as string | undefined) ?? null });
   customerSearch.value = "";
   customerOptions.value = [];
   // the latest customers, to start the list
@@ -95,11 +88,10 @@ watch(open, (isOpen) => {
   }
 });
 
-const valid = computed(() => !!customerId.value && !!code.value.trim() && !!signedOn.value && products.value.every(wonProductValid));
+const valid = computed(() => !!customerId.value && contractDraftValid(draft.value));
 async function save() {
   if (!valid.value) return;
   saving.value = true;
-  // the contract file goes first, into the private storage, under the contract's own id
   // a lead is turned into a customer first (the contract belongs to a customer); if the contract then fails,
   // the chosen entry becomes that customer, so trying again does not convert the lead twice
   let customer = customerId.value!;
@@ -118,45 +110,10 @@ async function save() {
     customerOptions.value = [{ label: (chosen?.label ?? "").replace(/ · [^·]*$/, ""), value: customer }, ...customerOptions.value.filter((o) => o.value !== chosen?.value)];
     customerId.value = customer;
   }
-  const id = crypto.randomUUID();
-  let filePath: string | null = null;
-  if (file.value) {
-    filePath = `${id}/${Date.now()}-${file.value.name}`;
-    const { error: uploadError } = await supabase.storage.from("contract-files").upload(filePath, file.value);
-    if (uploadError) {
-      saving.value = false;
-      toast.add({ title: t("crm.contracts.fileFailed"), description: uploadError.message, color: "error" });
-      return;
-    }
-  }
-  const { error } = await supabase.rpc("crm_create_contract", {
-    p_customer_id: customer.slice(2),
-    p_contract: {
-      id,
-      code: code.value.trim(),
-      signed_on: signedOn.value,
-      value: value.value,
-      notes: notes.value.trim() || null,
-      deal_id: dealId.value,
-      file_name: file.value?.name ?? null,
-      file_path: filePath,
-    },
-    p_products: products.value.map((p) => ({
-      name: p.name.trim(),
-      category_id: p.category_id,
-      quantity: p.quantity,
-      sales_person_id: p.sales_person_id,
-      warranty_status: p.warranty_status,
-      warranty_details: p.warranty_details.trim(),
-      payment_status: p.payment_status,
-      notes: p.notes.trim(),
-    })),
-  });
+  const { error } = await saveContractDraft(supabase, { customerId: customer.slice(2), linkDealId: dealId.value, draft: draft.value });
   saving.value = false;
   if (error) {
-    // do not leave the uploaded file behind
-    if (filePath) await supabase.storage.from("contract-files").remove([filePath]);
-    toast.add({ title: t("crm.contracts.createFailed"), description: error.message, color: "error" });
+    toast.add({ title: t("crm.contracts.createFailed"), description: error, color: "error" });
     return;
   }
   toast.add({ title: t("crm.contracts.created"), color: "success" });
@@ -184,20 +141,12 @@ async function save() {
             <template #empty>{{ t("crm.contracts.noCustomers") }}</template>
           </USelectMenu>
         </UFormField>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <UFormField :label="t('crm.contracts.code')" required><UInput v-model="code" dir="ltr" class="w-full" /></UFormField>
-          <UFormField :label="t('crm.contracts.signedOn')" required><UInput v-model="signedOn" type="date" class="w-full" /></UFormField>
-        </div>
-        <UFormField :label="t('crm.contracts.value')"><UInputNumber v-model="value" :min="0" class="w-full" /></UFormField>
-        <UFormField :label="t('crm.contracts.file')" :help="t('crm.contracts.fileHint')"><UFileUpload v-model="file" class="w-full" /></UFormField>
         <UFormField v-if="dealOptions.length" :label="t('crm.contracts.deal')" :help="t('crm.contracts.dealHint')">
           <USelect v-model="dealId" :items="dealOptions" value-key="value" icon="i-lucide-handshake" :placeholder="t('crm.contracts.noDeal')" class="w-full" />
           <UButton v-if="dealId" size="xs" color="neutral" variant="link" :label="t('crm.contracts.clearDeal')" class="mt-1 px-0" @click="dealId = null" />
         </UFormField>
-        <UFormField :label="t('crm.contracts.notes')"><UTextarea v-model="notes" :rows="2" class="w-full" /></UFormField>
-        <div class="space-y-2 border-t border-default pt-4">
-          <h3 class="text-sm font-semibold text-highlighted">{{ t("crm.contracts.products") }}</h3>
-          <WonProductsFields v-model="products" optional hide-contract :defaults="productDefaults" />
+        <div class="border-t border-default pt-4">
+          <ContractForm v-model="draft" />
         </div>
         <UButton :label="t('common.save')" :loading="saving" :disabled="!valid" size="lg" block @click="save" />
       </div>

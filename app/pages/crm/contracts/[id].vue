@@ -15,7 +15,7 @@ const { formatDate } = useCs();
 const { hasAnyModulePermission, hasPermission } = usePermissions();
 
 interface ContractFull {
-  id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
+  id: string; contract_no: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
   customer_id: string; deal_id: string | null; created_by: string | null; created_at: string; sales_person_id: string | null;
   customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; cs_pending: boolean; notes: string | null; category_id: string | null } | null;
   deal: { id: string; title: string; value: number | null; assigned_to: string | null; stage: { name: string; system_key: string | null } | null } | null;
@@ -24,7 +24,7 @@ interface ContractFull {
 const { data: contract, status, refresh: refreshContract } = await useAsyncData<ContractFull | null>(`crm-contract-${contractId}`, async () => {
   const { data, error } = await supabase
     .from("contracts")
-    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, sales_person_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending, notes, category_id), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
+    .select("id, contract_no, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, sales_person_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending, notes, category_id), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
     .eq("id", contractId)
     .maybeSingle();
   if (error) throw error;
@@ -182,7 +182,7 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
         <section class="kords-card kords-card-dark p-4 sm:p-5">
           <div class="flex flex-wrap items-center justify-between gap-4">
             <div class="min-w-0">
-              <p class="flex items-center gap-2 text-sm text-toned"><UIcon name="i-lucide-file-signature" class="size-4" />{{ t("crm.contracts.contractWord") }} <bdi dir="ltr">#{{ contract.code }}</bdi></p>
+              <p class="flex items-center gap-2 text-sm text-toned"><UIcon name="i-lucide-file-signature" class="size-4" />{{ t("crm.contracts.contractWord") }} <bdi dir="ltr" class="font-semibold">{{ contract.contract_no }}</bdi><span v-if="contract.code" class="text-xs">· {{ t("crm.contracts.code") }} <bdi dir="ltr">{{ contract.code }}</bdi></span></p>
               <h2 class="text-xl font-semibold text-highlighted sm:text-2xl">{{ contractTitle }}</h2>
               <p class="mt-1 text-sm text-toned">{{ t("crm.contracts.signedOn") }}: {{ contract.signed_on ? formatDate(contract.signed_on) : "—" }}</p>
             </div>
@@ -251,7 +251,8 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
               </div>
               <article class="kords-card p-4">
                 <dl class="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
-                  <div><dt class="text-xs text-muted">{{ t("crm.contracts.code") }}</dt><dd><bdi dir="ltr">#{{ contract.code }}</bdi></dd></div>
+                  <div><dt class="text-xs text-muted">{{ t("crm.contracts.number") }}</dt><dd><bdi dir="ltr" class="font-semibold">{{ contract.contract_no }}</bdi></dd></div>
+                  <div><dt class="text-xs text-muted">{{ t("crm.contracts.code") }}</dt><dd><bdi dir="ltr">{{ contract.code || "—" }}</bdi></dd></div>
                   <div><dt class="text-xs text-muted">{{ t("crm.contracts.signedOn") }}</dt><dd>{{ contract.signed_on ? formatDate(contract.signed_on) : "—" }}</dd></div>
                   <div><dt class="text-xs text-muted">{{ t("crm.contracts.value") }}</dt><dd class="font-semibold text-success">{{ money(contract.value) }}</dd></div>
                   <div><dt class="text-xs text-muted">{{ t("crm.contracts.agent") }}</dt><dd>{{ agents.join("، ") || "—" }}</dd></div>
@@ -305,7 +306,6 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
                 </div>
                 <dl class="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
                   <div v-if="p.category_id && categories?.[p.category_id]"><dt class="text-xs text-muted">{{ t("crm.customers.category") }}</dt><dd>{{ categories[p.category_id] }}</dd></div>
-                  <div><dt class="text-xs text-muted">{{ t("crm.contracts.agent") }}</dt><dd>{{ personName(p.sales_person_id) || "—" }}</dd></div>
                   <div v-if="p.operation_date"><dt class="text-xs text-muted">{{ t("crm.customers.operationDate") }}</dt><dd>{{ formatDate(p.operation_date) }}</dd></div>
                   <div v-if="p.last_maintenance_on"><dt class="text-xs text-muted">{{ t("crm.contracts.lastMaintenance") }}</dt><dd>{{ formatDate(p.last_maintenance_on) }}</dd></div>
                   <div v-if="p.next_maintenance_at"><dt class="text-xs text-muted">{{ t("crm.customers.nextMaintenance") }}</dt><dd>{{ formatDate(p.next_maintenance_at) }}</dd></div>
