@@ -960,6 +960,7 @@ export type Database = {
           notes: string | null;
           created_by: string | null;
           created_at: string;
+          sales_person_id: string | null;
           updated_at: string;
         };
         Insert: {
@@ -971,6 +972,7 @@ export type Database = {
           notes?: string | null;
           created_by?: string | null;
           created_at?: string;
+          sales_person_id?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -982,6 +984,7 @@ export type Database = {
           notes?: string | null;
           created_by?: string | null;
           created_at?: string;
+          sales_person_id?: string | null;
           updated_at?: string;
         };
         Relationships: [];

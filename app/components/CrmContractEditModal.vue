@@ -2,7 +2,7 @@
 // Edit a contract (needs the CRM edit permission on contracts): its code, date, value, notes, the deal it belongs to
 // and its file. Its products keep following the code and date by themselves.
 const props = defineProps<{
-  contract: { id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; deal_id: string | null; file_name: string | null; file_path: string | null; customer_id: string };
+  contract: { id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; deal_id: string | null; file_name: string | null; file_path: string | null; customer_id: string; sales_person_id: string | null };
   // the deals of other contracts of this customer, which cannot be chosen again
   takenDealIds: string[];
 }>();
@@ -18,6 +18,8 @@ const signedOn = ref("");
 const value = ref<number | null>(null);
 const notes = ref("");
 const dealId = ref<string | null>(null);
+const salesPersonId = ref<string | null>(null);
+const people = ref<{ label: string; value: string | null }[]>([]);
 const newFile = ref<File | null>(null);
 const removeFile = ref(false);
 const saving = ref(false);
@@ -30,8 +32,11 @@ watch(open, async (isOpen) => {
   value.value = props.contract.value;
   notes.value = props.contract.notes ?? "";
   dealId.value = props.contract.deal_id;
+  salesPersonId.value = props.contract.sales_person_id;
   newFile.value = null;
   removeFile.value = false;
+  const { data: staff } = await supabase.from("profiles").select("id, full_name, email").eq("is_active", true).order("full_name");
+  people.value = [{ label: t("crm.contracts.noAgent"), value: null }, ...(staff ?? []).map((u) => ({ label: (u.full_name as string) || (u.email as string), value: u.id as string }))];
   const { data } = await supabase.from("deals").select("id, title").eq("customer_id", props.contract.customer_id).order("created_at", { ascending: false });
   dealOptions.value = (data ?? [])
     .filter((d) => d.id === props.contract.deal_id || !props.takenDealIds.includes(d.id as string))
@@ -49,6 +54,8 @@ async function save() {
     value: value.value,
     notes: notes.value.trim() || null,
     deal_id: dealId.value,
+    // only sent when changed: an untouched contract keeps showing the agent of its products or deal
+    ...(salesPersonId.value !== props.contract.sales_person_id ? { sales_person_id: salesPersonId.value } : {}),
   };
   // a new file goes first, into the private bucket, under the contract's own folder
   let uploaded: string | null = null;
@@ -94,6 +101,7 @@ async function save() {
           <USelect v-model="dealId" :items="dealOptions" value-key="value" icon="i-lucide-handshake" :placeholder="t('crm.contracts.noDeal')" class="w-full" />
           <UButton v-if="dealId" size="xs" color="neutral" variant="link" :label="t('crm.contracts.clearDeal')" class="mt-1 px-0" @click="dealId = null" />
         </UFormField>
+        <UFormField :label="t('crm.contracts.agent')"><USelect v-model="salesPersonId" :items="people" value-key="value" icon="i-lucide-user" class="w-full" /></UFormField>
         <UFormField :label="t('crm.contracts.notes')"><UTextarea v-model="notes" :rows="3" class="w-full" /></UFormField>
         <UFormField :label="t('crm.contracts.file')">
           <div v-if="contract.file_path && !newFile" class="mb-2 flex items-center justify-between gap-2 rounded-[10px] bg-muted px-3 py-2 text-sm">

@@ -17,6 +17,7 @@ interface ContractRow {
   created_at: string;
   customer_id: string;
   deal_id: string | null;
+  sales_person_id: string | null;
   customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; cs_pending: boolean } | null;
   deal: { id: string; title: string; assigned_to: string | null; value: number | null } | null;
   products: { name: string; quantity: number | null; sales_person_id: string | null }[] | null;
@@ -31,7 +32,7 @@ const { data: contracts, status, refresh } = await useAsyncData<ContractRow[]>("
   fetchAll<ContractRow>((from, to) =>
     supabase
       .from("contracts")
-      .select("id, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, cs_pending), deal:deals(id, title, assigned_to, value), products:customer_products(name, quantity, sales_person_id)")
+      .select("id, code, signed_on, notes, value, file_name, file_path, created_at, customer_id, deal_id, sales_person_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, cs_pending), deal:deals(id, title, assigned_to, value), products:customer_products(name, quantity, sales_person_id)")
       .order("created_at", { ascending: false })
       .order("id")
       .range(from, to) as never,
@@ -49,6 +50,7 @@ function titleOf(c: ContractRow): string {
   return names.join("، ") || c.deal?.title || c.code || "—";
 }
 function agentsOf(c: ContractRow): string[] {
+  if (c.sales_person_id) return [people.value?.[c.sales_person_id] ?? ""].filter(Boolean);
   const ids = new Set((c.products ?? []).map((p) => p.sales_person_id).filter((x): x is string => !!x));
   if (!ids.size && c.deal?.assigned_to) ids.add(c.deal.assigned_to);
   return [...ids].map((id) => people.value?.[id] ?? "").filter(Boolean);

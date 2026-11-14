@@ -725,6 +725,7 @@
       "deal": "Deal",
       "signedOn": "Contract date",
       "generatedOn": "Generated on",
+      "noAgent": "No sales person",
       "csPending": "Not sent to Customer Service yet",
       "csPendingShort": "Not sent to Customer Service",
       "csPendingHint": "Customer Service does not see this customer (nor their contract and products) until you send them.",

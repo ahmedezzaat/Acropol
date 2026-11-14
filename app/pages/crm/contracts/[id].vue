@@ -16,7 +16,7 @@ const { hasAnyModulePermission, hasPermission } = usePermissions();
 
 interface ContractFull {
   id: string; code: string; signed_on: string | null; value: number | null; notes: string | null; file_name: string | null; file_path: string | null;
-  customer_id: string; deal_id: string | null; created_by: string | null; created_at: string;
+  customer_id: string; deal_id: string | null; created_by: string | null; created_at: string; sales_person_id: string | null;
   customer: { id: string; name: string; company: string | null; phone: string | null; extra_phones: string[] | null; extra_phone_names: string[] | null; email: string | null; address: string | null; area_id: string | null; cs_pending: boolean; notes: string | null; category_id: string | null } | null;
   deal: { id: string; title: string; value: number | null; assigned_to: string | null; stage: { name: string; system_key: string | null } | null } | null;
 }
@@ -24,7 +24,7 @@ interface ContractFull {
 const { data: contract, status, refresh: refreshContract } = await useAsyncData<ContractFull | null>(`crm-contract-${contractId}`, async () => {
   const { data, error } = await supabase
     .from("contracts")
-    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending, notes, category_id), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
+    .select("id, code, signed_on, value, notes, file_name, file_path, customer_id, deal_id, created_by, created_at, sales_person_id, customer:customers(id, name, company, phone, extra_phones, extra_phone_names, email, address, area_id, cs_pending, notes, category_id), deal:deals(id, title, value, assigned_to, stage:pipeline_stages(name, system_key))")
     .eq("id", contractId)
     .maybeSingle();
   if (error) throw error;
@@ -52,7 +52,13 @@ const contractTitle = computed(() => {
   const names = (products.value ?? []).filter((p) => p.name?.trim()).map((p) => (p.quantity > 1 ? `${p.name.trim()} × ${p.quantity}` : p.name.trim()));
   return names.join("، ") || contract.value?.deal?.title || (contract.value ? `#${contract.value.code}` : "");
 });
-const agents = computed(() => [...new Set((products.value ?? []).map((p) => personName(p.sales_person_id)).filter((x): x is string => !!x))]);
+// the contract's own sales person, else the ones recorded on its products, else its deal's agent
+const agentIds = computed(() => {
+  if (contract.value?.sales_person_id) return [contract.value.sales_person_id];
+  const ids = [...new Set((products.value ?? []).map((p) => p.sales_person_id).filter((x): x is string => !!x))];
+  return ids.length ? ids : contract.value?.deal?.assigned_to ? [contract.value.deal.assigned_to] : [];
+});
+const agents = computed(() => agentIds.value.map((id) => personName(id)).filter((x): x is string => !!x));
 
 const money = (v: number | null) => (v === null || v === undefined ? "—" : formatReportMoney(v, t("common.currency")));
 const warrantyColor = { in_warranty: "success", out_of_warranty: "neutral" } as const;
@@ -318,5 +324,5 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
 
   <PushToCsModal v-if="contract?.customer?.cs_pending && canPushToCs" v-model:open="pushOpen" :customer-id="contract.customer_id" :customer-name="customerName" @pushed="refreshContract" />
   <CrmCustomerEditModal v-if="contract?.customer && canEdit" v-model:open="customerEditOpen" :customer="contract.customer" @saved="onCustomerEdited" />
-  <CrmContractEditModal v-if="contract && canEdit" v-model:open="editOpen" :contract="contract" :taken-deal-ids="takenDealIds ?? []" @saved="onEdited" />
+  <CrmContractEditModal v-if="contract && canEdit" v-model:open="editOpen" :contract="{ ...contract, sales_person_id: agentIds.length === 1 ? agentIds[0]! : null }" :taken-deal-ids="takenDealIds ?? []" @saved="onEdited" />
 </template>

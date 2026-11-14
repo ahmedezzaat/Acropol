@@ -195,6 +195,7 @@ interface ContractRow {
   signed_on: string | null;
   created_at: string;
   value: number | null;
+  sales_person_id: string | null;
   deal: { value: number | null; assigned_to: string | null } | null;
   products: { sales_person_id: string | null }[] | null;
 }
@@ -207,7 +208,7 @@ const __ad9 = useAsyncData<ContractRow[]>(
     return fetchAll<ContractRow>((from, to) =>
       supabase
         .from("contracts")
-        .select("id, signed_on, created_at, value, deal:deals(value, assigned_to), products:customer_products(sales_person_id)")
+        .select("id, signed_on, created_at, value, sales_person_id, deal:deals(value, assigned_to), products:customer_products(sales_person_id)")
         .or(`and(signed_on.gte.${a},signed_on.lte.${b}),and(signed_on.is.null,created_at.gte.${rangeStartIso(a)},created_at.lte.${rangeEndIso(b)})`)
         .order("id")
         .range(from, to) as never,
@@ -274,6 +275,7 @@ const salesByMonthMax = computed(() => Math.max(1, ...salesByMonth.value.map((r)
 
 // the salespeople recorded on a contract's products share its value; none recorded: its deal's agent; none: unassigned
 function contractAgents(c: ContractRow): (string | null)[] {
+  if (c.sales_person_id) return [c.sales_person_id];
   const ids = [...new Set((c.products ?? []).map((p) => p.sales_person_id).filter((x): x is string => !!x))];
   if (ids.length) return ids;
   return [c.deal?.assigned_to ?? null];
