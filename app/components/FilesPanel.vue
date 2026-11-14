@@ -103,7 +103,9 @@ async function load() {
     .select("id, deal_id, file_name, storage_path, kind, from_work_pipeline_id, uploaded_by, created_at")
     .in("deal_id", dealIds)
     .order("created_at", { ascending: false });
-  rows.value = ((data ?? []) as FileRow[]).filter((r) => !r.from_work_pipeline_id || canViewWork.value);
+  // technical office files need their own permission, except in the quote section (عروض الأسعار): whoever sees the
+  // quotes sees all of them, wherever they came from
+  rows.value = ((data ?? []) as FileRow[]).filter((r) => !r.from_work_pipeline_id || canViewWork.value || r.kind === "quote");
   rows.value = [...rows.value, ...(await contractFileRows(rows.value))];
 
   // the work pipelines files came from (to tag them)
