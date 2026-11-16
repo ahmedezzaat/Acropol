@@ -160,7 +160,7 @@ export function useNotifications() {
           icon: "i-lucide-hard-hat",
           color: "info" as const,
           text: t("notifications.workOrderAssigned", { kind: t(`cs.workOrders.kind.${String(p.kind ?? "installation")}`), name: String(p.subject_name ?? ""), date: formatDay(p.work_date) }),
-          link: "/cs/confirmed-visits",
+          link: `/cs/confirmed-visits?date=${String(p.work_date ?? "")}`,
         };
       case "chat_handover":
         return {

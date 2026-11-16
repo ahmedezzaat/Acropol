@@ -137,6 +137,16 @@ await loadOrders();
 const canCompleteOrders = computed(() => hasPermission("cs_maintenance", "complete"));
 const completeOpen = ref(false);
 const completing = ref<PendingOrder | null>(null);
+const orderOpen = ref(false);
+const detailOrder = ref<PendingOrder | null>(null);
+function openOrder(o: PendingOrder) {
+  detailOrder.value = o;
+  orderOpen.value = true;
+}
+function completeFromDetail() {
+  orderOpen.value = false;
+  if (detailOrder.value) openComplete(detailOrder.value);
+}
 function openComplete(o: PendingOrder) {
   completing.value = o;
   completeOpen.value = true;
@@ -146,6 +156,13 @@ const orderDay = (o: PendingOrder): Day | null => {
   return dayOf(ms) ?? (ms < midnight(-1).getTime() ? "today" : null);
 };
 const orderLate = (o: PendingOrder) => new Date(`${o.work_date}T12:00:00`).getTime() < midnight(0).getTime();
+// from a notification (?date=<planned date>) the tab of that day opens
+const route = useRoute();
+const queryDate = typeof route.query.date === "string" ? route.query.date : null;
+if (queryDate) {
+  const d = orderDay({ work_date: queryDate } as PendingOrder);
+  if (d) day.value = d;
+}
 const shownOrders = computed(() => myOrders.value.filter((o) => orderDay(o) === day.value));
 
 const dayTabs = computed(() =>
@@ -288,29 +305,6 @@ function closeDetail() {
 
     <template #body>
       <div class="mx-auto w-full max-w-2xl space-y-4">
-        <!-- Work orders given to this technician -->
-        <section v-if="shownOrders.length" class="space-y-2">
-          <h2 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
-            <UIcon name="i-lucide-clipboard-list" class="size-4 text-primary" />{{ t("cs.workOrders.mine") }}
-            <KBadge :label="String(shownOrders.length)" tone="neutral" />
-          </h2>
-          <article v-for="o in shownOrders" :key="o.id" class="kords-card space-y-2 border-s-4 border-s-primary p-4" :class="orderLate(o) && 'kords-kcard-late'">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="flex flex-wrap items-center gap-2">
-                <KBadge :label="t(`cs.workOrders.kind.${o.kind}`)" :tone="WORK_ORDER_TONES[o.kind]" :icon="WORK_ORDER_ICONS[o.kind]" />
-                <span class="text-xs text-muted">{{ t("cs.workOrders.plannedFor") }}: {{ formatDMY(o.work_date) }}</span>
-              </span>
-            </div>
-            <p class="font-semibold text-highlighted">{{ o.subject_name }}</p>
-            <p v-if="o.subject_address" class="text-sm text-toned">{{ o.subject_address }}</p>
-            <p v-if="o.note" class="whitespace-pre-line rounded-[10px] bg-muted p-2.5 text-sm text-toned">{{ o.note }}</p>
-            <div class="flex flex-wrap items-center gap-2">
-              <UButton v-if="o.subject_phone" :href="`tel:${o.subject_phone}`" icon="i-lucide-phone" size="sm" color="neutral" variant="outline" :label="o.subject_phone" />
-              <UButton v-if="canCompleteOrders" icon="i-lucide-check" size="sm" color="success" variant="soft" :label="t('cs.workOrders.markDone')" @click="openComplete(o)" />
-            </div>
-          </article>
-        </section>
-
         <!-- Yesterday / today / tomorrow -->
         <div class="grid grid-cols-3 gap-2">
           <button
@@ -337,6 +331,23 @@ function closeDetail() {
         </div>
 
         <ul v-else class="space-y-3">
+          <!-- installation / operation / inspection work orders of the day, like any visit -->
+          <li v-for="o in shownOrders" :key="`wo-${o.id}`">
+            <button
+              type="button"
+              class="kords-card block w-full space-y-2 border-s-4 border-s-primary p-4 text-start transition-colors active:bg-elevated"
+              :class="orderLate(o) && 'kords-kcard-late'"
+              @click="openOrder(o)"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <span class="min-w-0 text-base font-semibold text-highlighted">{{ o.subject_name }}</span>
+                <KBadge :label="t(`cs.workOrders.kind.${o.kind}`)" :tone="WORK_ORDER_TONES[o.kind]" :icon="WORK_ORDER_ICONS[o.kind]" />
+              </div>
+              <div v-if="o.subject_address" class="flex items-center gap-1.5 text-sm text-muted">
+                <UIcon name="i-lucide-map-pin" class="size-4 shrink-0" />{{ o.subject_address }}
+              </div>
+            </button>
+          </li>
           <li v-for="c in shown" :key="c.key">
             <button
               type="button"
@@ -454,6 +465,37 @@ function closeDetail() {
             @click="openDone"
           />
           <UButton v-else color="neutral" variant="outline" size="lg" :label="t('cs.myVisits.close')" block @click="closeDetail" />
+        </div>
+      </div>
+    </template>
+  </UModal>
+
+  <!-- Full details of a work order -->
+  <UModal v-model:open="orderOpen" fullscreen :title="detailOrder?.subject_name ?? ''" :ui="{ body: 'p-3 sm:p-6' }">
+    <template #body>
+      <div v-if="detailOrder" class="mx-auto w-full max-w-2xl space-y-4">
+        <section class="kords-card space-y-3 p-4">
+          <div class="flex flex-wrap items-center gap-2">
+            <KBadge :label="t(`cs.workOrders.kind.${detailOrder.kind}`)" :tone="WORK_ORDER_TONES[detailOrder.kind]" :icon="WORK_ORDER_ICONS[detailOrder.kind]" />
+            <span class="text-sm text-muted">{{ t("cs.workOrders.plannedFor") }}: {{ formatDMY(detailOrder.work_date) }}</span>
+          </div>
+          <h3 class="text-lg font-semibold text-highlighted">{{ detailOrder.subject_name }}</h3>
+          <div class="grid grid-cols-2 gap-2">
+            <UButton v-if="detailOrder.subject_phone" :to="`tel:${detailOrder.subject_phone}`" icon="i-lucide-phone" size="lg" color="neutral" variant="outline" :label="t('cs.myVisits.call')" block />
+            <UButton v-if="toWhatsAppLink(detailOrder.subject_phone)" :to="toWhatsAppLink(detailOrder.subject_phone)!" target="_blank" rel="noopener noreferrer" icon="i-simple-icons-whatsapp" size="lg" color="neutral" variant="outline" :label="t('cs.profile.whatsapp')" block />
+          </div>
+          <dl class="space-y-2 text-sm">
+            <div v-if="detailOrder.subject_phone"><dt class="text-xs text-muted">{{ t("common.phone") }}</dt><dd dir="ltr" class="text-start font-medium text-highlighted">{{ detailOrder.subject_phone }}</dd></div>
+            <div v-if="detailOrder.subject_address"><dt class="text-xs text-muted">{{ t("cs.customers.address") }}</dt><dd class="whitespace-pre-line font-medium text-highlighted">{{ detailOrder.subject_address }}</dd></div>
+          </dl>
+        </section>
+        <section v-if="detailOrder.note" class="space-y-2">
+          <h4 class="text-sm font-semibold text-highlighted">{{ t("cs.workOrders.instructionsLabel") }}</h4>
+          <p class="kords-card whitespace-pre-line p-4 text-sm text-toned">{{ detailOrder.note }}</p>
+        </section>
+        <div class="sticky bottom-0 -mx-3 border-t border-default bg-default p-3 sm:mx-0">
+          <UButton v-if="canCompleteOrders" icon="i-lucide-check" size="xl" color="success" :label="t('cs.workOrders.markDone')" block @click="completeFromDetail" />
+          <UButton v-else color="neutral" variant="outline" size="lg" :label="t('cs.myVisits.close')" block @click="orderOpen = false" />
         </div>
       </div>
     </template>
