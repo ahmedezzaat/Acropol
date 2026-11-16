@@ -290,7 +290,9 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
 <template>
   <UDashboardPanel :ui="{ body: 'kords-canvas' }">
     <template #header>
-      <KPageHeader :title="t('cs.confirmedVisits.title')" :count="visits.length" />
+      <KPageHeader :title="t('cs.confirmedVisits.title')" :count="visits.length">
+        <template #right><WorkOrderCreate @saved="refresh()" /></template>
+      </KPageHeader>
 
       <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
         <div class="flex flex-wrap items-center justify-between gap-2">

@@ -21,7 +21,8 @@ export interface AppNotification {
     | "task_done"
     | "leave_request"
     | "leave_decided"
-    | "chat_handover";
+    | "chat_handover"
+    | "work_order_assigned";
   params: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
@@ -154,6 +155,13 @@ export function useNotifications() {
           link: `/crm/visits?open=${p.visit_id}`,
         };
       }
+      case "work_order_assigned":
+        return {
+          icon: "i-lucide-hard-hat",
+          color: "info" as const,
+          text: t("notifications.workOrderAssigned", { kind: t(`cs.workOrders.kind.${String(p.kind ?? "installation")}`), name: String(p.subject_name ?? ""), date: formatDay(p.work_date) }),
+          link: "/cs/confirmed-visits",
+        };
       case "chat_handover":
         return {
           icon: "i-lucide-message-circle-warning",

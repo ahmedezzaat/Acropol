@@ -121,6 +121,28 @@ async function load() {
 }
 await load();
 
+// Installation / operation / inspection work orders given to this technician and not done yet
+interface PendingOrder { id: string; kind: SimpleWorkOrderKind; subject_name: string; subject_phone: string | null; subject_address: string | null; work_date: string; note: string | null }
+const myOrders = ref<PendingOrder[]>([]);
+async function loadOrders() {
+  const { data } = await supabase
+    .from("cs_work_orders")
+    .select("id, kind, subject_name, subject_phone, subject_address, work_date, note")
+    .eq("status", "pending")
+    .eq("technician_id", me.value?.sub as string)
+    .order("work_date");
+  myOrders.value = (data ?? []) as PendingOrder[];
+}
+await loadOrders();
+const canCompleteOrders = computed(() => hasPermission("cs_maintenance", "complete"));
+const completeOpen = ref(false);
+const completing = ref<PendingOrder | null>(null);
+function openComplete(o: PendingOrder) {
+  completing.value = o;
+  completeOpen.value = true;
+}
+const today = () => new Date().toISOString().slice(0, 10);
+
 const dayTabs = computed(() =>
   (["yesterday", "today", "tomorrow"] as const).map((d) => ({
     value: d,
@@ -255,11 +277,35 @@ function closeDetail() {
         <template #leading>
           <UDashboardSidebarCollapse />
         </template>
+        <template #right><WorkOrderCreate @saved="load(); loadOrders()" /></template>
       </UDashboardNavbar>
     </template>
 
     <template #body>
       <div class="mx-auto w-full max-w-2xl space-y-4">
+        <!-- Work orders given to this technician -->
+        <section v-if="myOrders.length" class="space-y-2">
+          <h2 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
+            <UIcon name="i-lucide-clipboard-list" class="size-4 text-primary" />{{ t("cs.workOrders.mine") }}
+            <KBadge :label="String(myOrders.length)" tone="neutral" />
+          </h2>
+          <article v-for="o in myOrders" :key="o.id" class="kords-card space-y-2 p-4" :class="o.work_date < today() && 'kords-kcard-late'">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="flex flex-wrap items-center gap-2">
+                <KBadge :label="t(`cs.workOrders.kind.${o.kind}`)" :tone="WORK_ORDER_TONES[o.kind]" :icon="WORK_ORDER_ICONS[o.kind]" />
+                <span class="text-xs text-muted">{{ t("cs.workOrders.plannedFor") }}: {{ formatDMY(o.work_date) }}</span>
+              </span>
+            </div>
+            <p class="font-semibold text-highlighted">{{ o.subject_name }}</p>
+            <p v-if="o.subject_address" class="text-sm text-toned">{{ o.subject_address }}</p>
+            <p v-if="o.note" class="whitespace-pre-line rounded-[10px] bg-muted p-2.5 text-sm text-toned">{{ o.note }}</p>
+            <div class="flex flex-wrap items-center gap-2">
+              <UButton v-if="o.subject_phone" :href="`tel:${o.subject_phone}`" icon="i-lucide-phone" size="sm" color="neutral" variant="outline" :label="o.subject_phone" />
+              <UButton v-if="canCompleteOrders" icon="i-lucide-check" size="sm" color="success" variant="soft" :label="t('cs.workOrders.markDone')" @click="openComplete(o)" />
+            </div>
+          </article>
+        </section>
+
         <!-- Yesterday / today / tomorrow -->
         <div class="grid grid-cols-3 gap-2">
           <button
@@ -409,4 +455,5 @@ function closeDetail() {
   </UModal>
 
   <MaintenanceDoneModal v-model:open="doneOpen" :products="detailCard?.products ?? []" @saved="onSaved" />
+  <WorkOrderCompleteModal v-model:open="completeOpen" :order="completing" @saved="loadOrders()" />
 </template>
