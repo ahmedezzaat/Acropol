@@ -1683,6 +1683,11 @@
       "openMaintenance": "فتح الصيانات"
     },
     "maintenance": {
+      "moreFilters": "فلاتر إضافية",
+      "clearFilters": "مسح الفلاتر",
+      "doneThisMonth": "تمت هذا الشهر",
+      "warrantyAll": "كل حالات الضمان",
+      "showingOf": "عرض {shown} من {total}",
       "title": "الصيانات",
       "next": "موعد الصيانة القادمة",
       "note": "ملاحظة",

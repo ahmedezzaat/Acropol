@@ -169,13 +169,6 @@ const counts = computed(() => {
   }
   return c;
 });
-const tabs = computed(() =>
-  (["all", "overdue", "today", "week", "later", "unscheduled", "declined"] as const).map((k) => ({
-    label: `${t(`cs.maintenance.${k}`)} · ${counts.value[k]}`,
-    value: k,
-  })),
-);
-
 // ---- Tracking: overdue / scheduled / done over a period
 const mode = ref<"list" | "track">("list");
 const modeTabs = computed(() => [
@@ -242,8 +235,14 @@ const __ad5 = useAsyncData<LogRow[]>(
 );
 const { data: logs, refresh: refreshLogs } = __ad5;
 
+const __ad6 = useAsyncData<{ id: string; full_name: string | null; email: string }[]>("cs-maintenance-technicians", async () => {
+  const { data } = await supabase.from("profiles").select("id, full_name, email").eq("is_technician", true).order("full_name");
+  return (data ?? []) as { id: string; full_name: string | null; email: string }[];
+});
+const { data: technicians } = __ad6;
+
 // Load everything at once instead of one request after another.
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5]);
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6]);
 
 const statKey = ref<"overdue" | "scheduled" | "done" | "declined">("overdue");
 // Overdue is a standing state, so it counts everything overdue right now, whatever the period.
@@ -350,26 +349,44 @@ const areaItems = computed(() => [
 
 // Confirmation filter: visits still waiting for the call, or already confirmed.
 const confirmFilter = ref<"all" | "awaiting" | "confirmed">("all");
-const confirmCounts = computed(() => ({
-  all: rows.value.filter((r) => r.appointment).length,
-  awaiting: rows.value.filter((r) => r.appointment && !r.confirmed).length,
-  confirmed: rows.value.filter((r) => r.confirmed).length,
-}));
-const confirmChips = computed(() =>
-  (["all", "awaiting", "confirmed"] as const).map((k) => ({
-    key: k,
-    label: t(`cs.maintenance.filter${k === "all" ? "All" : k === "awaiting" ? "Awaiting" : "Confirmed"}`),
-    count: confirmCounts.value[k],
-  })),
-);
 
-const filtered = computed(() =>
-  rows.value.filter((r) => {
-    if (tab.value !== "all" && bucket(r) !== tab.value) return false;
+// Technician of the appointment, and the warranty status
+const techFilter = ref<"all" | "none" | string>("all");
+const warrantyFilter = ref<"all" | "in_warranty" | "out_of_warranty">("all");
+const techItems = computed(() => [
+  { label: t("cs.confirmedVisits.allTechnicians"), value: "all" },
+  { label: t("cs.maintenance.unassigned"), value: "none" },
+  ...(technicians.value ?? []).map((u) => ({ label: u.full_name || u.email, value: u.id })),
+]);
+const warrantyItems = computed(() => [
+  { label: t("cs.maintenance.warrantyAll"), value: "all" },
+  { label: t("cs.profile.warranty.in_warranty"), value: "in_warranty" },
+  { label: t("cs.profile.warranty.out_of_warranty"), value: "out_of_warranty" },
+]);
+const todayStr = () => dayStr(Date.now());
+const monthStart = () => {
+  const d = new Date();
+  return dayStr(new Date(d.getFullYear(), d.getMonth(), 1).getTime());
+};
+const monthActive = computed(() => !neverMaintained.value && lastFrom.value === monthStart() && lastTo.value === todayStr());
+
+// One test for every filter. The dashboard counts a tile with all the filters except its own kind
+// (the appointment tiles ignore the appointment tab, the confirmation tiles the confirmation chips, "done this month" the dates).
+type Skip = "tab" | "confirm" | "dates";
+function passes(r: Row, skip: Skip[] = []) {
+  if (!skip.includes("tab") && tab.value !== "all" && bucket(r) !== tab.value) return false;
+  if (!skip.includes("confirm")) {
     if (confirmFilter.value === "awaiting" && !(r.appointment && !r.confirmed)) return false;
     if (confirmFilter.value === "confirmed" && !r.confirmed) return false;
-    const c = customerOf(r.p.customer_id);
-    if (areaFilter.value && c?.area_id !== areaFilter.value) return false;
+  }
+  const c = customerOf(r.p.customer_id);
+  if (areaFilter.value && c?.area_id !== areaFilter.value) return false;
+  if (techFilter.value !== "all") {
+    const tid = r.appointment ? (r.p.maintenance_technician_id ?? null) : null;
+    if (techFilter.value === "none" ? !(r.appointment && !tid) : tid !== techFilter.value) return false;
+  }
+  if (warrantyFilter.value !== "all" && r.p.warranty_status !== warrantyFilter.value) return false;
+  if (!skip.includes("dates")) {
     const last = r.p.last_maintenance_on;
     if (neverMaintained.value && last) return false;
     if (!neverMaintained.value && (lastFrom.value || lastTo.value)) {
@@ -377,14 +394,73 @@ const filtered = computed(() =>
       if (lastFrom.value && last < lastFrom.value) return false;
       if (lastTo.value && last > lastTo.value) return false;
     }
-    if (search.value) {
-      const q = search.value.toLowerCase();
-      const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${r.p.name} ${r.p.contract_code ?? ""} ${r.p.next_maintenance_note ?? ""}`.toLowerCase();
-      if (!hay.includes(q) && !anyPhoneMatches([c?.phone, ...(c?.extra_phones ?? [])], search.value) && !extraNamesMatch(c?.extra_phone_names, search.value)) return false;
-    }
-    return true;
-  }),
+  }
+  if (search.value) {
+    const q = search.value.toLowerCase();
+    const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${r.p.name} ${r.p.contract_code ?? ""} ${r.p.next_maintenance_note ?? ""}`.toLowerCase();
+    if (!hay.includes(q) && !anyPhoneMatches([c?.phone, ...(c?.extra_phones ?? [])], search.value) && !extraNamesMatch(c?.extra_phone_names, search.value)) return false;
+  }
+  return true;
+}
+const filtered = computed(() => rows.value.filter((r) => passes(r)));
+
+// ---- Dashboard above the table: every tile is a filter (click again to clear it)
+interface Tile {
+  key: string;
+  kind: "bucket" | "confirm" | "month";
+  value: string;
+  label: string;
+  n: number;
+  icon: string;
+  tone: "error" | "warning" | "info" | "success" | "neutral";
+}
+const dashboard = computed<Tile[]>(() => {
+  const forBucket = rows.value.filter((r) => passes(r, ["tab"]));
+  const forConfirm = rows.value.filter((r) => passes(r, ["confirm"]));
+  const forMonth = rows.value.filter((r) => passes(r, ["dates"]));
+  const nb = (b: Bucket) => forBucket.filter((r) => bucket(r) === b).length;
+  const from = monthStart();
+  const to = todayStr();
+  return [
+    { key: "overdue", kind: "bucket", value: "overdue", label: t("cs.maintenance.overdue"), n: nb("overdue"), icon: "i-lucide-triangle-alert", tone: "error" },
+    { key: "today", kind: "bucket", value: "today", label: t("cs.maintenance.today"), n: nb("today"), icon: "i-lucide-calendar-clock", tone: "warning" },
+    { key: "week", kind: "bucket", value: "week", label: t("cs.maintenance.week"), n: nb("week"), icon: "i-lucide-calendar-range", tone: "info" },
+    { key: "later", kind: "bucket", value: "later", label: t("cs.maintenance.later"), n: nb("later"), icon: "i-lucide-calendar-days", tone: "neutral" },
+    { key: "unscheduled", kind: "bucket", value: "unscheduled", label: t("cs.maintenance.unscheduled"), n: nb("unscheduled"), icon: "i-lucide-calendar-x", tone: "neutral" },
+    { key: "awaiting", kind: "confirm", value: "awaiting", label: t("cs.maintenance.filterAwaiting"), n: forConfirm.filter((r) => r.appointment && !r.confirmed).length, icon: "i-lucide-phone-missed", tone: "warning" },
+    { key: "confirmed", kind: "confirm", value: "confirmed", label: t("cs.maintenance.filterConfirmed"), n: forConfirm.filter((r) => r.confirmed).length, icon: "i-lucide-phone-call", tone: "success" },
+    { key: "declined", kind: "bucket", value: "declined", label: t("cs.maintenance.declined"), n: nb("declined"), icon: "i-lucide-ban", tone: "error" },
+    { key: "doneMonth", kind: "month", value: "month", label: t("cs.maintenance.doneThisMonth"), n: forMonth.filter((r) => !!r.p.last_maintenance_on && r.p.last_maintenance_on >= from && r.p.last_maintenance_on <= to).length, icon: "i-lucide-circle-check", tone: "success" },
+  ];
+});
+const tileActive = (x: Tile) => (x.kind === "bucket" ? tab.value === x.value : x.kind === "confirm" ? confirmFilter.value === x.value : monthActive.value);
+function pickTile(x: Tile) {
+  if (x.kind === "bucket") tab.value = tab.value === x.value ? "all" : (x.value as Bucket);
+  else if (x.kind === "confirm") confirmFilter.value = confirmFilter.value === x.value ? "all" : (x.value as "awaiting" | "confirmed");
+  else if (monthActive.value) clearLastDates();
+  else {
+    neverMaintained.value = false;
+    lastFrom.value = monthStart();
+    lastTo.value = todayStr();
+  }
+}
+const toneText = { error: "text-error", warning: "text-warning", info: "text-info", success: "text-success", neutral: "text-highlighted" } as const;
+
+// "More filters": technician, warranty and the last maintenance dates
+const showMore = ref(false);
+const moreCount = computed(() => (techFilter.value !== "all" ? 1 : 0) + (warrantyFilter.value !== "all" ? 1 : 0) + (lastFrom.value || lastTo.value || neverMaintained.value ? 1 : 0));
+const anyFilter = computed(
+  () => tab.value !== "all" || confirmFilter.value !== "all" || !!areaFilter.value || !!search.value || moreCount.value > 0,
 );
+function clearAllFilters() {
+  tab.value = "all";
+  confirmFilter.value = "all";
+  areaFilter.value = null;
+  search.value = "";
+  techFilter.value = "all";
+  warrantyFilter.value = "all";
+  clearLastDates();
+}
 
 const bucketColor = { overdue: "error", today: "warning", week: "info", later: "neutral", unscheduled: "neutral", declined: "error" } as const;
 function badgeLabel(r: Row) {
@@ -405,7 +481,7 @@ const columns = computed<TableColumn<Row>[]>(() => [
   { id: "actions", header: "" },
 ]);
 const pagination = ref({ pageIndex: 0, pageSize: 50 });
-watch([search, areaFilter, tab, categoryFilter, customerCatFilter, lastFrom, lastTo, neverMaintained, confirmFilter], () => {
+watch([search, areaFilter, tab, categoryFilter, customerCatFilter, lastFrom, lastTo, neverMaintained, confirmFilter, techFilter, warrantyFilter], () => {
   pagination.value = { ...pagination.value, pageIndex: 0 };
 });
 const pagedCards = computed(() =>
@@ -471,18 +547,6 @@ function openRecord(productId: string) {
         <div v-if="mode === 'track'" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
           <UTabs v-model="period" :items="periodTabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
         </div>
-        <div v-if="mode === 'list'" class="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          <UTabs v-model="tab" :items="tabs" value-key="value" variant="link" size="sm" :content="false" class="kords-pilltabs w-max min-w-full sm:w-auto sm:min-w-0" />
-        </div>
-        <!-- Product category: pick one or several (list and tracking) -->
-        <!-- Confirmation: awaiting the call, or confirmed with the customer -->
-        <div v-if="mode === 'list'" class="flex items-center gap-2 overflow-x-auto">
-          <button v-for="c in confirmChips" :key="c.key" type="button" class="kords-chip" :class="confirmFilter === c.key && 'kords-chip-on'" @click="confirmFilter = c.key">
-            <UIcon v-if="c.key === 'confirmed'" name="i-lucide-phone-call" class="size-3.5" />
-            {{ c.label }}
-            <span class="kords-chip-count">{{ c.count }}</span>
-          </button>
-        </div>
         <div v-if="categoryChips.length > 1" class="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
           <button type="button" class="kords-chip" :class="!categoryFilter.length && 'kords-chip-on'" @click="categoryFilter = []">
             {{ t("cs.customers.allCategories") }}
@@ -501,31 +565,56 @@ function openRecord(productId: string) {
             <span class="kords-chip-count">{{ c.count }}</span>
           </button>
         </div>
-        <div v-if="mode === 'list'" class="flex flex-wrap items-center gap-2">
-          <UInput v-model="search" icon="i-lucide-search" :placeholder="t('cs.maintenance.search')" class="min-w-0 flex-1 basis-56" />
-          <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-44" />
-          <UFormField :label="t('cs.maintenance.lastFrom')" size="xs" class="w-40">
-            <UInput v-model="lastFrom" type="date" :disabled="neverMaintained" class="w-full" />
-          </UFormField>
-          <UFormField :label="t('cs.maintenance.lastTo')" size="xs" class="w-40">
-            <UInput v-model="lastTo" type="date" :disabled="neverMaintained" class="w-full" />
-          </UFormField>
-          <USwitch v-model="neverMaintained" :label="t('cs.maintenance.neverMaintained')" class="self-end pb-2" />
-          <UButton
-            v-if="lastFrom || lastTo || neverMaintained"
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            class="self-end"
-            :label="t('cs.maintenance.clearDates')"
-            @click="clearLastDates"
-          />
+        <div v-if="mode === 'list'" class="space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <UInput v-model="search" icon="i-lucide-search" :placeholder="t('cs.maintenance.search')" class="min-w-0 flex-1 basis-56" />
+            <USelect v-model="areaFilter" :items="areaItems" value-key="value" icon="i-lucide-map-pin" class="w-44" />
+            <UButton
+              icon="i-lucide-sliders-horizontal"
+              color="neutral"
+              :variant="showMore || moreCount ? 'soft' : 'outline'"
+              :label="moreCount ? `${t('cs.maintenance.moreFilters')} · ${moreCount}` : t('cs.maintenance.moreFilters')"
+              :trailing-icon="showMore ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+              @click="showMore = !showMore"
+            />
+            <UButton v-if="anyFilter" icon="i-lucide-x" color="neutral" variant="ghost" :label="t('cs.maintenance.clearFilters')" @click="clearAllFilters" />
+          </div>
+          <div v-if="showMore" class="flex flex-wrap items-end gap-2">
+            <USelect v-model="techFilter" :items="techItems" value-key="value" icon="i-lucide-hard-hat" class="w-48" />
+            <USelect v-model="warrantyFilter" :items="warrantyItems" value-key="value" icon="i-lucide-shield" class="w-44" />
+            <UFormField :label="t('cs.maintenance.lastFrom')" size="xs" class="w-40">
+              <UInput v-model="lastFrom" type="date" :disabled="neverMaintained" class="w-full" />
+            </UFormField>
+            <UFormField :label="t('cs.maintenance.lastTo')" size="xs" class="w-40">
+              <UInput v-model="lastTo" type="date" :disabled="neverMaintained" class="w-full" />
+            </UFormField>
+            <USwitch v-model="neverMaintained" :label="t('cs.maintenance.neverMaintained')" class="self-end pb-2" />
+            <UButton v-if="lastFrom || lastTo || neverMaintained" icon="i-lucide-x" color="neutral" variant="ghost" size="sm" class="self-end" :label="t('cs.maintenance.clearDates')" @click="clearLastDates" />
+          </div>
         </div>
       </div>
     </template>
 
     <template #body>
+      <!-- Dashboard: each tile filters the table; click it again to clear -->
+      <div v-if="mode === 'list' && status !== 'pending' && status !== 'idle'" class="mb-4 space-y-2">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
+          <button
+            v-for="x in dashboard"
+            :key="x.key"
+            type="button"
+            class="kords-card p-3 text-start transition-shadow"
+            :class="tileActive(x) && 'kords-card-selected'"
+            :aria-pressed="tileActive(x)"
+            @click="pickTile(x)"
+          >
+            <div class="flex items-center gap-1.5 text-xs text-muted"><UIcon :name="x.icon" class="size-3.5 shrink-0" /><span class="truncate">{{ x.label }}</span></div>
+            <div class="mt-1 text-xl font-bold" :class="x.n ? toneText[x.tone] : 'text-muted'">{{ x.n }}</div>
+          </button>
+        </div>
+        <p class="text-xs text-muted">{{ t("cs.maintenance.showingOf", { shown: filtered.length, total: rows.length }) }}</p>
+      </div>
+
       <div v-if="status === 'pending' || status === 'idle'" class="flex justify-center py-16">
         <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
       </div>

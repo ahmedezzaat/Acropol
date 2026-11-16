@@ -1683,6 +1683,11 @@
       "openMaintenance": "Open maintenance"
     },
     "maintenance": {
+      "moreFilters": "More filters",
+      "clearFilters": "Clear filters",
+      "doneThisMonth": "Done this month",
+      "warrantyAll": "Any warranty",
+      "showingOf": "Showing {shown} of {total}",
       "title": "Maintenance",
       "next": "Next maintenance",
       "note": "Note",
