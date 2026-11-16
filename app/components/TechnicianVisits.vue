@@ -141,17 +141,22 @@ function openComplete(o: PendingOrder) {
   completing.value = o;
   completeOpen.value = true;
 }
-const today = () => new Date().toISOString().slice(0, 10);
+const orderDay = (o: PendingOrder): Day | null => {
+  const ms = new Date(`${o.work_date}T12:00:00`).getTime();
+  return dayOf(ms) ?? (ms < midnight(-1).getTime() ? "today" : null);
+};
+const orderLate = (o: PendingOrder) => new Date(`${o.work_date}T12:00:00`).getTime() < midnight(0).getTime();
+const shownOrders = computed(() => myOrders.value.filter((o) => orderDay(o) === day.value));
 
 const dayTabs = computed(() =>
   (["yesterday", "today", "tomorrow"] as const).map((d) => ({
     value: d,
     label: t(`cs.myVisits.${d}`),
-    count: cards.value.filter((c) => c.day === d).length,
+    count: cards.value.filter((c) => c.day === d).length + myOrders.value.filter((o) => orderDay(o) === d).length,
   })),
 );
 const shown = computed(() => cards.value.filter((c) => c.day === day.value));
-const pendingCount = computed(() => shown.value.filter((c) => !c.done).length);
+const pendingCount = computed(() => shown.value.filter((c) => !c.done).length + shownOrders.value.length);
 
 const clock = (ms: number) => formatClock(new Date(ms), locale.value);
 const categoryNames = (c: Card) => [...new Set(c.products.map((p) => categories.value.find((x) => x.id === p.category_id)?.name ?? p.name))];
@@ -284,12 +289,12 @@ function closeDetail() {
     <template #body>
       <div class="mx-auto w-full max-w-2xl space-y-4">
         <!-- Work orders given to this technician -->
-        <section v-if="myOrders.length" class="space-y-2">
+        <section v-if="shownOrders.length" class="space-y-2">
           <h2 class="flex items-center gap-2 text-sm font-semibold text-highlighted">
             <UIcon name="i-lucide-clipboard-list" class="size-4 text-primary" />{{ t("cs.workOrders.mine") }}
-            <KBadge :label="String(myOrders.length)" tone="neutral" />
+            <KBadge :label="String(shownOrders.length)" tone="neutral" />
           </h2>
-          <article v-for="o in myOrders" :key="o.id" class="kords-card space-y-2 p-4" :class="o.work_date < today() && 'kords-kcard-late'">
+          <article v-for="o in shownOrders" :key="o.id" class="kords-card space-y-2 border-s-4 border-s-primary p-4" :class="orderLate(o) && 'kords-kcard-late'">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span class="flex flex-wrap items-center gap-2">
                 <KBadge :label="t(`cs.workOrders.kind.${o.kind}`)" :tone="WORK_ORDER_TONES[o.kind]" :icon="WORK_ORDER_ICONS[o.kind]" />
@@ -326,7 +331,7 @@ function closeDetail() {
         <div v-if="loading" class="flex justify-center py-16">
           <UIcon name="i-lucide-loader-2" class="size-6 animate-spin text-muted" />
         </div>
-        <div v-else-if="!shown.length" class="kords-card flex flex-col items-center gap-2 p-10 text-center">
+        <div v-else-if="!shown.length && !shownOrders.length" class="kords-card flex flex-col items-center gap-2 p-10 text-center">
           <UIcon name="i-lucide-calendar-check" class="size-8 text-muted" />
           <p class="text-sm text-muted">{{ t("cs.myVisits.empty") }}</p>
         </div>

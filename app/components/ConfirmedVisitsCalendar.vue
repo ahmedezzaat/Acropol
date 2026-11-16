@@ -8,6 +8,8 @@ interface CalendarVisit {
   at: number;
   products: { id: string; name: string; quantity?: number }[];
   technicianIds: (string | null)[];
+  // an installation / operation / inspection work order on this day (instead of products)
+  workOrder?: { id: string; kind: SimpleWorkOrderKind; subject_name: string };
 }
 
 const props = defineProps<{
@@ -123,15 +125,20 @@ const MONTH_LIMIT = 3;
             :key="v.key"
             type="button"
             class="rounded-[7px] border-s-4 bg-muted px-2 py-1 text-start text-xs transition-colors hover:bg-elevated"
-            :class="assigned(v) ? 'border-s-primary' : 'border-s-warning'"
-            :title="`${customerTitle(v.customerId)} · ${v.products.map((p) => p.name).join('، ')}`"
+            :class="assigned(v) ? (v.workOrder ? 'border-s-info' : 'border-s-primary') : 'border-s-warning'"
+            :title="v.workOrder ? `${t(`cs.workOrders.kind.${v.workOrder.kind}`)} · ${v.workOrder.subject_name}` : `${customerTitle(v.customerId)} · ${v.products.map((p) => p.name).join('، ')}`"
             @click="emit('select', v)"
           >
             <div class="flex items-center justify-between gap-1">
-              <span class="font-medium text-highlighted">{{ clock(v.at) }}</span>
-              <span class="text-muted">{{ v.products.length }}</span>
+              <span v-if="v.workOrder" class="flex items-center gap-1 font-medium text-highlighted">
+                <UIcon :name="WORK_ORDER_ICONS[v.workOrder.kind]" class="size-3.5" />{{ t(`cs.workOrders.kind.${v.workOrder.kind}`) }}
+              </span>
+              <template v-else>
+                <span class="font-medium text-highlighted">{{ clock(v.at) }}</span>
+                <span class="text-muted">{{ v.products.length }}</span>
+              </template>
             </div>
-            <div class="truncate text-toned">{{ customerTitle(v.customerId) }}</div>
+            <div class="truncate text-toned">{{ v.workOrder ? v.workOrder.subject_name : customerTitle(v.customerId) }}</div>
             <div v-if="mode === 'week'" class="truncate" :class="assigned(v) ? 'text-muted' : 'text-warning'">{{ techLabel(v) }}</div>
           </button>
           <div v-if="mode === 'month' && d.list.length > MONTH_LIMIT" class="text-center text-xs text-muted">

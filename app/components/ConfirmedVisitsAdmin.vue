@@ -58,13 +58,28 @@ const __ad3 = useAsyncData<Technician[]>("cs-confirmed-visits-technicians", asyn
   return (data ?? []) as Technician[];
 });
 const { data: technicians } = __ad3;
+// Installation / operation / inspection work orders waiting to be done: they sit beside the maintenance visits,
+// on their planned day (the table may not be there yet: then there are none)
+interface PendingOrder {
+  id: string; kind: SimpleWorkOrderKind; customer_id: string | null; lead_id: string | null; subject_name: string;
+  subject_phone: string | null; subject_address: string | null; work_date: string; technician_id: string | null; note: string | null;
+}
+const __ad5 = useAsyncData<PendingOrder[]>("cs-confirmed-visits-orders", async () => {
+  const { data } = await supabase
+    .from("cs_work_orders")
+    .select("id, kind, customer_id, lead_id, subject_name, subject_phone, subject_address, work_date, technician_id, note")
+    .eq("status", "pending")
+    .order("work_date");
+  return (data ?? []) as PendingOrder[];
+});
+const { data: pendingOrders, refresh: refreshOrders } = __ad5;
 const __ad4 = useAsyncData("cs-confirmed-visits-meta", async () => {
   await Promise.all([loadAreas(true), loadPipelines(true)]);
   return true;
 });
 
 // Load everything at once instead of one request after another.
-await Promise.all([__ad1, __ad2, __ad3, __ad4]);
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5]);
 
 const customerById = computed(() => new Map((customers.value ?? []).map((c) => [c.id, c])));
 const techName = (id: string | null | undefined) => {
@@ -79,6 +94,7 @@ interface Visit {
   at: number;
   products: CsProduct[];
   technicianIds: (string | null)[];
+  workOrder?: PendingOrder;
 }
 const dayKey = (iso: string) => {
   const d = new Date(iso);
@@ -94,6 +110,11 @@ const visits = computed<Visit[]>(() => {
     v.products.push(p);
     v.technicianIds.push(p.maintenance_technician_id ?? null);
     map.set(key, v);
+  }
+  for (const o of pendingOrders.value ?? []) {
+    // a work order has a day, not a time: it is shown at the start of its day
+    const at = new Date(`${o.work_date}T08:00:00`).getTime();
+    map.set(`wo:${o.id}`, { key: `wo:${o.id}`, customerId: o.customer_id ?? "", at, products: [], technicianIds: [o.technician_id], workOrder: o });
   }
   return [...map.values()].sort((a, b) => a.at - b.at);
 });
@@ -152,8 +173,9 @@ const passesFilters = (v: Visit) => {
   if (areaFilter.value && c?.area_id !== areaFilter.value) return false;
   if (search.value) {
     const q = search.value.toLowerCase();
-    const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${c?.address ?? ""} ${v.products.map((p) => `${p.name} ${p.contract_code ?? ""}`).join(" ")}`.toLowerCase();
-    if (!hay.includes(q) && !anyPhoneMatches([c?.phone, ...(c?.extra_phones ?? [])], search.value) && !extraNamesMatch(c?.extra_phone_names, search.value)) return false;
+    const w = v.workOrder;
+    const hay = `${c?.name ?? ""} ${c?.company ?? ""} ${c?.phone ?? ""} ${c?.address ?? ""} ${w ? `${w.subject_name} ${w.subject_phone ?? ""} ${w.subject_address ?? ""} ${w.note ?? ""}` : ""} ${v.products.map((p) => `${p.name} ${p.contract_code ?? ""}`).join(" ")}`.toLowerCase();
+    if (!hay.includes(q) && !anyPhoneMatches([c?.phone, w?.subject_phone, ...(c?.extra_phones ?? [])], search.value) && !extraNamesMatch(c?.extra_phone_names, search.value)) return false;
   }
   return true;
 };
@@ -190,10 +212,44 @@ const customerTitleOf = (id: string) => {
   const c = customerById.value.get(id);
   return c ? customerTitle(c) : "—";
 };
+// ---- Work orders in the list and the calendar
+const titleOf = (v: Visit) => (v.workOrder ? v.workOrder.subject_name : customerById.value.get(v.customerId) ? customerTitle(customerById.value.get(v.customerId)!) : "—");
+const phoneOf = (v: Visit) => (v.workOrder ? v.workOrder.subject_phone : customerById.value.get(v.customerId)?.phone);
+const addressOf = (v: Visit) => (v.workOrder ? v.workOrder.subject_address : customerById.value.get(v.customerId)?.address);
+const toast = useToast();
+const completeOpen = ref(false);
+const completing = ref<PendingOrder | null>(null);
+function openCompleteOrder(o: PendingOrder) {
+  completing.value = o;
+  completeOpen.value = true;
+}
+const assignOrderMenu = (o: PendingOrder) => [
+  (technicians.value ?? []).filter((u) => u.is_active).map((u) => ({
+    label: u.full_name || u.email,
+    icon: u.id === o.technician_id ? "i-lucide-check" : "i-lucide-hard-hat",
+    onSelect: () => assignOrder(o, u.id),
+  })),
+];
+async function assignOrder(o: PendingOrder, technicianId: string) {
+  const { error } = await supabase.rpc("cs_assign_work_order", { p_id: o.id, p_technician: technicianId });
+  if (error) return toast.add({ title: t("cs.maintenance.saveFailed"), description: error.message, color: "error" });
+  toast.add({ title: t("cs.workOrders.assigned"), color: "success" });
+  await refreshOrders();
+}
+async function onOrderSaved() {
+  await refreshOrders();
+}
+// a work order opens the work orders list (its customer, when it has one, is a click away there)
+function openVisit(v: Visit) {
+  if (v.workOrder) navigateTo("/cs/work-orders");
+  else openCustomer(v.customerId);
+}
+
 // A visit clicked on the calendar opens its assignment (or its customer).
 function onCalendarSelect(v: { key: string }) {
   const visit = visits.value.find((x) => x.key === v.key);
   if (!visit) return;
+  if (visit.workOrder) return can.complete ? openCompleteOrder(visit.workOrder) : navigateTo("/cs/work-orders");
   if (can.assign) openAssign([visit]);
   else openCustomer(visit.customerId);
 }
@@ -258,6 +314,7 @@ const assignOpen = ref(false);
 const assignProducts = ref<CsProduct[]>([]);
 function openAssign(list: Visit[]) {
   assignProducts.value = list.flatMap((v) => v.products);
+  if (!assignProducts.value.length) return;
   assignOpen.value = true;
 }
 
@@ -291,7 +348,7 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
   <UDashboardPanel :ui="{ body: 'kords-canvas' }">
     <template #header>
       <KPageHeader :title="t('cs.confirmedVisits.title')" :count="visits.length">
-        <template #right><WorkOrderCreate @saved="refresh()" /></template>
+        <template #right><WorkOrderCreate @saved="refresh(); refreshOrders()" /></template>
       </KPageHeader>
 
       <div class="kords-filterbar w-full space-y-3 border-b border-default px-4 py-3 sm:px-6">
@@ -362,14 +419,16 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
         <div class="space-y-2 md:hidden">
           <div v-for="v in pagedCards" :key="v.key" class="kords-kcard border border-default bg-default p-3 text-sm" :class="v.at < startOfToday() && 'kords-kcard-late'">
             <div class="flex items-start justify-between gap-2">
-              <button type="button" class="min-w-0 text-start" @click="openCustomer(v.customerId)">
-                <div class="truncate font-semibold text-highlighted">
-                  {{ customerById.get(v.customerId) ? customerTitle(customerById.get(v.customerId)!) : "—" }}
+              <button type="button" class="min-w-0 text-start" @click="openVisit(v)">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <KBadge v-if="v.workOrder" :label="t(`cs.workOrders.kind.${v.workOrder.kind}`)" :tone="WORK_ORDER_TONES[v.workOrder.kind]" :icon="WORK_ORDER_ICONS[v.workOrder.kind]" />
+                  <span class="truncate font-semibold text-highlighted">{{ titleOf(v) }}</span>
                 </div>
-                <div class="text-xs text-muted">{{ formatDateTime(new Date(v.at).toISOString()) }}</div>
+                <div class="text-xs text-muted">{{ v.workOrder ? formatDMY(v.workOrder.work_date) : formatDateTime(new Date(v.at).toISOString()) }}</div>
               </button>
               <KBadge v-if="dayLabel(v)" :label="dayLabel(v)!.text" :tone="dayLabel(v)!.tone" />
             </div>
+            <p v-if="v.workOrder?.note" class="mt-2 line-clamp-2 whitespace-pre-line text-xs text-toned">{{ v.workOrder.note }}</p>
             <ul class="mt-2 space-y-0.5 text-xs text-toned">
               <li v-for="n in productsText(v)" :key="n" class="truncate">{{ n }}</li>
             </ul>
@@ -380,7 +439,13 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
                   {{ technicianOf(v) === "mixed" ? t("cs.confirmedVisits.mixed") : techName(technicianOf(v) as string | null) || t("cs.maintenance.unassigned") }}
                 </span>
               </span>
-              <div class="flex items-center gap-1">
+              <div v-if="v.workOrder" class="flex items-center gap-1">
+                <UDropdownMenu v-if="can.assign" :items="assignOrderMenu(v.workOrder)">
+                  <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-user-check" :label="t(technicianOf(v) ? 'cs.maintenance.reassign' : 'cs.maintenance.assign')" />
+                </UDropdownMenu>
+                <UButton v-if="can.complete" size="xs" color="success" variant="soft" icon="i-lucide-check" :label="t('cs.workOrders.markDone')" @click="openCompleteOrder(v.workOrder)" />
+              </div>
+              <div v-else class="flex items-center gap-1">
                 <UButton v-if="can.assign" size="xs" color="neutral" variant="soft" icon="i-lucide-user-check" :label="t(technicianOf(v) ? 'cs.maintenance.reassign' : 'cs.maintenance.assign')" @click="openAssign([v])" />
                 <UButton v-if="can.complete" size="xs" color="success" variant="soft" icon="i-lucide-check" :label="t('cs.maintenance.markDone')" @click="openDone(v)" />
               </div>
@@ -397,26 +462,24 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
           :columns="columns"
           :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
           :ui="{ root: 'kords-card hidden shrink-0 overflow-hidden md:block [&_tbody_tr]:cursor-pointer' }"
-          @select="(_e, row) => openCustomer(row.original.customerId)"
+          @select="(_e, row) => openVisit(row.original)"
         >
           <template #when-cell="{ row }">
             <div class="whitespace-nowrap">
               <div class="text-sm font-medium" :class="row.original.at < startOfToday() ? 'text-error' : 'text-highlighted'">
-                {{ formatDateTime(new Date(row.original.at).toISOString()) }}
+                {{ row.original.workOrder ? formatDMY(row.original.workOrder.work_date) : formatDateTime(new Date(row.original.at).toISOString()) }}
               </div>
               <KBadge v-if="dayLabel(row.original)" :label="dayLabel(row.original)!.text" :tone="dayLabel(row.original)!.tone" class="mt-1" />
             </div>
           </template>
           <template #customer-cell="{ row }">
             <div class="min-w-0">
-              <div class="truncate font-medium text-highlighted">
-                {{ customerById.get(row.original.customerId) ? customerTitle(customerById.get(row.original.customerId)!) : "—" }}
-              </div>
+              <div class="truncate font-medium text-highlighted">{{ titleOf(row.original) }}</div>
               <div class="flex items-center gap-1 text-xs text-toned">
-                <bdi v-if="customerById.get(row.original.customerId)?.phone" dir="ltr">{{ customerById.get(row.original.customerId)?.phone }}</bdi>
+                <bdi v-if="phoneOf(row.original)" dir="ltr">{{ phoneOf(row.original) }}</bdi>
                 <a
-                  v-if="toWhatsAppLink(customerById.get(row.original.customerId)?.phone)"
-                  :href="toWhatsAppLink(customerById.get(row.original.customerId)?.phone)!"
+                  v-if="toWhatsAppLink(phoneOf(row.original))"
+                  :href="toWhatsAppLink(phoneOf(row.original))!"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="text-[#25D366]"
@@ -428,7 +491,11 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
             </div>
           </template>
           <template #products-cell="{ row }">
-            <ul class="space-y-0.5 text-sm">
+            <div v-if="row.original.workOrder" class="space-y-1">
+              <KBadge :label="t(`cs.workOrders.kind.${row.original.workOrder.kind}`)" :tone="WORK_ORDER_TONES[row.original.workOrder.kind]" :icon="WORK_ORDER_ICONS[row.original.workOrder.kind]" />
+              <p v-if="row.original.workOrder.note" class="line-clamp-2 max-w-56 whitespace-pre-line text-xs text-toned">{{ row.original.workOrder.note }}</p>
+            </div>
+            <ul v-else class="space-y-0.5 text-sm">
               <li v-for="n in productsText(row.original).slice(0, 3)" :key="n" class="max-w-56 truncate">{{ n }}</li>
               <li v-if="row.original.products.length > 3" class="text-xs text-muted">+{{ row.original.products.length - 3 }}</li>
             </ul>
@@ -438,7 +505,7 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
               <div v-if="areaName(customerById.get(row.original.customerId)?.area_id)" class="text-highlighted">
                 {{ areaName(customerById.get(row.original.customerId)?.area_id) }}
               </div>
-              <div class="line-clamp-2 text-xs text-muted">{{ customerById.get(row.original.customerId)?.address || "—" }}</div>
+              <div class="line-clamp-2 text-xs text-muted">{{ addressOf(row.original) || "—" }}</div>
             </div>
           </template>
           <template #technician-cell="{ row }">
@@ -450,7 +517,13 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
             <KBadge v-else :label="t('cs.maintenance.unassigned')" tone="warning" outlined />
           </template>
           <template #actions-cell="{ row }">
-            <div class="flex items-center justify-end gap-1">
+            <div v-if="row.original.workOrder" class="flex items-center justify-end gap-1">
+              <UDropdownMenu v-if="can.assign" :items="assignOrderMenu(row.original.workOrder)">
+                <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-user-check" :label="t(technicianOf(row.original) ? 'cs.maintenance.reassign' : 'cs.maintenance.assign')" @click.stop />
+              </UDropdownMenu>
+              <UButton v-if="can.complete" size="xs" color="success" variant="soft" icon="i-lucide-check" :label="t('cs.workOrders.markDone')" @click.stop="openCompleteOrder(row.original.workOrder)" />
+            </div>
+            <div v-else class="flex items-center justify-end gap-1">
               <UButton
                 v-if="can.assign"
                 size="xs"
@@ -489,4 +562,5 @@ const productsText = (v: Visit) => v.products.map((p) => `${p.name}${(p.quantity
 
   <MaintenanceAssignModal v-model:open="assignOpen" :products="assignProducts" @saved="onSaved" />
   <MaintenanceDoneModal v-model:open="doneOpen" :products="doneProducts" @saved="onSaved" />
+  <WorkOrderCompleteModal v-model:open="completeOpen" :order="completing" @saved="onOrderSaved" />
 </template>
