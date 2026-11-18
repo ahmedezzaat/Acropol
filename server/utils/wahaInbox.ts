@@ -78,7 +78,7 @@ export async function recordWahaMessage(admin: SupabaseClient, m: WahaMessage): 
       last_message_at: now,
       // a reply typed on the phone: a person is in this chat, so the agent (auto mode) stops answering it
       // (the agent's own messages never get here: they are stored when sent and the echo is skipped above)
-      ...(m.fromMe ? { ai_paused: true } : { last_inbound_at: now, unread: true }),
+      ...(m.fromMe ? { ai_paused: true } : { last_inbound_at: now, unread: true, archived_at: null }),
       // the chat remembers the latest ad the person came from
       ...(m.ad && !m.fromMe ? { ad_referral: m.ad, ad_referred_at: now } : {}),
       ...(!m.fromMe && m.name && !conv.display_name ? { display_name: m.name } : {}),

@@ -2037,6 +2037,15 @@
   },
   "chats": {
     "dealLabel": "This contact has a deal in this category",
+    "archive": {
+      "archive": "Archive",
+      "restore": "Unarchive",
+      "archived": "Archived",
+      "done": "Chat archived",
+      "restored": "Chat moved back to the list",
+      "undo": "Undo",
+      "failed": "Could not archive"
+    },
     "ad": {
       "from": "Came from an ad",
       "open": "Open the ad",
@@ -2147,7 +2156,7 @@
     "title": "WhatsApp inbox",
     "empty": "No chats",
     "pick": "Pick a chat to read it",
-    "filter": { "all": "All", "unread": "Unread", "waiting": "Waiting for us", "handed_over": "Needs a person", "qualifying": "Being qualified", "qualified": "Qualified" },
+    "filter": { "all": "All", "unread": "Unread", "waiting": "Waiting for us", "handed_over": "Needs a person", "qualifying": "Being qualified", "qualified": "Qualified", "archived": "Archived" },
     "status": { "qualifying": "Being qualified", "qualified": "Qualified", "handed_over": "Needs a person", "known": "Known customer", "closed": "Closed" },
     "fields": { "name": "Name", "need": "Need", "area": "Area", "timing": "When", "budget": "Budget" },
     "nothingYet": "The assistant has not learned anything yet.",

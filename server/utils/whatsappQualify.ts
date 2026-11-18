@@ -51,7 +51,7 @@ export async function handleInboundChat(event: H3Event, admin: SupabaseClient, m
   if (dupe) return true;
   await admin
     .from("whatsapp_conversations")
-    .update({ last_inbound_at: new Date().toISOString(), last_message_at: new Date().toISOString(), unread: true, ...(m.name && !conv.display_name ? { display_name: m.name } : {}) })
+    .update({ last_inbound_at: new Date().toISOString(), last_message_at: new Date().toISOString(), unread: true, archived_at: null, ...(m.name && !conv.display_name ? { display_name: m.name } : {}) })
     .eq("id", conv.id);
 
   if (conv.status !== "qualifying" || conv.ai_paused) return true;

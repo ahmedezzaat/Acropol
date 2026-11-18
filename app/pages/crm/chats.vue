@@ -25,10 +25,12 @@ interface Conversation {
   ai_draft: string | null; ai_deal_id: string | null;
   // the Click-to-WhatsApp ad the person came from
   ad_referral: AdRef | null;
+  // archived: out of the list until the person writes again
+  archived_at: string | null;
 }
 interface Message { id: string; direction: "in" | "out"; sender: "customer" | "ai" | "agent"; body: string | null; created_at: string; media_path: string | null; media_type: string | null; media_name: string | null; ad_referral: AdRef | null }
 
-const filter = ref<"all" | "unread" | "waiting" | "handed_over" | "qualifying" | "qualified">("all");
+const filter = ref<"all" | "unread" | "waiting" | "handed_over" | "qualifying" | "qualified" | "archived">("all");
 // a chat waits for us when the customer wrote last (both times are set together when a message arrives)
 const isWaiting = (c: Conversation) => !!c.last_inbound_at && c.status !== "closed" && new Date(c.last_message_at).getTime() - new Date(c.last_inbound_at).getTime() < 2000;
 const { data: convs, refresh } = await useAsyncData<Conversation[]>("wa-conversations", async () => {
@@ -125,7 +127,8 @@ const snippet = (c: Conversation) => {
   const from = Math.max(0, i - 20);
   return (from > 0 ? "…" : "") + body.slice(from, from + 70);
 };
-const matchesFilter = (c: Conversation) => filter.value === "all" || (filter.value === "unread" ? c.unread : filter.value === "waiting" ? isWaiting(c) : c.status === filter.value);
+// archived chats stay out of every list except "Archived", and out of the counts; a search still finds them
+const matchesFilter = (c: Conversation) => (filter.value === "archived" ? !!c.archived_at : !c.archived_at || (filter.value === "all" && search.value.trim().length > 0)) && (filter.value === "all" || filter.value === "archived" || (filter.value === "unread" ? c.unread : filter.value === "waiting" ? isWaiting(c) : c.status === filter.value));
 const shown = computed(() => {
   const list = (convs.value ?? []).filter((c) => matchesFilter(c) && matchesSearch(c));
   // the ones that have waited longest come first
@@ -175,10 +178,27 @@ async function fixWebhook() {
   }
 }
 const counts = computed(() => {
-  const all = convs.value ?? [];
-  return { all: all.length, unread: all.filter((c) => c.unread).length, waiting: all.filter(isWaiting).length, handed_over: all.filter((c) => c.status === "handed_over").length, qualifying: all.filter((c) => c.status === "qualifying").length, qualified: all.filter((c) => c.status === "qualified").length };
+  const everyone = convs.value ?? [];
+  const all = everyone.filter((c) => !c.archived_at);
+  return { archived: everyone.length - all.length, all: all.length, unread: all.filter((c) => c.unread).length, waiting: all.filter(isWaiting).length, handed_over: all.filter((c) => c.status === "handed_over").length, qualifying: all.filter((c) => c.status === "qualifying").length, qualified: all.filter((c) => c.status === "qualified").length };
 });
-const tabs = computed(() => (["all", "unread", "waiting", "handed_over", "qualifying", "qualified"] as const).map((k) => ({ value: k, label: `${t(`chats.filter.${k}`)} (${counts.value[k]})` })));
+const tabs = computed(() => (["all", "unread", "waiting", "handed_over", "qualifying", "qualified", "archived"] as const).map((k) => ({ value: k, label: `${t(`chats.filter.${k}`)} (${counts.value[k]})` })));
+// ---- Archive: a dealt-with chat leaves the list (the toast can undo it); the person writing again brings it back
+async function setArchived(c: Conversation, archived: boolean) {
+  const { error } = await supabase.from("whatsapp_conversations").update({ archived_at: archived ? new Date().toISOString() : null }).eq("id", c.id);
+  if (error) {
+    toast.add({ title: t("chats.archive.failed"), description: error.message, color: "error" });
+    return;
+  }
+  // an archived chat is no longer in the list being looked at: close it
+  if (archived && filter.value !== "archived" && openId.value === c.id) openId.value = null;
+  await refresh();
+  toast.add({
+    title: t(archived ? "chats.archive.done" : "chats.archive.restored"),
+    color: "success",
+    actions: archived ? [{ label: t("chats.archive.undo"), color: "neutral" as const, variant: "outline" as const, onClick: () => setArchived(c, false) }] : [],
+  });
+}
 const statusTone = { qualifying: "primary", qualified: "success", handed_over: "warning", known: "neutral", closed: "neutral" } as const;
 
 const openId = ref<string | null>(typeof route.query.open === "string" ? route.query.open : null);
@@ -400,7 +420,7 @@ async function createContact() {
                 <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="c.unread ? 'bg-primary' : 'bg-transparent'" />
                 <span class="min-w-0 flex-1">
                   <span class="flex items-center justify-between gap-2">
-                    <span class="flex min-w-0 items-center gap-1.5"><span class="truncate font-medium text-highlighted">{{ title(c) }}</span><UIcon v-if="c.ad_referral" name="i-lucide-megaphone" class="size-3.5 shrink-0 text-info" :title="t('chats.ad.from')" /><UIcon v-if="c.provider === 'waha' && health?.mode === 'auto' && c.ai_paused" name="i-lucide-hand" class="size-3.5 shrink-0 text-warning" :title="t('chats.agentState.paused')" /><UIcon v-if="c.provider === 'waha'" name="i-lucide-smartphone" class="size-3.5 shrink-0 text-muted" :title="t('chats.viaPhone')" /></span>
+                    <span class="flex min-w-0 items-center gap-1.5"><span class="truncate font-medium text-highlighted">{{ title(c) }}</span><UIcon v-if="c.archived_at" name="i-lucide-archive" class="size-3.5 shrink-0 text-muted" :title="t('chats.archive.archived')" /><UIcon v-if="c.ad_referral" name="i-lucide-megaphone" class="size-3.5 shrink-0 text-info" :title="t('chats.ad.from')" /><UIcon v-if="c.provider === 'waha' && health?.mode === 'auto' && c.ai_paused" name="i-lucide-hand" class="size-3.5 shrink-0 text-warning" :title="t('chats.agentState.paused')" /><UIcon v-if="c.provider === 'waha'" name="i-lucide-smartphone" class="size-3.5 shrink-0 text-muted" :title="t('chats.viaPhone')" /></span>
                     <KBadge :label="t(`chats.status.${c.status}`)" :tone="statusTone[c.status]" class="shrink-0" />
                   </span>
                   <span v-if="dealLabels.get(c.id)" class="mt-1 flex flex-wrap items-center gap-1">
@@ -427,6 +447,7 @@ async function createContact() {
               <div class="flex flex-wrap items-center gap-2">
                 <KBadge :label="t(`chats.status.${current.status}`)" :tone="statusTone[current.status]" />
                 <span v-for="l in dealLabels.get(current.id) ?? []" :key="l.key" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium" :class="l.cls" :title="t('chats.dealLabel')"><UIcon name="i-lucide-handshake" class="size-3.5" />{{ l.text }}</span>
+                <UButton v-if="canReply" size="xs" color="neutral" variant="outline" :icon="current.archived_at ? 'i-lucide-archive-restore' : 'i-lucide-archive'" :label="current.archived_at ? t('chats.archive.restore') : t('chats.archive.archive')" @click="setArchived(current, !current.archived_at)" />
                 <UButton v-if="current.lead_id" :to="`/crm/leads?id=${current.lead_id}`" size="xs" color="neutral" variant="outline" icon="i-lucide-user-round" :label="t('chats.openLead')" />
                 <UButton v-if="canCreate && !current.lead_id && !current.customer_id && !isHidden(current)" size="xs" icon="i-lucide-user-plus" :label="t('chats.createContact')" :loading="creating" @click="createContact" />
                 <span v-if="agentState" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium" :class="{ 'bg-success/10 text-success': agentState.tone === 'success', 'bg-warning/10 text-warning': agentState.tone === 'warning', 'bg-primary/10 text-primary': agentState.tone === 'primary', 'bg-muted text-muted': agentState.tone === 'neutral' }"><UIcon :name="agentState.icon" class="size-3.5" />{{ t(`chats.agentState.${agentState.key}`) }}</span>
