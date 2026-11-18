@@ -12,6 +12,8 @@ const { t, locale } = useI18n();
 const { hasPermission } = usePermissions();
 const canReply = computed(() => hasPermission("crm_chats", "reply"));
 const canCreate = computed(() => hasPermission("crm_chats", "create_contact"));
+const repliesOpen = ref(false);
+const savedReplies = ref<{ handleKey: (e: KeyboardEvent) => void } | null>(null);
 // a deal can be created from the chat by someone who may create deals
 const canDeal = computed(() => hasPermission("crm_deals", "create"));
 const canFixLink = computed(() => hasPermission("settings", "integrations"));
@@ -310,6 +312,7 @@ async function createContact() {
           <UDashboardSidebarCollapse />
         </template>
         <template #right>
+          <UButton icon="i-lucide-zap" color="neutral" variant="outline" :label="t('chats.saved.open')" @click="repliesOpen = true" />
           <UButton v-if="canReply" icon="i-lucide-square-pen" :label="t('chats.newMessage')" @click="openNew()" />
         </template>
       </UDashboardNavbar>
@@ -407,7 +410,8 @@ async function createContact() {
             <div class="flex items-end gap-2">
               <input ref="fileInput" type="file" class="hidden" @change="onPick" />
               <UButton v-if="current.provider === 'waha'" icon="i-lucide-paperclip" color="neutral" variant="outline" :disabled="sending" :aria-label="t('chats.media.attach')" @click="fileInput?.click()" />
-              <UTextarea v-model="text" :rows="2" :disabled="!insideWindow" :placeholder="picked ? t('chats.media.caption') : t('chats.writeReply')" class="min-w-0 flex-1" @keydown.ctrl.enter="picked ? sendMedia() : send()" @keydown.meta.enter="picked ? sendMedia() : send()" />
+              <SavedReplies ref="savedReplies" v-model:text="text" :contact-name="current.display_name" :disabled="!insideWindow" />
+              <UTextarea v-model="text" :rows="2" :disabled="!insideWindow" :placeholder="picked ? t('chats.media.caption') : t('chats.writeReply')" class="min-w-0 flex-1" @keydown="savedReplies?.handleKey($event)" @keydown.ctrl.enter="picked ? sendMedia() : send()" @keydown.meta.enter="picked ? sendMedia() : send()" />
               <UButton icon="i-lucide-send" :loading="sending" :disabled="!insideWindow || (!picked && !text.trim())" :aria-label="t('chats.send')" @click="picked ? sendMedia() : send()" />
             </div>
             <p v-if="current.provider === 'cloud' && !current.ai_paused && current.status === 'qualifying'" class="text-xs text-muted">{{ t("chats.replyPausesAi") }}</p>
@@ -421,5 +425,6 @@ async function createContact() {
     </template>
   </UDashboardPanel>
 
+  <SavedRepliesManager v-model:open="repliesOpen" />
   <NewChatModal v-model:open="newOpen" :initial-phone="newPhone" @sent="onNewSent" />
 </template>

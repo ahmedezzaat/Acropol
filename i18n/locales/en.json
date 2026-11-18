@@ -2036,6 +2036,29 @@
     }
   },
   "chats": {
+    "saved": {
+      "deleted": "Reply deleted",
+      "open": "Saved replies",
+      "title": "Saved replies",
+      "search": "Search replies",
+      "empty": "No saved replies yet.",
+      "noMatch": "No matches",
+      "manage": "Manage saved replies",
+      "saveCurrent": "Save the current text as a reply",
+      "newReply": "New reply",
+      "editing": "Edit reply",
+      "titleField": "Title",
+      "shortcut": "Shortcut",
+      "shortcutHelp": "Type / and the shortcut in the reply box to insert it",
+      "shortcutExample": "e.g. welcome",
+      "body": "Reply text",
+      "variables": "Use {name} for the contact's name and {agent} for yours; they are filled in automatically",
+      "add": "Add",
+      "saved": "Reply saved",
+      "saveFailed": "Could not save the reply",
+      "shortcutTaken": "This shortcut is used by another reply",
+      "confirmDelete": "Confirm delete"
+    },
     "media": {
       "attach": "Attach a photo or file",
       "caption": "Add a caption (optional)",
