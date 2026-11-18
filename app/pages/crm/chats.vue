@@ -23,8 +23,10 @@ interface Conversation {
   ai_paused: boolean; collected: Record<string, string>; ai_replies: number; lead_id: string | null; customer_id: string | null;
   last_inbound_at: string | null; last_message_at: string; unread: boolean; provider: "cloud" | "waha";
   ai_draft: string | null; ai_deal_id: string | null;
+  // the Click-to-WhatsApp ad the person came from
+  ad_referral: AdRef | null;
 }
-interface Message { id: string; direction: "in" | "out"; sender: "customer" | "ai" | "agent"; body: string | null; created_at: string; media_path: string | null; media_type: string | null; media_name: string | null }
+interface Message { id: string; direction: "in" | "out"; sender: "customer" | "ai" | "agent"; body: string | null; created_at: string; media_path: string | null; media_type: string | null; media_name: string | null; ad_referral: AdRef | null }
 
 const filter = ref<"all" | "unread" | "waiting" | "handed_over" | "qualifying" | "qualified">("all");
 // a chat waits for us when the customer wrote last (both times are set together when a message arrives)
@@ -33,6 +35,61 @@ const { data: convs, refresh } = await useAsyncData<Conversation[]>("wa-conversa
   const { data } = await supabase.from("whatsapp_conversations").select("*").order("last_message_at", { ascending: false }).limit(150);
   return (data ?? []) as Conversation[];
 });
+// ---- Deal labels: a chat whose contact has a deal gets the deal's category (the product category the customer is
+// interested in: the deal's title is made of those names) as a coloured label in the list; one colour per category.
+interface DealRow { id: string; title: string; lead_id: string | null; customer_id: string | null }
+const { data: productCategories } = await useAsyncData<{ id: string; name: string }[]>("wa-product-categories", async () => {
+  const { data } = await supabase.from("product_categories").select("id, name").order("sort_order").order("name");
+  return (data ?? []) as { id: string; name: string }[];
+});
+const dealRows = ref<DealRow[]>([]);
+async function loadDeals() {
+  const list = convs.value ?? [];
+  const leadIds = [...new Set(list.map((c) => c.lead_id).filter((x): x is string => !!x))];
+  const customerIds = [...new Set(list.map((c) => c.customer_id).filter((x): x is string => !!x))];
+  const dealIds = [...new Set(list.map((c) => c.ai_deal_id).filter((x): x is string => !!x))];
+  const ask = async (column: "lead_id" | "customer_id" | "id", ids: string[]) =>
+    ids.length ? (((await supabase.from("deals").select("id, title, lead_id, customer_id").in(column, ids)).data ?? []) as DealRow[]) : [];
+  const found = await Promise.all([ask("lead_id", leadIds), ask("customer_id", customerIds), ask("id", dealIds)]);
+  dealRows.value = [...new Map(found.flat().map((d) => [d.id, d])).values()];
+}
+watch(convs, loadDeals, { immediate: true });
+// Older deals carry free text ("سخان شمسي"): matched to a category only when exactly one category fits
+const norm = (x: string) => x.replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").trim().toLowerCase();
+const commonPrefix = (a: string, b: string) => {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+};
+function categoryIndexOf(part: string, cats: { name: string }[]) {
+  const p = norm(part);
+  const exact = cats.findIndex((k) => norm(k.name) === p);
+  if (exact >= 0) return exact;
+  const word = p.split(/\s+/)[0] ?? "";
+  const close = cats.map((k, i) => ({ i, w: norm(k.name).split(/\s+/)[0] ?? "" })).filter((x) => word.length >= 4 && commonPrefix(word, x.w) >= 4);
+  return close.length === 1 ? close[0]!.i : -1;
+}
+interface DealLabel { key: string; text: string; cls: string }
+const dealLabels = computed(() => {
+  const cats = productCategories.value ?? [];
+  const out = new Map<string, DealLabel[]>();
+  for (const c of convs.value ?? []) {
+    const deals = dealRows.value.filter((d) => (!!c.lead_id && d.lead_id === c.lead_id) || (!!c.customer_id && d.customer_id === c.customer_id) || d.id === c.ai_deal_id);
+    const labels = new Map<string, DealLabel & { order: number }>();
+    for (const d of deals) {
+      for (const part of d.title.split(/[،,]/).map((x) => x.trim()).filter(Boolean)) {
+        const i = categoryIndexOf(part, cats);
+        // a title that is not a category name is still a deal: shown plain
+        const key = i >= 0 ? cats[i]!.id : `t:${part}`;
+        if (!labels.has(key)) labels.set(key, { key, text: i >= 0 ? cats[i]!.name : part, cls: i >= 0 ? categoryChipClass(i) : NEUTRAL_CHIP, order: i >= 0 ? i : 999 });
+      }
+    }
+    if (labels.size) out.set(c.id, [...labels.values()].sort((a, b) => a.order - b.order));
+  }
+  return out;
+});
+const MAX_LABELS = 2;
+
 // ---- search: by name or number (here) and by message text (asked from the database, after a short pause)
 const search = ref("");
 const msgHits = ref<Record<string, string>>({});
@@ -132,7 +189,7 @@ async function loadMessages() {
     messages.value = [];
     return;
   }
-  const { data } = await supabase.from("whatsapp_messages").select("id, direction, sender, body, created_at, media_path, media_type, media_name").eq("conversation_id", openId.value).order("created_at");
+  const { data } = await supabase.from("whatsapp_messages").select("id, direction, sender, body, created_at, media_path, media_type, media_name, ad_referral").eq("conversation_id", openId.value).order("created_at");
   // "[رسالة غير نصية]" is what WhatsApp's own bookkeeping (deleted/edited message, settings) was stored as: not shown
   messages.value = ((data ?? []) as Message[]).filter((m) => m.body !== "[رسالة غير نصية]");
   await loadMediaUrls();
@@ -343,8 +400,12 @@ async function createContact() {
                 <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="c.unread ? 'bg-primary' : 'bg-transparent'" />
                 <span class="min-w-0 flex-1">
                   <span class="flex items-center justify-between gap-2">
-                    <span class="flex min-w-0 items-center gap-1.5"><span class="truncate font-medium text-highlighted">{{ title(c) }}</span><UIcon v-if="c.provider === 'waha' && health?.mode === 'auto' && c.ai_paused" name="i-lucide-hand" class="size-3.5 shrink-0 text-warning" :title="t('chats.agentState.paused')" /><UIcon v-if="c.provider === 'waha'" name="i-lucide-smartphone" class="size-3.5 shrink-0 text-muted" :title="t('chats.viaPhone')" /></span>
+                    <span class="flex min-w-0 items-center gap-1.5"><span class="truncate font-medium text-highlighted">{{ title(c) }}</span><UIcon v-if="c.ad_referral" name="i-lucide-megaphone" class="size-3.5 shrink-0 text-info" :title="t('chats.ad.from')" /><UIcon v-if="c.provider === 'waha' && health?.mode === 'auto' && c.ai_paused" name="i-lucide-hand" class="size-3.5 shrink-0 text-warning" :title="t('chats.agentState.paused')" /><UIcon v-if="c.provider === 'waha'" name="i-lucide-smartphone" class="size-3.5 shrink-0 text-muted" :title="t('chats.viaPhone')" /></span>
                     <KBadge :label="t(`chats.status.${c.status}`)" :tone="statusTone[c.status]" class="shrink-0" />
+                  </span>
+                  <span v-if="dealLabels.get(c.id)" class="mt-1 flex flex-wrap items-center gap-1">
+                    <span v-for="l in dealLabels.get(c.id)!.slice(0, MAX_LABELS)" :key="l.key" class="inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11px] font-medium" :class="l.cls" :title="t('chats.dealLabel')"><UIcon name="i-lucide-handshake" class="size-3 shrink-0" /><span class="truncate">{{ l.text }}</span></span>
+                    <span v-if="dealLabels.get(c.id)!.length > MAX_LABELS" class="text-[11px] text-muted">+{{ dealLabels.get(c.id)!.length - MAX_LABELS }}</span>
                   </span>
                   <span class="mt-0.5 block truncate text-xs text-muted"><bdi dir="ltr">{{ idLabel(c) }}</bdi> · {{ formatDMYTime(c.last_message_at, locale) }}</span>
                   <span v-if="isWaiting(c)" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-warning"><UIcon name="i-lucide-clock" class="size-3.5" />{{ t("chats.waitingFor", { ago: waitedFor(c) }) }}</span>
@@ -365,6 +426,7 @@ async function createContact() {
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <KBadge :label="t(`chats.status.${current.status}`)" :tone="statusTone[current.status]" />
+                <span v-for="l in dealLabels.get(current.id) ?? []" :key="l.key" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium" :class="l.cls" :title="t('chats.dealLabel')"><UIcon name="i-lucide-handshake" class="size-3.5" />{{ l.text }}</span>
                 <UButton v-if="current.lead_id" :to="`/crm/leads?id=${current.lead_id}`" size="xs" color="neutral" variant="outline" icon="i-lucide-user-round" :label="t('chats.openLead')" />
                 <UButton v-if="canCreate && !current.lead_id && !current.customer_id && !isHidden(current)" size="xs" icon="i-lucide-user-plus" :label="t('chats.createContact')" :loading="creating" @click="createContact" />
                 <span v-if="agentState" class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium" :class="{ 'bg-success/10 text-success': agentState.tone === 'success', 'bg-warning/10 text-warning': agentState.tone === 'warning', 'bg-primary/10 text-primary': agentState.tone === 'primary', 'bg-muted text-muted': agentState.tone === 'neutral' }"><UIcon :name="agentState.icon" class="size-3.5" />{{ t(`chats.agentState.${agentState.key}`) }}</span>
@@ -372,6 +434,7 @@ async function createContact() {
                 <UButton v-if="canReply && current.provider === 'cloud' && current.status !== 'known'" size="xs" color="neutral" variant="outline" :icon="current.ai_paused ? 'i-lucide-bot' : 'i-lucide-hand'" :label="current.ai_paused ? t('chats.resumeAi') : t('chats.takeOver')" @click="setAi(!current.ai_paused)" />
               </div>
             </div>
+            <AdReferralCard v-if="current.ad_referral" :ad="current.ad_referral" />
             <div v-if="collectedLines.length" class="flex flex-wrap gap-1.5">
               <span v-for="l in collectedLines" :key="l.label" class="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{{ l.label }}: {{ l.value }}</span>
             </div>
@@ -382,6 +445,7 @@ async function createContact() {
             <div v-for="m in messages" :key="m.id" class="flex" :class="m.direction === 'in' ? 'justify-start' : 'justify-end'">
               <div class="max-w-[80%] whitespace-pre-line rounded-[14px] px-3 py-2 text-sm" :class="m.direction === 'in' ? 'bg-muted text-highlighted' : m.sender === 'ai' ? 'bg-primary/10 text-highlighted' : 'bg-primary text-white'">
                 <p v-if="m.direction === 'out'" class="mb-0.5 text-[10px] opacity-70">{{ m.sender === "ai" ? t("chats.assistant") : t("chats.agent") }}</p>
+                <AdReferralCard v-if="m.ad_referral" :ad="m.ad_referral" class="mb-2" />
                 <template v-if="m.media_path">
                   <a v-if="isImage(m) && mediaUrls[m.media_path]" :href="mediaUrls[m.media_path]" target="_blank" rel="noopener"><img :src="mediaUrls[m.media_path]" :alt="m.media_name ?? ''" class="mb-1 max-h-64 rounded-[10px] object-cover" loading="lazy" /></a>
                   <video v-else-if="isVideo(m) && mediaUrls[m.media_path]" :src="mediaUrls[m.media_path]" controls class="mb-1 max-h-64 rounded-[10px]" />

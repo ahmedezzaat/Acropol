@@ -133,6 +133,7 @@ export async function handleWaha(event: H3Event) {
         // a message with no text: record its shape (field names only, never content) to see why media is missing
         detail:
           detail ??
+          (!fromMe && contextKeys(p) ? `ctx=[${contextKeys(p)}]` : null) ??
           (p && typeof p === "object" && !p.body
             ? `shape hasMedia=${String(p.hasMedia)} type=${String(p._data?.messageType ?? p.type ?? "")} media=${p.media ? `{${Object.keys(p.media).join(",")} at=${String(p.media.url ?? "").replace(/^(https?:\/\/[^/]+)(\/[^/?]*\/?[^/?]*).*$/, "$1$2")}${p.media.error ? ` error=${String(p.media.error).slice(0, 60)}` : ""}}` : "none"} msg=[${Object.keys(p._data?.message ?? {}).slice(0, 4).join(",")}]`.slice(0, 200)
             : null),
@@ -224,6 +225,8 @@ async function handleWahaCall(event: H3Event) {
   const e164 = `+${waId}`;
   const name = clean(payload._data?.notifyName, MAX_NAME) || clean(payload._data?.pushName, MAX_NAME) || e164;
   const admin = serverSupabaseServiceRole(event);
+  // a person who tapped a Click-to-WhatsApp ad: which ad
+  const ad = fromMe ? null : extractAdReferral(payload);
   let conversationId: string | null = null;
   try {
     const media = fromMe ? null : await saveIncomingMedia(event, admin, payload, waId, sessionName);
@@ -236,6 +239,7 @@ async function handleWahaCall(event: H3Event) {
       text: clean(payload.body, 4000) || (payload.hasMedia === true ? (media ? "" : "[media]") : kindLabel(payload)),
       fromMe,
       media,
+      ad,
     });
   } catch (err) {
     console.error("[waha-webhook] could not store the message in the inbox", err);
@@ -250,14 +254,15 @@ async function handleWahaCall(event: H3Event) {
         console.error("[waha-webhook] the agent failed", err);
       }
     }
-    return reply("stored", { reason: "hidden_number", stored: !!conversationId });
+    return reply("stored", { reason: ad ? "hidden_number_from_ad" : "hidden_number", stored: !!conversationId });
   }
 
   const config = await getWhatsappConfig(event);
   const assignee = process.env.WAHA_DEFAULT_ASSIGNEE_ID || config.defaultAssigneeId || null;
 
   // A failure here becomes a 500, so WAHA retries; the database dedupes by phone.
-  const result = await ingestLead(admin, { name, phone: e164, source: "whatsapp", notes: `First message: ${first}` }, assignee);
+  const adNote = ad ? `\nFrom a Facebook/Instagram ad: ${[ad.title, ad.body].filter(Boolean).join(" - ") || "(no text)"}${ad.url ? ` ${ad.url}` : ""}` : "";
+  const result = await ingestLead(admin, { name, phone: e164, source: "whatsapp", notes: `First message: ${first}${adNote}` }, assignee);
   // the chat now belongs to that lead / customer
   if (conversationId) {
     const link = result.status === "created" ? { lead_id: result.id } : result.entity === "lead" ? { lead_id: result.id } : { customer_id: result.id };
@@ -271,7 +276,8 @@ async function handleWahaCall(event: H3Event) {
       console.error("[waha-webhook] the agent failed", err);
     }
   }
-  return result.status === "created" ? reply("created", { id: result.id }) : reply("duplicate", { entity: result.entity, id: result.id });
+  const adReason = ad ? { reason: "from_ad" } : {};
+  return result.status === "created" ? reply("created", { id: result.id, ...adReason }) : reply("duplicate", { entity: result.entity, id: result.id, ...adReason });
 }
 
 

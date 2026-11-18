@@ -2036,6 +2036,12 @@
     }
   },
   "chats": {
+    "dealLabel": "This contact has a deal in this category",
+    "ad": {
+      "from": "Came from an ad",
+      "open": "Open the ad",
+      "noTitle": "Facebook / Instagram ad"
+    },
     "saved": {
       "deleted": "Reply deleted",
       "open": "Saved replies",
