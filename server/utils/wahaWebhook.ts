@@ -58,7 +58,7 @@ interface WahaPayload {
   fromMe?: unknown;
   body?: unknown;
   hasMedia?: unknown;
-  _data?: { notifyName?: unknown; pushName?: unknown; key?: { remoteJidAlt?: unknown; senderPn?: unknown } };
+  _data?: { notifyName?: unknown; pushName?: unknown; key?: { remoteJid?: unknown; remoteJidAlt?: unknown; senderPn?: unknown } };
 }
 
 // Message kinds that are WhatsApp's own bookkeeping, never something a person wrote
@@ -183,10 +183,17 @@ async function handleWahaCall(event: H3Event) {
   const payload = body.payload;
   if (!payload || typeof payload !== "object") throw createError({ statusCode: 400, statusMessage: "Missing payload" });
   const fromMe = payload.fromMe === true;
-  // the chat is the other person: the sender of a message we receive, the receiver of one we sent
-  const from = typeof (fromMe ? payload.to : payload.from) === "string" ? ((fromMe ? payload.to : payload.from) as string) : "";
+  // the chat is the other person: the sender of a message we receive, the receiver of one we sent.
+  // A message typed on the phone does not always carry "to": the raw message's key always names the chat (remoteJid).
+  const keyJid = payload._data?.key?.remoteJid;
+  const chatField = fromMe ? [payload.to, keyJid] : [payload.from];
+  const from = (chatField.find((x) => typeof x === "string" && x.length > 0) as string | undefined) ?? "";
   // history WAHA replays after a link can carry no chat at all: nothing to keep, and no error (an error makes WAHA retry)
-  if (!from) return reply("ignored", { reason: "no_chat" });
+  if (!from) {
+    // what was there instead (only the kind of id, never a number), so a message that is dropped can be understood from the log
+    const kind = (x: unknown) => (typeof x === "string" ? (x.includes("@") ? `@${x.split("@")[1]}` : "text") : typeof x);
+    return reply("ignored", { reason: `no_chat to=${kind(payload.to)} from=${kind(payload.from)} key=${kind(keyJid)}` });
+  }
   if (from.endsWith("@g.us")) return reply("ignored", { reason: "group" });
   if (from.startsWith("status@") || from === "status@broadcast") return reply("ignored", { reason: "status" });
   // WhatsApp's own bookkeeping (a message deleted or edited, a disappearing-messages setting, key exchange...) carries
