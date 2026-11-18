@@ -51,7 +51,7 @@ async function loadAttachments() {
 async function uploadTo(taskId: string, files: File[]) {
   uploading.value = true;
   for (const file of files) {
-    const path = `${taskId}/${Date.now()}-${file.name}`;
+    const path = `${taskId}/${Date.now()}-${storageSafeName(file.name)}`;
     const { error: uploadError } = await supabase.storage.from("task-attachments").upload(path, file);
     if (uploadError) {
       toast.add({ title: t("tasks.uploadFailed"), description: `${file.name}: ${uploadError.message}`, color: "error" });

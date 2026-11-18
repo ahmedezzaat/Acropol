@@ -40,7 +40,7 @@ export async function saveContractDraft(
   const id = crypto.randomUUID();
   let filePath: string | null = null;
   if (d.file) {
-    filePath = `${id}/${Date.now()}-${d.file.name}`;
+    filePath = `${id}/${Date.now()}-${storageSafeName(d.file.name)}`;
     const { error } = await supabase.storage.from("contract-files").upload(filePath, d.file);
     if (error) return { id: null, error: error.message };
   }

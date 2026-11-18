@@ -347,7 +347,7 @@ async function sendToWork() {
   }
   // the files belong to the deal too (its Files tab), and point at this request
   for (const file of sendFiles.value) {
-    const path = `${dealId}/${Date.now()}-${file.name}`;
+    const path = `${dealId}/${Date.now()}-${storageSafeName(file.name)}`;
     const { error: uploadError } = await supabase.storage.from("deal-attachments").upload(path, file);
     if (uploadError) {
       toast.add({ title: t("files.uploadFailed"), description: `${file.name}: ${uploadError.message}`, color: "error" });
@@ -438,7 +438,7 @@ const { data: attachments, refresh: refreshAttachments } = await useAsyncData<De
 // The quote section: Offer sent asks for a file only while it is empty.
 const hasQuote = computed(() => (attachments.value ?? []).some((a) => a.kind === "quote"));
 async function uploadDealAttachment(file: File): Promise<{ error: string | null }> {
-  const path = `${dealId}/${Date.now()}-${file.name}`;
+  const path = `${dealId}/${Date.now()}-${storageSafeName(file.name)}`;
   const { error: uploadError } = await supabase.storage.from("deal-attachments").upload(path, file);
   if (uploadError) return { error: uploadError.message };
 

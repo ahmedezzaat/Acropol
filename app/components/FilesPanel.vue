@@ -173,7 +173,7 @@ async function onPick(event: Event) {
   if (!files.length || !props.dealId) return;
   uploading.value = true;
   for (const file of files) {
-    const path = `${props.dealId}/${Date.now()}-${file.name}`;
+    const path = `${props.dealId}/${Date.now()}-${storageSafeName(file.name)}`;
     const { error: uploadError } = await supabase.storage.from("deal-attachments").upload(path, file);
     if (uploadError) {
       toast.add({ title: t("files.uploadFailed"), description: `${file.name}: ${uploadError.message}`, color: "error" });

@@ -183,7 +183,7 @@ async function uploadFiles(item: Item, event: Event, kind: "quote" | null = null
   if (!picked.length) return;
   uploadingId.value = item.id;
   for (const file of picked) {
-    const path = `${item.deal_id}/${Date.now()}-${file.name}`;
+    const path = `${item.deal_id}/${Date.now()}-${storageSafeName(file.name)}`;
     const { error: uploadError } = await supabase.storage.from("deal-attachments").upload(path, file);
     if (uploadError) {
       toast.add({ title: t("crm.work.uploadFailed"), description: `${file.name}: ${uploadError.message}`, color: "error" });

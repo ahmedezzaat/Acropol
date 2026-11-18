@@ -9,7 +9,7 @@ export async function dealHasContract(supabase: SupabaseClient, dealId: string) 
 
 // Returns an error message, or null when the file was stored.
 export async function uploadDealContract(supabase: SupabaseClient, dealId: string, file: File): Promise<string | null> {
-  const path = `${dealId}/${Date.now()}-${file.name}`;
+  const path = `${dealId}/${Date.now()}-${storageSafeName(file.name)}`;
   const { error: uploadError } = await supabase.storage.from("deal-attachments").upload(path, file);
   if (uploadError) return uploadError.message;
   const { error: insertError } = await supabase

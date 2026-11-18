@@ -54,7 +54,7 @@ async function save() {
   // the files first, in the person's own folder of the private storage
   const attachments: { name: string; path: string }[] = [];
   for (const file of files.value) {
-    const path = `${me.value?.sub}/${Date.now()}-${file.name}`;
+    const path = `${me.value?.sub}/${Date.now()}-${storageSafeName(file.name)}`;
     const { error } = await supabase.storage.from("leave-files").upload(path, file);
     if (error) {
       saving.value = false;

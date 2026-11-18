@@ -113,7 +113,7 @@ async function onPickFile(e: Event) {
   }
   uploading.value = true;
   const previous = contract.value.file_path;
-  const path = `${contract.value.id}/${Date.now()}-${f.name}`;
+  const path = `${contract.value.id}/${Date.now()}-${storageSafeName(f.name)}`;
   const { error: upError } = await supabase.storage.from("contract-files").upload(path, f);
   if (upError) {
     uploading.value = false;

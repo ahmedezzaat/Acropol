@@ -60,7 +60,7 @@ async function save() {
   // a new file goes first, into the private bucket, under the contract's own folder
   let uploaded: string | null = null;
   if (newFile.value) {
-    uploaded = `${props.contract.id}/${Date.now()}-${newFile.value.name}`;
+    uploaded = `${props.contract.id}/${Date.now()}-${storageSafeName(newFile.value.name)}`;
     const { error: uploadError } = await supabase.storage.from("contract-files").upload(uploaded, newFile.value);
     if (uploadError) {
       saving.value = false;
