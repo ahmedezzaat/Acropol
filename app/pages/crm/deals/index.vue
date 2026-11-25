@@ -724,7 +724,8 @@ async function confirmReassign() {
       }
       // The contract and what was bought are recorded before the deal moves to Won.
       if (reassignIsWon.value && !hasContract.value) {
-        const { error: contractError } = await saveContractDraft(supabase, { dealId, customerId, draft: contractDraft.value });
+        const { error: contractError, warning: contractWarning } = await saveContractDraft(supabase, { dealId, customerId, draft: contractDraft.value });
+        if (contractWarning) toast.add({ title: t("crm.contracts.filesFailed"), description: contractWarning, color: "warning" });
         if (contractError) {
           error = { message: contractError };
           break;
@@ -1074,7 +1075,8 @@ async function onCreate(event: FormSubmitEvent<Schema>) {
 
   // Created straight into Won: its contract and what was bought, against the new deal.
   if (createIsWon.value && customerId) {
-    const { error: contractError } = await saveContractDraft(supabase, { dealId: createdDeal.id, customerId, draft: createDraft.value });
+    const { error: contractError, warning: contractWarning } = await saveContractDraft(supabase, { dealId: createdDeal.id, customerId, draft: createDraft.value });
+    if (contractWarning) toast.add({ title: t("crm.contracts.filesFailed"), description: contractWarning, color: "warning" });
     if (contractError) {
       creating.value = false;
       toast.add({ title: t("crm.deals.createDealFailed"), description: contractError, color: "error" });

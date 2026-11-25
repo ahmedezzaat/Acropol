@@ -86,9 +86,14 @@ async function onEdited() {
 }
 const canSeeFiles = computed(() => hasAnyModulePermission("crm_deals"));
 
-async function downloadFile() {
-  if (!contract.value?.file_path) return;
-  const { data, error } = await supabase.storage.from("contract-files").createSignedUrl(contract.value.file_path, 60, { download: contract.value.file_name ?? true });
+// ---- the contract's files: any number, any language in the names
+interface ContractFile { id: string; file_name: string; storage_path: string; created_at: string }
+const { data: contractFiles, refresh: refreshFiles } = await useAsyncData<ContractFile[]>(`crm-contract-${contractId}-files`, async () => {
+  const { data } = await supabase.from("contract_files").select("id, file_name, storage_path, created_at").eq("contract_id", contractId).order("created_at").order("id");
+  return (data ?? []) as ContractFile[];
+});
+async function downloadFile(f: ContractFile) {
+  const { data, error } = await supabase.storage.from("contract-files").createSignedUrl(f.storage_path, 60, { download: f.file_name });
   if (error || !data) {
     toast.add({ title: t("crm.contracts.fileFailed"), description: error?.message, color: "error" });
     return;
@@ -98,40 +103,60 @@ async function downloadFile() {
   a.click();
 }
 
-// ---- the contract file: upload it here (it replaces the contract's file), and show the contract uploaded on the deal
+// upload one or several files here; they are added to the contract's files
 const fileInput = ref<HTMLInputElement | null>(null);
 const uploading = ref(false);
 const MAX_FILE = 25 * 1024 * 1024;
 async function onPickFile(e: Event) {
   const input = e.target as HTMLInputElement;
-  const f = input.files?.[0];
+  const picked = Array.from(input.files ?? []);
   input.value = "";
-  if (!f || !contract.value) return;
-  if (f.size > MAX_FILE) {
-    toast.add({ title: t("crm.contracts.fileTooBig"), color: "error" });
-    return;
-  }
+  if (!picked.length || !contract.value) return;
   uploading.value = true;
-  const previous = contract.value.file_path;
-  const path = `${contract.value.id}/${Date.now()}-${storageSafeName(f.name)}`;
-  const { error: upError } = await supabase.storage.from("contract-files").upload(path, f);
-  if (upError) {
-    uploading.value = false;
-    toast.add({ title: t("crm.contracts.fileFailed"), description: upError.message, color: "error" });
+  const base = Date.now();
+  const stored: { name: string; path: string }[] = [];
+  for (const [i, f] of picked.entries()) {
+    if (f.size > MAX_FILE) {
+      toast.add({ title: t("crm.contracts.fileTooBig"), description: f.name, color: "error" });
+      continue;
+    }
+    const path = `${contract.value.id}/${base + i}-${storageSafeName(f.name)}`;
+    const { error: upError } = await supabase.storage.from("contract-files").upload(path, f);
+    if (upError) {
+      toast.add({ title: t("crm.contracts.fileFailed"), description: `${f.name}: ${upError.message}`, color: "error" });
+      continue;
+    }
+    stored.push({ name: f.name, path });
+  }
+  if (stored.length) {
+    const { error } = await supabase
+      .from("contract_files")
+      .insert(stored.map((x, i) => ({ contract_id: contract.value!.id, file_name: x.name, storage_path: x.path, created_at: new Date(base + i).toISOString() })));
+    if (error) {
+      await supabase.storage.from("contract-files").remove(stored.map((x) => x.path));
+      toast.add({ title: t("crm.contracts.editFailed"), description: error.message, color: "error" });
+    } else {
+      toast.add({ title: t("crm.contracts.edited"), color: "success" });
+    }
+  }
+  uploading.value = false;
+  await Promise.all([refreshFiles(), refreshContract()]);
+}
+// removing a file takes a second click to confirm
+const confirmRemove = ref<string | null>(null);
+async function removeFile(f: ContractFile) {
+  if (confirmRemove.value !== f.id) {
+    confirmRemove.value = f.id;
     return;
   }
-  const { error } = await supabase.rpc("crm_update_contract", { p_contract_id: contract.value.id, p_patch: { file_path: path, file_name: f.name } as never });
+  confirmRemove.value = null;
+  const { error } = await supabase.from("contract_files").delete().eq("id", f.id);
   if (error) {
-    await supabase.storage.from("contract-files").remove([path]);
-    uploading.value = false;
     toast.add({ title: t("crm.contracts.editFailed"), description: error.message, color: "error" });
     return;
   }
-  // the replaced file is not needed any more
-  if (previous) await supabase.storage.from("contract-files").remove([previous]);
-  uploading.value = false;
-  toast.add({ title: t("crm.contracts.edited"), color: "success" });
-  await refreshContract();
+  await supabase.storage.from("contract-files").remove([f.storage_path]);
+  await Promise.all([refreshFiles(), refreshContract()]);
 }
 interface DealFile { id: string; file_name: string; storage_path: string; created_at: string }
 const { data: dealContractFiles } = await useAsyncData<DealFile[]>(`crm-contract-${contractId}-dealfiles`, async () => {
@@ -141,7 +166,7 @@ const { data: dealContractFiles } = await useAsyncData<DealFile[]>(`crm-contract
   return (data ?? []) as DealFile[];
 });
 // a file already kept on the contract itself is not listed twice
-const dealFilesShown = computed(() => (dealContractFiles.value ?? []).filter((f) => f.file_name !== contract.value?.file_name));
+const dealFilesShown = computed(() => (dealContractFiles.value ?? []).filter((f) => !(contractFiles.value ?? []).some((c) => c.file_name === f.file_name)));
 async function openDealFile(f: DealFile) {
   const { data, error } = await supabase.storage.from("deal-attachments").createSignedUrl(f.storage_path, 60, { download: f.file_name });
   if (error || !data) {
@@ -192,7 +217,7 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
             </div>
           </div>
           <div class="mt-4 flex flex-wrap items-center gap-2">
-            <UButton v-if="contract.file_path" icon="i-lucide-download" color="neutral" variant="outline" :label="contract.file_name || t('crm.contracts.file')" @click="downloadFile" />
+            <UButton v-if="contractFiles?.length" icon="i-lucide-download" color="neutral" variant="outline" :label="contractFiles.length > 1 ? `${contractFiles[0]!.file_name} +${contractFiles.length - 1}` : contractFiles[0]!.file_name" @click="downloadFile(contractFiles[0]!)" />
             <UButton v-if="contract.deal_id && canSeeFiles" :to="`/crm/deals/${contract.deal_id}`" icon="i-lucide-handshake" color="neutral" variant="outline" :label="t('crm.contracts.openDeal')" />
             <UButton v-if="contract.customer?.phone" :to="`tel:${contract.customer.phone}`" icon="i-lucide-phone" color="neutral" variant="outline" :label="t('crm.deals.callContact')" />
             <UButton v-if="contract.customer && waLink(contract.customer.phone)" :to="waLink(contract.customer.phone)!" icon="i-simple-icons-whatsapp" color="neutral" variant="outline" :label="t('cs.profile.whatsapp')" />
@@ -266,12 +291,19 @@ const extraPhones = computed(() => (contract.value?.customer?.extra_phones ?? []
                   </div>
                   <div class="sm:col-span-2">
                     <dt class="text-xs text-muted">{{ t("crm.contracts.file") }}</dt>
-                    <dd class="flex flex-wrap items-center gap-2">
-                      <button v-if="contract.file_path" type="button" class="inline-flex items-center gap-1.5 text-primary hover:underline" @click="downloadFile"><UIcon name="i-lucide-paperclip" class="size-4" /><bdi>{{ contract.file_name || t("crm.contracts.file") }}</bdi></button>
-                      <span v-else class="text-muted">—</span>
+                    <ul v-if="contractFiles?.length" class="mt-1 space-y-1.5">
+                      <li v-for="f in contractFiles" :key="f.id" class="flex flex-wrap items-center gap-2 rounded-[10px] bg-muted px-3 py-2">
+                        <UIcon name="i-lucide-paperclip" class="size-4 shrink-0 text-primary" />
+                        <button type="button" class="min-w-0 flex-1 truncate text-start hover:underline" @click="downloadFile(f)"><bdi>{{ f.file_name }}</bdi></button>
+                        <UButton icon="i-lucide-download" size="xs" color="neutral" variant="ghost" :aria-label="t('files.open')" @click="downloadFile(f)" />
+                        <UButton v-if="canEdit" size="xs" :color="confirmRemove === f.id ? 'error' : 'neutral'" :variant="confirmRemove === f.id ? 'solid' : 'ghost'" icon="i-lucide-trash" :label="confirmRemove === f.id ? t('crm.contracts.confirmRemoveFile') : undefined" :aria-label="t('common.delete')" @click="removeFile(f)" />
+                      </li>
+                    </ul>
+                    <dd class="mt-1 flex flex-wrap items-center gap-2">
+                      <span v-if="!contractFiles?.length" class="text-muted">—</span>
                       <template v-if="canEdit">
-                        <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-upload" :label="contract.file_path ? t('crm.contracts.replaceFileBtn') : t('crm.contracts.uploadFile')" :loading="uploading" @click="fileInput?.click()" />
-                        <input ref="fileInput" type="file" class="hidden" @change="onPickFile" />
+                        <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-upload" :label="t('crm.contracts.uploadFile')" :loading="uploading" @click="fileInput?.click()" />
+                        <input ref="fileInput" type="file" multiple class="hidden" @change="onPickFile" />
                       </template>
                     </dd>
                     <ul v-if="dealFilesShown.length" class="mt-2 space-y-1.5">

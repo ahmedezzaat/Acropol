@@ -722,6 +722,8 @@
       "empty": "No contracts",
       "code": "Archive code",
       "number": "Contract number",
+      "confirmRemoveFile": "Confirm removing the file",
+      "filesFailed": "The contract was created but its files could not be saved",
       "numberAuto": "The contract number is made automatically when you save, in sequence (e.g. C-6000), and cannot be changed.",
       "customer": "Customer",
       "deal": "Deal",

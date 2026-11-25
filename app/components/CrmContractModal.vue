@@ -110,8 +110,9 @@ async function save() {
     customerOptions.value = [{ label: (chosen?.label ?? "").replace(/ · [^·]*$/, ""), value: customer }, ...customerOptions.value.filter((o) => o.value !== chosen?.value)];
     customerId.value = customer;
   }
-  const { error } = await saveContractDraft(supabase, { customerId: customer.slice(2), linkDealId: dealId.value, draft: draft.value });
+  const { error, warning } = await saveContractDraft(supabase, { customerId: customer.slice(2), linkDealId: dealId.value, draft: draft.value });
   saving.value = false;
+  if (warning) toast.add({ title: t("crm.contracts.filesFailed"), description: warning, color: "warning" });
   if (error) {
     toast.add({ title: t("crm.contracts.createFailed"), description: error, color: "error" });
     return;

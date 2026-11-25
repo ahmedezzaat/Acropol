@@ -50,7 +50,7 @@ const productDefaults = computed(() => ({ contract_code: draft.value.code.trim()
       <UFormField :label="t('crm.contracts.value')" required><UInputNumber v-model="draft.value" :min="0" class="w-full" /></UFormField>
       <UFormField :label="t('crm.contracts.agent')"><USelect v-model="draft.salesPersonId" :items="peopleItems" value-key="value" icon="i-lucide-user" class="w-full" /></UFormField>
     </div>
-    <UFormField :label="t('crm.contracts.file')" :help="t('crm.contracts.fileHint')"><UFileUpload v-model="draft.file" class="w-full" /></UFormField>
+    <UFormField :label="t('crm.contracts.file')" :help="t('crm.contracts.fileHint')"><UFileUpload v-model="draft.files" multiple class="w-full" /></UFormField>
     <UFormField :label="t('crm.contracts.notes')"><UTextarea v-model="draft.notes" :rows="2" class="w-full" /></UFormField>
     <div class="border-t border-default pt-4">
       <WonProductsFields v-model="draft.products" hide-contract hide-seller :defaults="productDefaults" />

@@ -437,6 +437,14 @@ const { data: attachments, refresh: refreshAttachments } = await useAsyncData<De
 // row must exist before the stage update that follows.
 // The quote section: Offer sent asks for a file only while it is empty.
 const hasQuote = computed(() => (attachments.value ?? []).some((a) => a.kind === "quote"));
+// any number of files: they are stored one after the other, the first failure is reported (with the file's name)
+async function uploadDealAttachments(files: File[]): Promise<{ error: string | null }> {
+  for (const file of files) {
+    const { error } = await uploadDealAttachment(file);
+    if (error) return { error: `${file.name}: ${error}` };
+  }
+  return { error: null };
+}
 async function uploadDealAttachment(file: File): Promise<{ error: string | null }> {
   const path = `${dealId}/${Date.now()}-${storageSafeName(file.name)}`;
   const { error: uploadError } = await supabase.storage.from("deal-attachments").upload(path, file);
@@ -717,7 +725,8 @@ const wonProductsOk = computed(() => hasContract.value || contractDraftValid(con
 async function saveWonProducts(customerId: string | null) {
   if (hasContract.value) return null;
   if (!customerId) return t("crm.deals.noLeadForConversion");
-  const { error } = await saveContractDraft(supabase, { dealId, customerId, draft: contractDraft.value });
+  const { error, warning } = await saveContractDraft(supabase, { dealId, customerId, draft: contractDraft.value });
+  if (warning) toast.add({ title: t("crm.contracts.filesFailed"), description: warning, color: "warning" });
   if (error) return error;
   hasContract.value = true;
   refreshAttachments();
@@ -730,7 +739,7 @@ const pendingReasonId = ref<string | null>(null);
 const pendingNote = ref("");
 const pendingValue = ref<number | null>(null);
 const pendingCloseDate = ref("");
-const pendingFile = ref<File | null>(null);
+const pendingFiles = ref<File[]>([]);
 const changingStage = ref(false);
 
 const pendingStage = computed(() => allStages.value?.find((s) => s.id === pendingStageId.value));
@@ -765,7 +774,7 @@ function selectStage(stageId: string) {
   pendingStageId.value = stageId;
   pendingReasonId.value = null;
   pendingNote.value = "";
-  pendingFile.value = null;
+  pendingFiles.value = [];
   const stage = allStages.value?.find((s) => s.id === stageId);
   const won = stage?.system_key === "won";
   pendingValue.value = won ? deal.value.value : null;
@@ -785,15 +794,15 @@ async function confirmStageChange() {
   if (pendingStage.value?.reason_category && !pendingReasonId.value) return;
   if (isWonStage.value && (pendingValue.value == null || !pendingCloseDate.value)) return;
   if (isWonStage.value && !wonProductsOk.value) return;
-  if (isOfferSentStage.value && !hasQuote.value && !pendingFile.value) return;
+  if (isOfferSentStage.value && !hasQuote.value && !pendingFiles.value.length) return;
 
   changingStage.value = true;
 
   // A deal can't reach "Offer sent" without an attached file (DB-enforced
   // too) — upload and record it before the stage update, since the
   // attachment must already exist by the time the trigger checks it.
-  if (isOfferSentStage.value && pendingFile.value) {
-    const { error: uploadError } = await uploadDealAttachment(pendingFile.value);
+  if (isOfferSentStage.value && pendingFiles.value.length) {
+    const { error: uploadError } = await uploadDealAttachments(pendingFiles.value);
     if (uploadError) {
       changingStage.value = false;
       toast.add({ title: t("crm.deals.attachmentUploadFailed"), description: uploadError, color: "error" });
@@ -1019,7 +1028,7 @@ const completeStageId = ref<string | null>(null);
 const completeReasonId = ref<string | null>(null);
 const completeValue = ref<number | null>(null);
 const completeCloseDate = ref("");
-const completeFile = ref<File | null>(null);
+const completeFiles = ref<File[]>([]);
 
 watch(
   () => [contractDraft.value.value, contractDraft.value.signedOn],
@@ -1049,7 +1058,7 @@ const completeSubmitDisabled = computed(() => {
   if (completeStage.value?.reason_category && !completeReasonId.value) return true;
   if (completeIsWonStage.value && (completeValue.value == null || !completeCloseDate.value)) return true;
   if (completeIsWonStage.value && completeStageChanged.value && !wonProductsOk.value) return true;
-  if (completeIsOfferSentStage.value && !hasQuote.value && !completeFile.value) return true;
+  if (completeIsOfferSentStage.value && !hasQuote.value && !completeFiles.value.length) return true;
   if (!needsNextAction.value) return false;
   return !nextActivityType.value || !scheduledDate.value || !scheduledTime.value;
 });
@@ -1059,8 +1068,8 @@ async function submitComplete() {
   completing.value = true;
 
   if (completeStageChanged.value) {
-    if (completeIsOfferSentStage.value && completeFile.value) {
-      const { error: uploadError } = await uploadDealAttachment(completeFile.value);
+    if (completeIsOfferSentStage.value && completeFiles.value.length) {
+      const { error: uploadError } = await uploadDealAttachments(completeFiles.value);
       if (uploadError) {
         completing.value = false;
         toast.add({ title: t("crm.deals.attachmentUploadFailed"), description: uploadError, color: "error" });
@@ -1184,7 +1193,7 @@ function markComplete(activity: Activity) {
   completeReasonId.value = deal.value?.stage_reason_id ?? null;
   completeValue.value = deal.value?.value ?? null;
   completeCloseDate.value = deal.value?.expected_close_date || today(getLocalTimeZone()).toString();
-  completeFile.value = null;
+  completeFiles.value = [];
   resetScheduleFields();
   completeModalOpen.value = true;
 }
@@ -1192,7 +1201,7 @@ function markComplete(activity: Activity) {
 watch(completeStageId, (newStageId, oldStageId) => {
   if (newStageId === oldStageId) return;
   completeReasonId.value = null;
-  completeFile.value = null;
+  completeFiles.value = [];
   if (completeIsWonStage.value) {
     completeValue.value = deal.value?.value ?? null;
     completeCloseDate.value = deal.value?.expected_close_date || today(getLocalTimeZone()).toString();
@@ -1922,7 +1931,7 @@ function isPastDue(iso: string | null) {
             :description="t('crm.deals.attachFileRequiredHint')"
           />
           <UFormField :label="t('crm.deals.attachFile')" required>
-            <UFileUpload v-model="pendingFile" class="w-full" />
+            <UFileUpload v-model="pendingFiles" multiple class="w-full" />
           </UFormField>
         </template>
         <UFormField v-if="noteRequired" :label="t('crm.deals.stageChangeNote')" required>
@@ -1942,7 +1951,7 @@ function isPastDue(iso: string | null) {
             (!!pendingStage?.reason_category && !pendingReasonId) ||
             (isWonStage && hasContract && (pendingValue == null || !pendingCloseDate)) ||
             (isWonStage && !wonProductsOk) ||
-            (isOfferSentStage && !hasQuote && !pendingFile)
+            (isOfferSentStage && !hasQuote && !pendingFiles.length)
           "
           block
           @click="confirmStageChange"
@@ -2047,7 +2056,7 @@ function isPastDue(iso: string | null) {
             :description="t('crm.deals.attachFileRequiredHint')"
           />
           <UFormField :label="t('crm.deals.attachFile')" required>
-            <UFileUpload v-model="completeFile" class="w-full" />
+            <UFileUpload v-model="completeFiles" multiple class="w-full" />
           </UFormField>
         </template>
 

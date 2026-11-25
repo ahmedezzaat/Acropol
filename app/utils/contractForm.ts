@@ -7,7 +7,8 @@ export interface ContractDraft {
   value: number | null;
   salesPersonId: string | null;
   notes: string;
-  file: File | null;
+  // any number of files (any language in the names)
+  files: File[];
   products: WonProductDraft[];
 }
 
@@ -20,12 +21,12 @@ export function newContractDraft(d: Partial<ContractDraft> & { productName?: str
     value: d.value ?? null,
     salesPersonId,
     notes: d.notes ?? "",
-    file: null,
+    files: [],
     products: d.products ?? [newWonProduct({ name: d.productName ?? "", contract_date: signedOn, sales_person_id: salesPersonId })],
   };
 }
 
-// required: the code, the date, the value and at least one complete product (the file is optional)
+// required: the code, the date, the value and at least one complete product (the files are optional)
 export function contractDraftValid(d: ContractDraft) {
   return !!d.code.trim() && !!d.signedOn && d.value !== null && d.value >= 0 && wonProductsValid(d.products);
 }
@@ -35,14 +36,20 @@ export function contractDraftValid(d: ContractDraft) {
 export async function saveContractDraft(
   supabase: SupabaseClient,
   opts: { dealId?: string | null; customerId?: string | null; linkDealId?: string | null; draft: ContractDraft },
-): Promise<{ id: string | null; error: string | null }> {
+): Promise<{ id: string | null; error: string | null; warning?: string }> {
   const d = opts.draft;
   const id = crypto.randomUUID();
-  let filePath: string | null = null;
-  if (d.file) {
-    filePath = `${id}/${Date.now()}-${storageSafeName(d.file.name)}`;
-    const { error } = await supabase.storage.from("contract-files").upload(filePath, d.file);
-    if (error) return { id: null, error: error.message };
+  // every file is stored first (under the contract's future id); a failure leaves nothing behind
+  const stored: { name: string; path: string }[] = [];
+  const base = Date.now();
+  for (const [i, file] of d.files.entries()) {
+    const path = `${id}/${base + i}-${storageSafeName(file.name)}`;
+    const { error } = await supabase.storage.from("contract-files").upload(path, file);
+    if (error) {
+      if (stored.length) await supabase.storage.from("contract-files").remove(stored.map((s) => s.path));
+      return { id: null, error: `${file.name}: ${error.message}` };
+    }
+    stored.push({ name: file.name, path });
   }
   const { data, error } = await supabase.rpc("crm_save_contract", {
     p_deal_id: opts.dealId ?? null,
@@ -55,8 +62,6 @@ export async function saveContractDraft(
       notes: d.notes.trim() || null,
       sales_person_id: d.salesPersonId,
       deal_id: opts.linkDealId ?? null,
-      file_name: d.file?.name ?? null,
-      file_path: filePath,
     },
     p_products: d.products.map((p) => ({
       name: p.name.trim(),
@@ -70,9 +75,19 @@ export async function saveContractDraft(
     })),
   });
   if (error) {
-    // do not leave the uploaded file behind
-    if (filePath) await supabase.storage.from("contract-files").remove([filePath]);
+    // do not leave the uploaded files behind
+    if (stored.length) await supabase.storage.from("contract-files").remove(stored.map((s) => s.path));
     return { id: null, error: error.message };
+  }
+  // the files belong to the contract now (in the order they were chosen)
+  if (stored.length) {
+    const { error: filesError } = await supabase
+      .from("contract_files")
+      .insert(stored.map((s, i) => ({ contract_id: id, file_name: s.name, storage_path: s.path, created_at: new Date(base + i).toISOString() })));
+    if (filesError) {
+      await supabase.storage.from("contract-files").remove(stored.map((s) => s.path));
+      return { id: data as string, error: null, warning: filesError.message };
+    }
   }
   return { id: data as string, error: null };
 }

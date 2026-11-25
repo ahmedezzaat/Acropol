@@ -127,14 +127,17 @@ async function confirmDelete() {
   const c = deleteTarget.value;
   if (!c) return;
   deleting.value = true;
-  // the row first: if that is refused the file must stay
+  // the files' paths are read before the contract goes (its file rows go with it)
+  const { data: fileRows } = await supabase.from("contract_files").select("storage_path").eq("contract_id", c.id);
+  // the row first: if that is refused the files must stay
   const { data, error } = await supabase.from("contracts").delete().eq("id", c.id).select("id");
   if (error || !data?.length) {
     deleting.value = false;
     toast.add({ title: t("crm.contracts.deleteFailed"), description: error?.message ?? t("crm.contracts.deleteNotAllowed"), color: "error" });
     return;
   }
-  if (c.file_path) await supabase.storage.from("contract-files").remove([c.file_path]);
+  const paths = [...new Set([...(fileRows ?? []).map((f) => f.storage_path as string), ...(c.file_path ? [c.file_path] : [])])];
+  if (paths.length) await supabase.storage.from("contract-files").remove(paths);
   deleting.value = false;
   deleteTarget.value = null;
   toast.add({ title: t("crm.contracts.deleted"), color: "success" });

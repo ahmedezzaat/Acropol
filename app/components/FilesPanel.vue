@@ -55,22 +55,22 @@ const picker = ref<HTMLInputElement | null>(null);
 async function contractFileRows(existing: FileRow[]): Promise<FileRow[]> {
   if (!props.customerId && !props.dealId) return [];
   // a deal shows the file of its own contract (made when it was won); a customer, the files of all its contracts
-  const query = supabase.from("contracts").select("id, code, deal_id, file_name, file_path, created_by, created_at").not("file_path", "is", null);
-  const { data } = await (props.dealId ? query.eq("deal_id", props.dealId) : query.eq("customer_id", props.customerId!));
+  const query = supabase.from("contract_files").select("id, file_name, storage_path, created_by, created_at, contract:contracts!inner(id, code, deal_id, customer_id)");
+  const { data } = await (props.dealId ? query.eq("contract.deal_id", props.dealId) : query.eq("contract.customer_id", props.customerId!));
   const have = new Set(existing.filter((r) => r.kind === "contract").map((r) => r.file_name));
-  return (data ?? [])
-    .filter((c) => c.file_path && !have.has(c.file_name ?? ""))
-    .map((c) => ({
-      id: `contract:${c.id}`,
-      deal_id: (c.deal_id as string | null) ?? "",
-      file_name: (c.file_name as string | null) || String(c.code),
-      storage_path: c.file_path as string,
+  return ((data ?? []) as unknown as { id: string; file_name: string; storage_path: string; created_by: string | null; created_at: string; contract: { id: string; code: string; deal_id: string | null } }[])
+    .filter((f) => !have.has(f.file_name))
+    .map((f) => ({
+      id: `contract:${f.id}`,
+      deal_id: f.contract.deal_id ?? "",
+      file_name: f.file_name,
+      storage_path: f.storage_path,
       kind: "contract",
       from_work_pipeline_id: null,
-      uploaded_by: c.created_by as string | null,
-      created_at: c.created_at as string,
+      uploaded_by: f.created_by,
+      created_at: f.created_at,
       bucket: "contract-files",
-      contract_code: c.code as string,
+      contract_code: f.contract.code,
     }));
 }
 
@@ -142,7 +142,7 @@ function iconFor(name: string) {
 }
 
 async function open(row: FileRow) {
-  const { data, error } = await supabase.storage.from(row.bucket ?? "deal-attachments").createSignedUrl(row.storage_path, 60, { download: row.bucket ? row.file_name : undefined });
+  const { data, error } = await supabase.storage.from(row.bucket ?? "deal-attachments").createSignedUrl(row.storage_path, 60, { download: row.bucket || /[^\x00-\x7F]/.test(row.file_name) ? row.file_name : undefined });
   if (error || !data) {
     toast.add({ title: t("files.openFailed"), description: error?.message, color: "error" });
     return;
