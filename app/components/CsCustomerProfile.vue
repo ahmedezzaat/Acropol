@@ -547,6 +547,9 @@ const nextMaintenanceLate = computed(() => !!nextMaintenance.value && new Date(n
           </div>
         </section>
 
+        <!-- The tax card (البطاقة الضريبية) of a customer in a category that asks for it -->
+        <CustomerTaxCard :customer-id="customerId" :category-id="(customer as { category_id?: string | null }).category_id ?? null" immediate :can-manage="canEdit" />
+
         <!-- Contact details -->
         <section class="kords-card p-5">
           <h3 class="mb-3 text-sm font-semibold text-highlighted">{{ t("cs.profile.contactInfo") }}</h3>

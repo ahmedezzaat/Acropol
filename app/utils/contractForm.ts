@@ -9,6 +9,9 @@ export interface ContractDraft {
   notes: string;
   // any number of files (any language in the names)
   files: File[];
+  // the customer's tax card, when the customer's category asks for it (picked with the contract when a deal is won)
+  taxFiles: File[];
+  taxOk: boolean;
   products: WonProductDraft[];
 }
 
@@ -22,13 +25,15 @@ export function newContractDraft(d: Partial<ContractDraft> & { productName?: str
     salesPersonId,
     notes: d.notes ?? "",
     files: [],
+    taxFiles: [],
+    taxOk: true,
     products: d.products ?? [newWonProduct({ name: d.productName ?? "", contract_date: signedOn, sales_person_id: salesPersonId })],
   };
 }
 
 // required: the code, the date, the value and at least one complete product (the files are optional)
 export function contractDraftValid(d: ContractDraft) {
-  return !!d.code.trim() && !!d.signedOn && d.value !== null && d.value >= 0 && wonProductsValid(d.products);
+  return !!d.code.trim() && !!d.signedOn && d.value !== null && d.value >= 0 && wonProductsValid(d.products) && d.taxOk;
 }
 
 // Saves the file (on the contract) and then the contract with its products. With a deal, its contract is created or
@@ -39,6 +44,12 @@ export async function saveContractDraft(
 ): Promise<{ id: string | null; error: string | null; warning?: string }> {
   const d = opts.draft;
   const id = crypto.randomUUID();
+  // the tax card goes to the customer first: a customer that needs one cannot be won / pushed without it
+  if (d.taxFiles.length && opts.customerId) {
+    const taxError = await uploadTaxCardFiles(supabase, opts.customerId, d.taxFiles);
+    if (taxError) return { id: null, error: taxError };
+    d.taxFiles = [];
+  }
   // every file is stored first (under the contract's future id); a failure leaves nothing behind
   const stored: { name: string; path: string }[] = [];
   const base = Date.now();

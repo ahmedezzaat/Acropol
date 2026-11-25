@@ -638,7 +638,10 @@ const reassignReasonOptions = computed(() =>
 // contract and products are already recorded is not asked again.
 const contractDraft = ref<ContractDraft>(newContractDraft());
 const hasContract = ref(false);
+// the contact's category: a category that asks for a tax card shows it in the Won form
+const wonContactCategory = ref<string | null>(null);
 async function prepareWonProducts(deal: Deal | undefined, closeDate: string) {
+  wonContactCategory.value = deal ? await contactCategoryId(supabase, { customerId: deal.customer_id, leadId: deal.lead_id }) : null;
   contractDraft.value = newContractDraft({ signedOn: closeDate, value: deal?.value ?? null, salesPersonId: deal?.assigned_to ?? null, productName: deal?.title ?? "" });
   if (!deal) {
     hasContract.value = false;
@@ -941,6 +944,18 @@ const createStage = computed(() => allStages.value?.find((s) => s.id === state.s
 // A deal created straight into Won also records what was bought.
 const createIsWon = computed(() => createStage.value?.system_key === "won");
 const createDraft = ref<ContractDraft>(newContractDraft());
+// the contact of a deal created straight into Won: its category (an existing lead's, or the usual one for the new lead's type)
+const { loadCategories: loadContactCategories, defaultCategoryId } = useCustomerCategories();
+loadContactCategories();
+const createContactCategory = ref<string | null>(null);
+watch(
+  () => [createIsWon.value, state.lead_mode, state.existing_lead_id, state.lead_type] as const,
+  async ([won, mode, leadId, type]) => {
+    if (!won) return;
+    createContactCategory.value = mode === "existing" && leadId ? await contactCategoryId(supabase, { leadId }) : defaultCategoryId(type === "company" ? "company" : "individual");
+  },
+  { immediate: true },
+);
 watch(createIsWon, (won) => {
   if (won) createDraft.value = newContractDraft({ signedOn: todayStr(), salesPersonId: state.assigned_to ?? currentUserId.value ?? null });
 });
@@ -1650,7 +1665,7 @@ function openDeal(deal: Deal) {
         <UFormField v-if="createStage?.reason_category" name="stage_reason_id" :label="t('crm.deals.reason')">
           <USelect v-model="state.stage_reason_id" :items="createReasonOptions" value-key="value" class="w-full" />
         </UFormField>
-        <ContractForm v-if="createIsWon" v-model="createDraft" />
+        <ContractForm v-if="createIsWon" v-model="createDraft" :tax-category-id="createContactCategory" />
         <UFormField v-if="canAssign" name="assigned_to" :label="t('crm.deals.assignedTo')">
           <USelect v-model="state.assigned_to" :items="assigneeOptions" value-key="value" class="w-full" />
         </UFormField>
@@ -1686,7 +1701,7 @@ function openDeal(deal: Deal) {
         <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
           <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
         </UFormField>
-        <ContractForm v-if="reassignIsWon && !hasContract" v-model="contractDraft" />
+        <ContractForm v-if="reassignIsWon && !hasContract" v-model="contractDraft" :tax-category-id="wonContactCategory" :tax-customer-id="reassignSingleDeal?.customer_id" />
         <UFormField :label="t('crm.deals.historyVisibility')">
           <URadioGroup
             v-model="reassignHideHistory"

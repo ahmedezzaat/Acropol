@@ -706,7 +706,10 @@ async function confirmReassign() {
 // recorded is not asked again.
 const contractDraft = ref<ContractDraft>(newContractDraft());
 const hasContract = ref(false);
+// the contact's category: a category that asks for a tax card shows it in the Won form
+const wonContactCategory = ref<string | null>(null);
 async function prepareWonProducts(closeDate: string) {
+  wonContactCategory.value = await contactCategoryId(supabase, { customerId: deal.value?.customer_id, leadId: deal.value?.lead_id });
   contractDraft.value = newContractDraft({
     signedOn: closeDate,
     value: deal.value?.value ?? null,
@@ -1881,7 +1884,7 @@ function isPastDue(iso: string | null) {
         <UFormField v-if="reassignStage?.reason_category" :label="t('crm.deals.reason')" required>
           <USelect v-model="reassignReasonId" :items="reassignReasonOptions" value-key="value" class="w-full" />
         </UFormField>
-        <ContractForm v-if="reassignIsWon && !hasContract" v-model="contractDraft" />
+        <ContractForm v-if="reassignIsWon && !hasContract" v-model="contractDraft" :tax-category-id="wonContactCategory" :tax-customer-id="deal?.customer_id" />
         <UFormField :label="t('crm.deals.historyVisibility')">
           <URadioGroup
             v-model="reassignHideHistory"
@@ -1920,7 +1923,7 @@ function isPastDue(iso: string | null) {
               <UInput v-model="pendingCloseDate" type="date" class="w-full" />
             </UFormField>
           </template>
-          <ContractForm v-else v-model="contractDraft" />
+          <ContractForm v-else v-model="contractDraft" :tax-category-id="wonContactCategory" :tax-customer-id="deal?.customer_id" />
         </template>
         <template v-if="isOfferSentStage && !hasQuote">
           <UAlert
@@ -2044,7 +2047,7 @@ function isPastDue(iso: string | null) {
               <UInput v-model="completeCloseDate" type="date" class="w-full" />
             </UFormField>
           </template>
-          <ContractForm v-else v-model="contractDraft" />
+          <ContractForm v-else v-model="contractDraft" :tax-category-id="wonContactCategory" :tax-customer-id="deal?.customer_id" />
         </template>
 
         <template v-if="completeIsOfferSentStage && !hasQuote">

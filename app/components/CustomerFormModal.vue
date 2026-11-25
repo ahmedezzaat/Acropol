@@ -29,7 +29,12 @@ const email = ref("");
 const address = ref("");
 const areaId = ref<string | null>(null);
 const categoryId = ref<string | null>(null);
-const { categoryOptions, loadCategories } = useCustomerCategories();
+const { categoryOptions, loadCategories, defaultCategoryId } = useCustomerCategories();
+// the tax card (البطاقة الضريبية): required for the categories that ask for it
+const { uploadTaxCards } = useTaxCard();
+const taxFiles = ref<File[]>([]);
+const taxOk = ref(true);
+const effectiveCategoryId = computed(() => categoryId.value || defaultCategoryId(type.value));
 // the customer's spare parts price list (none: the default, the individual customers' one)
 const priceLists = ref<{ id: string; name: string; is_default: boolean }[]>([]);
 const priceListId = ref<string | null>(null);
@@ -55,6 +60,7 @@ watch(open, async (isOpen) => {
   email.value = c?.email ?? "";
   address.value = c?.address ?? "";
   areaId.value = c?.area_id ?? null;
+  taxFiles.value = [];
   await loadCategories();
   // a new customer gets the usual one for its type (changeable); an existing one keeps its own
   categoryId.value = c ? ((c as { category_id?: string | null }).category_id ?? null) : null;
@@ -90,7 +96,9 @@ const valid = computed(
   () =>
     (type.value === "company" ? company.value.trim().length > 0 && name.value.trim().length > 0 : name.value.trim().length > 0) &&
     // Any product that was started must be complete.
-    boughtProducts.value.every(wonProductValid),
+    boughtProducts.value.every(wonProductValid) &&
+    // a company category asks for the tax card
+    taxOk.value,
 );
 const todayIso = () => {
   const d = new Date();
@@ -159,6 +167,11 @@ async function save() {
       toast.add({ title: t("cs.customers.productsFailed"), description: productsError.message, color: "warning" });
     }
   }
+  // the tax card goes with the customer
+  if (taxFiles.value.length) {
+    const taxError = await uploadTaxCards(data.id as string, taxFiles.value);
+    if (taxError) toast.add({ title: t("taxCard.uploadFailed"), description: taxError, color: "warning" });
+  }
   toast.add({ title: t(editing.value ? "cs.customers.saved" : "cs.customers.created"), color: "success" });
   open.value = false;
   emit("saved", data.id);
@@ -178,6 +191,7 @@ async function save() {
         <UFormField :label="t('crm.leads.category')">
           <USelect v-model="categoryId" :items="categoryOptions" value-key="value" icon="i-lucide-layers" :placeholder="t('crm.leads.categoryAuto')" class="w-full" />
         </UFormField>
+        <CustomerTaxCard v-model:files="taxFiles" v-model:ok="taxOk" :customer-id="customer?.id ?? null" :category-id="effectiveCategoryId" can-manage />
         <UFormField v-if="type === 'company'" :label="t('crm.leads.companyName')" required>
           <UInput v-model="company" class="w-full" />
         </UFormField>

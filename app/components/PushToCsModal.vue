@@ -15,6 +15,11 @@ const address = ref("");
 const agentId = ref<string | null>(null);
 const boughtProducts = ref<WonProductDraft[]>([]);
 const agents = ref<{ id: string; full_name: string | null; email: string }[]>([]);
+// the tax card (البطاقة الضريبية): a customer of a category that asks for it cannot be sent without it
+const { uploadTaxCards } = useTaxCard();
+const taxFiles = ref<File[]>([]);
+const taxOk = ref(true);
+const customerCategoryId = ref<string | null>(null);
 const loading = ref(false);
 const saving = ref(false);
 
@@ -27,24 +32,36 @@ watch(open, async (isOpen) => {
   if (!isOpen) return;
   loading.value = true;
   boughtProducts.value = [];
+  taxFiles.value = [];
   const [{ data: c }, { data: list, error }] = await Promise.all([
-    supabase.from("customers").select("area_id, address, cs_agent_id").eq("id", props.customerId).maybeSingle(),
+    supabase.from("customers").select("area_id, address, cs_agent_id, category_id").eq("id", props.customerId).maybeSingle(),
     supabase.rpc("crm_cs_agents"),
   ]);
   loading.value = false;
   areaId.value = c?.area_id ?? null;
   address.value = c?.address ?? "";
   agentId.value = c?.cs_agent_id ?? null;
+  customerCategoryId.value = (c as { category_id?: string | null } | null)?.category_id ?? null;
   agents.value = list ?? [];
   if (error) toast.add({ title: t("crm.customers.pushFailed"), description: error.message, color: "error" });
 });
 
 const productsOk = computed(() => boughtProducts.value.every(wonProductValid));
-const valid = computed(() => !loading.value && !!agentId.value && productsOk.value);
+const valid = computed(() => !loading.value && !!agentId.value && productsOk.value && taxOk.value);
 
 async function save() {
   if (!valid.value) return;
   saving.value = true;
+  // the tax card is stored first: the push itself checks that the customer has it
+  if (taxFiles.value.length) {
+    const taxError = await uploadTaxCards(props.customerId, taxFiles.value);
+    if (taxError) {
+      saving.value = false;
+      toast.add({ title: t("taxCard.uploadFailed"), description: taxError, color: "error" });
+      return;
+    }
+    taxFiles.value = [];
+  }
   const { error } = await supabase.rpc("crm_push_customer_to_cs", {
     p_customer_id: props.customerId,
     p_area_id: areaId.value,
@@ -64,7 +81,7 @@ async function save() {
   });
   saving.value = false;
   if (error) {
-    toast.add({ title: t("crm.customers.pushFailed"), description: error.message, color: "error" });
+    toast.add({ title: t("crm.customers.pushFailed"), description: error.message.includes("tax_card_required") ? t("taxCard.required") : error.message, color: "error" });
     return;
   }
   toast.add({ title: t("crm.customers.pushed"), color: "success" });
@@ -81,6 +98,7 @@ async function save() {
         <UFormField :label="t('cs.customers.agentCs')" required>
           <USelect v-model="agentId" :items="agentItems" :loading="loading" value-key="value" icon="i-lucide-user-round" class="w-full" />
         </UFormField>
+        <CustomerTaxCard v-model:files="taxFiles" v-model:ok="taxOk" :customer-id="customerId" :category-id="customerCategoryId" can-manage />
         <UFormField :label="t('cs.customers.area')">
           <AreaSelect v-model="areaId" />
         </UFormField>

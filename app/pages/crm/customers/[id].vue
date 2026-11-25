@@ -10,7 +10,12 @@ const customerId = route.params.id as string;
 useHead({ htmlAttrs: { class: "carbon" } });
 
 const supabase = useSupabaseClient();
-const { loadCategories, categoryOptions } = useCustomerCategories();
+const { loadCategories, categoryOptions, defaultCategoryId } = useCustomerCategories();
+// the tax card (البطاقة الضريبية): required for the categories that ask for it. Picked files are uploaded on Save.
+const { uploadTaxCards } = useTaxCard();
+const taxFiles = ref<File[]>([]);
+const taxOk = ref(true);
+const taxRefreshKey = ref(0);
 await loadCategories();
 const toast = useToast();
 const { hasPermission, hasAnyModulePermission } = usePermissions();
@@ -234,6 +239,12 @@ async function save() {
     toast.add({ title: t("crm.customers.saveFailed"), description: error.message, color: "error" });
     return;
   }
+  if (taxFiles.value.length) {
+    const taxError = await uploadTaxCards(customerId, taxFiles.value);
+    if (taxError) toast.add({ title: t("taxCard.uploadFailed"), description: taxError, color: "warning" });
+    taxFiles.value = [];
+    taxRefreshKey.value++;
+  }
   snapshot.value = formState();
   toast.add({ title: t("crm.customers.customerSaved"), color: "success" });
 }
@@ -335,6 +346,7 @@ async function remove() {
               <UFormField :label="t('crm.leads.category')">
                 <USelect v-model="customer.category_id" :items="categoryOptions" value-key="value" icon="i-lucide-layers" :disabled="!canEdit" class="w-full" />
               </UFormField>
+              <CustomerTaxCard :key="taxRefreshKey" v-model:files="taxFiles" v-model:ok="taxOk" :customer-id="customerId" :category-id="customer.category_id || defaultCategoryId(customer.company ? 'company' : 'individual')" :can-manage="canEdit" class="sm:col-span-2" />
               <UFormField :label="t('common.phone')">
                 <PhoneInput v-model="customer.phone" :disabled="!canEdit" />
               </UFormField>
@@ -371,7 +383,7 @@ async function remove() {
                 <p v-if="!canAssign" class="mt-1 text-xs text-muted">{{ t("crm.customers.assignPermissionHint") }}</p>
               </UFormField>
               <div v-if="canEdit" class="flex items-center gap-3">
-                <UButton :label="t('common.save')" :loading="saving" :disabled="!dirty" @click="save" />
+                <UButton :label="t('common.save')" :loading="saving" :disabled="(!dirty && !taxFiles.length) || !taxOk" @click="save" />
                 <span v-if="dirty" class="text-xs text-warning">{{ t("crm.customers.unsaved") }}</span>
               </div>
             </div>

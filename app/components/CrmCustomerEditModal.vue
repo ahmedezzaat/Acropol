@@ -19,8 +19,13 @@ const address = ref("");
 const areaId = ref<string | null>(null);
 const notes = ref("");
 const categoryId = ref<string | null>(null);
-const { loadCategories, categoryOptions } = useCustomerCategories();
+const { loadCategories, categoryOptions, defaultCategoryId } = useCustomerCategories();
 loadCategories();
+// the tax card (البطاقة الضريبية): required for the categories that ask for it
+const { uploadTaxCards } = useTaxCard();
+const taxFiles = ref<File[]>([]);
+const taxOk = ref(true);
+const effectiveCategoryId = computed(() => categoryId.value || defaultCategoryId(company.value.trim() ? "company" : "individual"));
 const extraContacts = ref(toExtraContacts(null, null));
 const saving = ref(false);
 
@@ -36,10 +41,11 @@ watch(open, (isOpen) => {
   areaId.value = c.area_id ?? null;
   notes.value = c.notes ?? "";
   categoryId.value = c.category_id ?? null;
+  taxFiles.value = [];
   extraContacts.value = toExtraContacts(c.extra_phones, c.extra_phone_names);
 }, { immediate: true });
 
-const valid = computed(() => !!name.value.trim());
+const valid = computed(() => !!name.value.trim() && taxOk.value);
 
 async function save() {
   if (!valid.value) return;
@@ -65,6 +71,10 @@ async function save() {
     toast.add({ title: t("crm.customers.saveFailed"), description: error?.message, color: "error" });
     return;
   }
+  if (taxFiles.value.length) {
+    const taxError = await uploadTaxCards(props.customer.id, taxFiles.value);
+    if (taxError) toast.add({ title: t("taxCard.uploadFailed"), description: taxError, color: "warning" });
+  }
   toast.add({ title: t("crm.customers.customerSaved"), color: "success" });
   open.value = false;
   emit("saved");
@@ -80,6 +90,7 @@ async function save() {
           <UFormField :label="t('crm.customers.company')"><UInput v-model="company" class="w-full" /></UFormField>
         </div>
         <UFormField :label="t('crm.leads.category')"><USelect v-model="categoryId" :items="categoryOptions" value-key="value" icon="i-lucide-layers" class="w-full" /></UFormField>
+        <CustomerTaxCard v-model:files="taxFiles" v-model:ok="taxOk" :customer-id="customer.id" :category-id="effectiveCategoryId" can-manage />
         <UFormField :label="t('common.phone')"><PhoneInput v-model="phone" /></UFormField>
         <UFormField :label="t('common.extraPhones')"><ExtraPhones v-model="extraContacts" /></UFormField>
         <UFormField :label="t('common.email')"><UInput v-model="email" type="email" class="w-full" /></UFormField>

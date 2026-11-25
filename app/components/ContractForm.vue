@@ -3,6 +3,8 @@
 // (code, date, value, sales person, file, notes) and the products bought. The products take the contract's code and
 // date, and its sales person (one choice for the contract and all its products).
 const draft = defineModel<ContractDraft>({ required: true });
+// the contact's category and customer, so a category that asks for a tax card shows it here (a Won deal)
+defineProps<{ taxCategoryId?: string | null; taxCustomerId?: string | null }>();
 
 const supabase = useSupabaseClient();
 const { t } = useI18n();
@@ -50,6 +52,8 @@ const productDefaults = computed(() => ({ contract_code: draft.value.code.trim()
       <UFormField :label="t('crm.contracts.value')" required><UInputNumber v-model="draft.value" :min="0" class="w-full" /></UFormField>
       <UFormField :label="t('crm.contracts.agent')"><USelect v-model="draft.salesPersonId" :items="peopleItems" value-key="value" icon="i-lucide-user" class="w-full" /></UFormField>
     </div>
+    <!-- Winning a deal for a customer of a category that asks for it: the tax card (البطاقة الضريبية) -->
+    <CustomerTaxCard v-if="taxCategoryId" v-model:files="draft.taxFiles" v-model:ok="draft.taxOk" :customer-id="taxCustomerId ?? null" :category-id="taxCategoryId" />
     <UFormField :label="t('crm.contracts.file')" :help="t('crm.contracts.fileHint')"><UFileUpload v-model="draft.files" multiple class="w-full" /></UFormField>
     <UFormField :label="t('crm.contracts.notes')"><UTextarea v-model="draft.notes" :rows="2" class="w-full" /></UFormField>
     <div class="border-t border-default pt-4">

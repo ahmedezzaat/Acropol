@@ -414,6 +414,8 @@
       "name": "Category name",
       "add": "Add a category",
       "oneVisit": "One maintenance visit per customer",
+      "taxCard": "Requires a tax card",
+      "taxCardHint": "Customers in a category that requires a tax card cannot be saved, sent to Customer Service or have a deal won before the tax card is uploaded.",
       "oneVisitHint": "When on for a category (such as hotels), all of a customer's products are maintained in one visit instead of one visit per product.",
       "removeHint": "Removing a category does not delete customers: their category becomes empty.",
       "invalid": "Give every category a name, and do not repeat names",
@@ -2036,6 +2038,17 @@
       "saved": "Saved",
       "saveFailed": "Could not save"
     }
+  },
+  "taxCard": {
+    "title": "Tax card",
+    "upload": "Upload the tax card",
+    "uploaded": "Tax card uploaded",
+    "uploadFailed": "Could not upload the tax card",
+    "removeFailed": "Could not delete the file",
+    "downloadFailed": "Could not open the file",
+    "confirmRemove": "Confirm delete",
+    "required": "The tax card is required for customers of this category: upload at least one file.",
+    "missingBadge": "Tax card missing"
   },
   "chats": {
     "dealLabel": "This contact has a deal in this category",

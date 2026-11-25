@@ -7,22 +7,22 @@ const toast = useToast();
 const { t } = useI18n();
 const { loadCategories } = useCustomerCategories();
 
-interface Row { _key: string; id: string | null; name: string; oneVisit: boolean }
+interface Row { _key: string; id: string | null; name: string; oneVisit: boolean; taxCard: boolean }
 const rows = ref<Row[]>([]);
 const removedIds = ref<string[]>([]);
 const saving = ref(false);
 
 const { data: payload, status } = await useAsyncData("admin-customer-categories", async () => {
-  const { data, error } = await supabase.from("customer_categories").select("id, name, sort_order, one_visit_per_customer").order("sort_order");
+  const { data, error } = await supabase.from("customer_categories").select("id, name, sort_order, one_visit_per_customer, requires_tax_card").order("sort_order");
   if (error) throw error;
   return data ?? [];
 });
 watchEffect(() => {
-  if (payload.value) rows.value = payload.value.map((c) => ({ _key: crypto.randomUUID(), id: c.id as string, name: c.name as string, oneVisit: !!(c as { one_visit_per_customer?: boolean }).one_visit_per_customer }));
+  if (payload.value) rows.value = payload.value.map((c) => ({ _key: crypto.randomUUID(), id: c.id as string, name: c.name as string, oneVisit: !!(c as { one_visit_per_customer?: boolean }).one_visit_per_customer, taxCard: !!(c as { requires_tax_card?: boolean }).requires_tax_card }));
 });
 
 function add() {
-  rows.value.push({ _key: crypto.randomUUID(), id: null, name: "", oneVisit: false });
+  rows.value.push({ _key: crypto.randomUUID(), id: null, name: "", oneVisit: false, taxCard: false });
 }
 function remove(i: number) {
   const r = rows.value[i]!;
@@ -53,7 +53,7 @@ async function save() {
     removedIds.value = [];
   }
   for (const [index, row] of rows.value.entries()) {
-    const body = { name: row.name.trim(), sort_order: index + 1, one_visit_per_customer: row.oneVisit };
+    const body = { name: row.name.trim(), sort_order: index + 1, one_visit_per_customer: row.oneVisit, requires_tax_card: row.taxCard };
     const { data, error } = row.id
       ? await supabase.from("customer_categories").update(body).eq("id", row.id).select("id").single()
       : await supabase.from("customer_categories").insert(body).select("id").single();
@@ -89,9 +89,11 @@ async function save() {
               </div>
               <UInput v-model="row.name" :placeholder="t('admin.customerCategories.name')" class="flex-1" />
               <USwitch v-model="row.oneVisit" :label="t('admin.customerCategories.oneVisit')" size="sm" />
+              <USwitch v-model="row.taxCard" :label="t('admin.customerCategories.taxCard')" size="sm" />
               <UButton icon="i-lucide-trash" color="error" variant="ghost" size="sm" @click="remove(i)" />
             </div>
             <p class="text-xs text-muted">{{ t("admin.customerCategories.oneVisitHint") }}</p>
+            <p class="text-xs text-muted">{{ t("admin.customerCategories.taxCardHint") }}</p>
             <p class="text-xs text-muted">{{ t("admin.customerCategories.removeHint") }}</p>
             <UButton icon="i-lucide-plus" :label="t('admin.customerCategories.add')" variant="soft" @click="add" />
             <div><UButton :label="t('common.save')" :loading="saving" @click="save" /></div>
